@@ -1,0 +1,16 @@
+[package]
+name = "prpr"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+anyhow = "1.0"
+kira = "0.7.1"
+macroquad = { version = "0.3.25", default-features = false }
+nalgebra = "*"
+once_cell = "1.16.0"
+ordered-float = "3.4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
