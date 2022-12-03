@@ -1,6 +1,6 @@
 # prpr - <ins>P</ins>hig<ins>R</ins>os <ins>P</ins>layer, written in <ins>R</ins>ust
 
-# Usage
+## Usage
 
 To begin with, clone the repo:
 
@@ -38,3 +38,7 @@ Finally, run `prpr` with your chart's name. If necessary, you could append `pgr`
 ```shell
 cargo run --release mychart pgr
 ```
+
+## Acknowledgement
+
+Some assets come from [@lchzh3473](https://github.com/lchzh3473).

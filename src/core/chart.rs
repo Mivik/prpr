@@ -13,7 +13,7 @@ impl Chart {
         }
     }
 
-    pub fn render(&self, res: &Resource) {
+    pub fn render(&self, res: &mut Resource) {
         for line in &self.lines {
             line.render(res);
         }

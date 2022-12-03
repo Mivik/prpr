@@ -196,6 +196,7 @@ fn parse_notes(r: f32, pgr: Vec<PgrNote>, height: &mut AnimFloat) -> Result<Vec<
                 height: pgr.floor_position / HEIGHT_RATIO,
                 multiple_hint: false,
                 fake: false,
+                judge: false,
             })
         })
         .collect()

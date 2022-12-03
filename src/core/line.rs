@@ -1,4 +1,7 @@
-use super::{Anim, AnimFloat, Matrix, Note, Object, Resource, ScopedTransform, Vector};
+use super::{
+    Anim, AnimFloat, Matrix, Note, Object, Resource, ScopedTransform, Vector,
+    JUDGE_LINE_PERFECT_COLOR,
+};
 use macroquad::prelude::vec2;
 use macroquad::text::{draw_text_ex, measure_text, TextParams};
 use macroquad::{
@@ -38,12 +41,14 @@ impl JudgeLine {
         }
     }
 
-    pub fn render(&self, res: &Resource) {
+    pub fn render(&self, res: &mut Resource) {
         let tr = self.object.now();
         tr.apply_render(|| {
             self.object.now_scale().apply_render(|| match &self.kind {
                 JudgeLineKind::Normal => {
-                    draw_line(-6.0, 0.0, 6.0, 0.0, 0.01, self.object.now_color());
+                    let mut c = JUDGE_LINE_PERFECT_COLOR;
+                    c.a = self.object.now_color().a;
+                    draw_line(-6.0, 0.0, 6.0, 0.0, 0.01, c);
                 }
                 JudgeLineKind::Texture(texture) => {
                     let hw = texture.width() / 2.;

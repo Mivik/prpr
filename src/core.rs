@@ -6,6 +6,8 @@ pub const ASPECT_RATIO: f32 = 16. / 9.;
 pub const NOTE_WIDTH_RATIO: f32 = 0.12175016;
 pub const HEIGHT_RATIO: f32 = 0.83175;
 
+pub const JUDGE_LINE_PERFECT_COLOR: Color = Color::new(1., 0.921875, 0.623, 0.8823529);
+
 pub type Point = nalgebra::Point2<f32>;
 pub type Vector = nalgebra::Vector2<f32>;
 pub type Matrix = nalgebra::Matrix3<f32>;

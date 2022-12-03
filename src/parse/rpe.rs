@@ -17,7 +17,7 @@ const RPE_HEIGHT: f32 = 900.;
 const SPEED_RATIO: f32 = 10. / 45. / HEIGHT_RATIO;
 const EPS: f32 = 1e-5;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 struct Triple(u32, u32, u32);
 
 impl Triple {
@@ -87,7 +87,7 @@ fn f32_one() -> f32 {
     1.
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RPEEvent {
     // TODO linkgroup
@@ -345,6 +345,7 @@ fn parse_notes(
             speed: note.speed,
             multiple_hint: false,
             fake: note.is_fake != 0,
+            judge: false,
         });
     }
     Ok((notes_above, notes_below))

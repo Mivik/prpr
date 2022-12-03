@@ -31,6 +31,7 @@ pub struct Note {
     pub speed: f32,
     pub multiple_hint: bool,
     pub fake: bool,
+    pub judge: bool,
 }
 
 fn draw_tex(
@@ -64,48 +65,20 @@ fn draw_tex(
 
 impl Note {
     pub fn set_time(&mut self, time: f32) {
+        self.judge = !self.fake && self.object.alpha.time < self.time && self.time <= time;
         self.object.set_time(time);
     }
 
-    pub fn render(&self, res: &Resource, line_height: f32) {
+    pub fn render(&self, res: &mut Resource, line_height: f32) {
         let color = self.object.now_color();
 
         let line_height = line_height / ASPECT_RATIO * self.speed;
         let height = self.height / ASPECT_RATIO * self.speed;
 
-        let style = if self.multiple_hint {
-            &res.note_style_mh
-        } else {
-            &res.note_style
-        };
-
-        let draw = |tex: Texture2D| {
-            if res.time >= self.time {
-                return;
-            }
-            let h = height - line_height;
-            let hf = vec2(
-                NOTE_WIDTH_RATIO,
-                tex.height() * NOTE_WIDTH_RATIO / tex.width(),
-            );
-            (Translation2::new(0., h).to_homogeneous() * self.object.now_scale()).apply_render(
-                || {
-                    draw_tex(
-                        res,
-                        tex,
-                        -hf.x,
-                        -hf.y,
-                        color,
-                        DrawTextureParams {
-                            dest_size: Some(hf * 2.),
-                            flip_y: true,
-                            ..Default::default()
-                        },
-                    )
-                },
-            );
-        };
-        let tr = self.object.now();
+        let base = height - line_height;
+        let tr = Translation2::new(0., base).to_homogeneous()
+            * self.object.now()
+            * self.object.now_scale();
         /*tr.apply_render(|| {
             let s = format!("#{id}");
             let rect = measure_text(&s, None, 100, 0.001);
@@ -121,74 +94,59 @@ impl Note {
                 },
             );
         });*/
-        tr.apply_render(|| match self.kind {
-            NoteKind::Click => {
-                draw(style.click);
+        tr.apply_render(|| {
+            if self.judge {
+                res.emit_at_origin();
+                res.audio_manager
+                    .play(match self.kind {
+                        NoteKind::Click | NoteKind::Hold { .. } => res.sfx_click.clone(),
+                        NoteKind::Drag => res.sfx_drag.clone(),
+                        NoteKind::Flick => res.sfx_flick.clone(),
+                    })
+                    .unwrap();
             }
-            NoteKind::Hold {
-                end_time,
-                end_height,
-            } => {
-                if res.time >= end_time {
+            let style = if self.multiple_hint {
+                &res.note_style_mh
+            } else {
+                &res.note_style
+            };
+            let draw = |tex: Texture2D| {
+                if res.time >= self.time {
                     return;
                 }
-                let end_height = end_height / ASPECT_RATIO * self.speed;
-                let base = height - line_height;
-                (Translation2::new(0.0, base).to_homogeneous() * self.object.now_scale())
-                    .apply_render(|| {
-                        // head
-                        if res.time < self.time {
-                            let tex = style.hold_head;
-                            let hf = vec2(
-                                NOTE_WIDTH_RATIO,
-                                tex.height() * NOTE_WIDTH_RATIO / tex.width(),
-                            );
-                            draw_tex(
-                                res,
-                                tex,
-                                -hf.x,
-                                -hf.y * 2.,
-                                color,
-                                DrawTextureParams {
-                                    dest_size: Some(hf * 2.),
-                                    flip_y: true,
-                                    ..Default::default()
-                                },
-                            );
-                        }
-                        // body
-                        let tex = style.hold;
-                        let w = NOTE_WIDTH_RATIO;
-                        // let h = line_height.max(height);
-                        let h = if self.time <= res.time {
-                            line_height
-                        } else {
-                            height
-                        };
-                        // TODO (end_height - height) is not always total height
-                        let en = (tex.height()
-                            * ((end_height - h) / (end_height - height)).min(1.))
-                        .abs();
-                        draw_tex(
-                            res,
-                            tex,
-                            -w,
-                            h - line_height - base,
-                            color,
-                            DrawTextureParams {
-                                source: Some(Rect {
-                                    x: 0.,
-                                    y: 0.,
-                                    w: tex.width(),
-                                    h: en,
-                                }),
-                                dest_size: Some(vec2(w * 2., end_height - h)),
-                                flip_y: true,
-                                ..Default::default()
-                            },
-                        );
-                        // tail
-                        let tex = style.hold_tail;
+                let hf = vec2(
+                    NOTE_WIDTH_RATIO,
+                    tex.height() * NOTE_WIDTH_RATIO / tex.width(),
+                );
+                draw_tex(
+                    res,
+                    tex,
+                    -hf.x,
+                    -hf.y,
+                    color,
+                    DrawTextureParams {
+                        dest_size: Some(hf * 2.),
+                        flip_y: true,
+                        ..Default::default()
+                    },
+                );
+            };
+            match self.kind {
+                NoteKind::Click => {
+                    draw(style.click);
+                }
+                NoteKind::Hold {
+                    end_time,
+                    end_height,
+                } => {
+                    if res.time >= end_time {
+                        return;
+                    }
+                    let end_height = end_height / ASPECT_RATIO * self.speed;
+                    let base = height - line_height;
+                    // head
+                    if res.time < self.time {
+                        let tex = style.hold_head;
                         let hf = vec2(
                             NOTE_WIDTH_RATIO,
                             tex.height() * NOTE_WIDTH_RATIO / tex.width(),
@@ -197,7 +155,7 @@ impl Note {
                             res,
                             tex,
                             -hf.x,
-                            end_height - line_height - base,
+                            -hf.y * 2.,
                             color,
                             DrawTextureParams {
                                 dest_size: Some(hf * 2.),
@@ -205,13 +163,62 @@ impl Note {
                                 ..Default::default()
                             },
                         );
-                    });
-            }
-            NoteKind::Flick => {
-                draw(style.flick);
-            }
-            NoteKind::Drag => {
-                draw(style.drag);
+                    }
+                    // body
+                    let tex = style.hold;
+                    let w = NOTE_WIDTH_RATIO;
+                    // let h = line_height.max(height);
+                    let h = if self.time <= res.time {
+                        line_height
+                    } else {
+                        height
+                    };
+                    // TODO (end_height - height) is not always total height
+                    let en =
+                        (tex.height() * ((end_height - h) / (end_height - height)).min(1.)).abs();
+                    draw_tex(
+                        res,
+                        tex,
+                        -w,
+                        h - line_height - base,
+                        color,
+                        DrawTextureParams {
+                            source: Some(Rect {
+                                x: 0.,
+                                y: 0.,
+                                w: tex.width(),
+                                h: en,
+                            }),
+                            dest_size: Some(vec2(w * 2., end_height - h)),
+                            flip_y: true,
+                            ..Default::default()
+                        },
+                    );
+                    // tail
+                    let tex = style.hold_tail;
+                    let hf = vec2(
+                        NOTE_WIDTH_RATIO,
+                        tex.height() * NOTE_WIDTH_RATIO / tex.width(),
+                    );
+                    draw_tex(
+                        res,
+                        tex,
+                        -hf.x,
+                        end_height - line_height - base,
+                        color,
+                        DrawTextureParams {
+                            dest_size: Some(hf * 2.),
+                            flip_y: true,
+                            ..Default::default()
+                        },
+                    );
+                }
+                NoteKind::Flick => {
+                    draw(style.flick);
+                }
+                NoteKind::Drag => {
+                    draw(style.drag);
+                }
             }
         });
     }
