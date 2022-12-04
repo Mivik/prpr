@@ -105,15 +105,18 @@ struct RPENote {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RPEJudgeLine {
-    // TODO group, parent, isCover
+    // TODO group
     // TODO alphaControl, bpmfactor
     #[serde(rename = "Name")]
     name: String,
     #[serde(rename = "Texture")]
     texture: String,
+    #[serde(rename = "father")]
+    parent: Option<isize>,
     event_layers: Vec<Option<RPEEventLayer>>,
     extended: Option<RPEExtendedEvents>,
     notes: Option<Vec<RPENote>>,
+    is_cover: u8,
 }
 
 #[derive(Deserialize)]
@@ -232,12 +235,20 @@ fn parse_notes(
         } else {
             &mut notes_below
         };
-        // TODO visible_time, y_offset
         let time = r.time(&note.start_time);
         height.set_time(time);
         let note_height = height.now();
+        let y_offset = note.y_offset * 2. / RPE_HEIGHT;
         dst.push(Note {
             object: Object {
+                alpha: if note.visible_time >= time {
+                    AnimFloat::default()
+                } else {
+                    AnimFloat::new(vec![
+                        Keyframe::new(0.0, 0.0, 0),
+                        Keyframe::new(time - note.visible_time, 1.0, 0),
+                    ])
+                },
                 translation: AnimVector(
                     AnimFloat::fixed(note.position_x / (RPE_WIDTH / 2.)),
                     AnimFloat::default(),
@@ -259,7 +270,7 @@ fn parse_notes(
                     height.set_time(end_time);
                     NoteKind::Hold {
                         end_time,
-                        end_height: height.now(),
+                        end_height: height.now() + y_offset,
                     }
                 }
                 3 => NoteKind::Flick,
@@ -267,7 +278,7 @@ fn parse_notes(
                 _ => bail!("Unknown note type: {}", note.kind),
             },
             time,
-            height: note_height,
+            height: note_height + y_offset,
             speed: note.speed,
             multiple_hint: false,
             fake: note.is_fake != 0,
@@ -294,7 +305,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
         r: &mut BpmList,
         event_layers: &[RPEEventLayer],
         get: impl Fn(&RPEEventLayer) -> &Option<Vec<RPEEvent>>,
-        factor: f32,
+        f: impl Fn(f32) -> f32,
         desc: &str,
     ) -> Result<AnimFloat> {
         let anis: Vec<_> = event_layers
@@ -303,28 +314,40 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
             .collect::<Result<_>>()
             .with_context(|| format!("Failed to parse {desc} events"))?;
         let mut res = AnimFloat::chain(anis);
-        res.map_value(|v| v * factor);
+        res.map_value(f);
         Ok(res)
     }
     let mut height = parse_speed_events(r, &event_layers, max_time)?;
     let (notes_above, notes_below) = parse_notes(r, rpe.notes.unwrap_or_default(), &mut height)?;
     Ok(JudgeLine {
         object: Object {
-            alpha: events_with_factor(r, &event_layers, |it| &it.alpha_events, 1. / 255., "alpha")?,
-            rotation: events_with_factor(r, &event_layers, |it| &it.rotate_events, -1., "rotate")?,
+            alpha: events_with_factor(
+                r,
+                &event_layers,
+                |it| &it.alpha_events,
+                |v| if v >= 0.0 { v / 255. } else { v },
+                "alpha",
+            )?,
+            rotation: events_with_factor(
+                r,
+                &event_layers,
+                |it| &it.rotate_events,
+                |v| -v,
+                "rotate",
+            )?,
             translation: AnimVector(
                 events_with_factor(
                     r,
                     &event_layers,
                     |it| &it.move_x_events,
-                    2. / RPE_WIDTH,
+                    |v| v * 2. / RPE_WIDTH,
                     "move X",
                 )?,
                 events_with_factor(
                     r,
                     &event_layers,
                     |it| &it.move_y_events,
-                    2. / RPE_HEIGHT,
+                    |v| v * 2. / RPE_HEIGHT,
                     "move Y",
                 )?,
             ),
@@ -378,6 +401,15 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
                     .with_context(|| format!("Failed to load texture {}", rpe.texture))?,
             ))
         },
+        parent: {
+            let parent = rpe.parent.unwrap_or(-1);
+            if parent == -1 {
+                None
+            } else {
+                Some(parent as usize)
+            }
+        },
+        show_below: rpe.is_cover != 1,
     })
 }
 

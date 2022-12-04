@@ -1,9 +1,8 @@
-use crate::core::RenderConfig;
-
 use super::{
     Anim, AnimFloat, Matrix, Note, Object, Resource, ScopedTransform, Vector, EPS,
     JUDGE_LINE_PERFECT_COLOR,
 };
+use crate::core::RenderConfig;
 use macroquad::prelude::*;
 
 #[derive(Default)]
@@ -21,6 +20,8 @@ pub struct JudgeLine {
     pub height: AnimFloat,
     pub notes_above: Vec<Note>,
     pub notes_below: Vec<Note>,
+    pub parent: Option<usize>,
+    pub show_below: bool,
 }
 
 impl JudgeLine {
@@ -38,14 +39,21 @@ impl JudgeLine {
         self.height.set_time(res.time);
     }
 
-    pub fn render(&self, res: &mut Resource) {
+    pub fn render(&self, res: &mut Resource, lines: &[JudgeLine]) {
         let alpha = self.object.alpha.now_opt().unwrap_or(1.0);
-        self.object.now().apply_render(|| {
+        (if let Some(parent) = self.parent {
+            // TODO currently we're only resolving one layer
+            lines[parent].object.now() * self.object.now()
+        } else {
+            self.object.now()
+        })
+        .apply_render(|| {
             self.object.now_scale().apply_render(|| match &self.kind {
                 JudgeLineKind::Normal => {
                     let mut c = JUDGE_LINE_PERFECT_COLOR;
                     c.a = alpha.max(0.0);
-                    draw_line(-6.0, 0.0, 6.0, 0.0, 0.01, c);
+                    let len = 6.0;
+                    draw_line(-len, 0.0, len, 0.0, 0.01, c);
                 }
                 JudgeLineKind::Texture(texture) => {
                     let hw = texture.width() / 2.;
@@ -87,6 +95,7 @@ impl JudgeLine {
             });
             let height = self.height.now();
             let mut config = RenderConfig::default();
+            config.draw_below = self.show_below;
             if alpha < 0.0 {
                 let w = (-alpha.round()) as u32;
                 match w {
@@ -115,7 +124,6 @@ impl JudgeLine {
             Matrix::identity()
                 .append_nonuniform_scaling(&Vector::new(1.0, -1.0))
                 .apply_render(|| {
-                    std::mem::swap(&mut config.draw_above, &mut config.draw_below);
                     for note in &self.notes_below {
                         note.render(res, height, &config);
                     }

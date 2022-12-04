@@ -3,8 +3,8 @@ pub use macroquad::color::Color;
 // NOT CREDIT uses this
 // pub const ASPECT_RATIO: f32 = 1.7009803921568627;
 // 多索雷斯 uses this
-pub const ASPECT_RATIO: f32 = 893. / 612.;
-// pub const ASPECT_RATIO: f32 = 16. / 9.;
+// pub const ASPECT_RATIO: f32 = 893. / 612.;
+pub const ASPECT_RATIO: f32 = 16. / 9.;
 pub const NOTE_WIDTH_RATIO: f32 = 0.12175016;
 pub const HEIGHT_RATIO: f32 = 0.83175;
 

@@ -215,6 +215,8 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
         height,
         notes_above,
         notes_below,
+        parent: None,
+        show_below: true,
     })
 }
 

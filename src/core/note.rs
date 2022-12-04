@@ -36,7 +36,6 @@ pub struct Note {
 
 pub struct RenderConfig {
     pub appear_before: f32,
-    pub draw_above: bool,
     pub draw_below: bool,
 }
 
@@ -44,7 +43,6 @@ impl Default for RenderConfig {
     fn default() -> Self {
         Self {
             appear_before: f32::INFINITY,
-            draw_above: true,
             draw_below: true,
         }
     }
@@ -116,7 +114,7 @@ impl Note {
         let height = self.height / ASPECT_RATIO * self.speed;
 
         let base = height - line_height;
-        if (base >= 0.0 && !config.draw_above) || (base < 0.0 && !config.draw_below) {
+        if base < -1e-2 && !config.draw_below && !matches!(self.kind, NoteKind::Hold { .. }) {
             return;
         }
         self.now_transform(base).apply_render(|| {

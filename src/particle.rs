@@ -6,6 +6,8 @@
 // 1. nanoserde related parts are removed for simplicity's sake.
 // 2. apply_viewport
 // 3. clippy
+// 4. time can be customized by input argument
+// 5. Remove EmittersCache
 
 use macroquad::prelude::*;
 use macroquad::window::miniquad::*;
@@ -595,13 +597,6 @@ impl Emitter {
         }
     }
 
-    fn reset(&mut self) {
-        self.gpu_particles.clear();
-        self.cpu_counterpart.clear();
-        self.last_emit_time = 0.0;
-        self.time_passed = 0.0;
-        self.particles_spawned = 0;
-    }
     pub fn rebuild_size_curve(&mut self) {
         self.batched_size_curve = self.config.size_curve.as_ref().map(|curve| curve.batch());
     }
@@ -864,7 +859,7 @@ impl Emitter {
         }
     }
 
-    pub fn draw(&mut self, pos: Vec2) {
+    pub fn draw(&mut self, pos: Vec2, dt: f32) {
         let mut gl = unsafe { get_internal_gl() };
 
         gl.flush();
@@ -876,89 +871,11 @@ impl Emitter {
 
         self.position = pos;
 
-        self.update(ctx, get_frame_time());
+        self.update(ctx, dt);
 
         self.setup_render_pass(quad_gl, ctx);
         self.perform_render_pass(quad_gl, ctx);
         self.end_render_pass(quad_gl, ctx);
-    }
-}
-
-/// Multiple emitters drawn simultaneously.
-/// Will reuse as much GPU resources as possible, so should be more efficient than
-/// just Vec<Emitter>
-pub struct EmittersCache {
-    emitter: Emitter,
-    emitters_cache: Vec<Emitter>,
-    active_emitters: Vec<Option<(Emitter, Vec2)>>,
-    config: EmitterConfig,
-}
-
-impl EmittersCache {
-    const CACHE_DEFAULT_SIZE: usize = 10;
-
-    pub fn new(config: EmitterConfig) -> EmittersCache {
-        let mut emitters_cache = vec![];
-        // prepopulate cache
-        for _ in 0..Self::CACHE_DEFAULT_SIZE {
-            emitters_cache.push(Emitter::new(EmitterConfig {
-                emitting: false,
-                ..config.clone()
-            }));
-        }
-        EmittersCache {
-            emitter: Emitter::new(config.clone()),
-            emitters_cache,
-            active_emitters: vec![],
-            config,
-        }
-    }
-
-    pub fn spawn(&mut self, pos: Vec2) {
-        let mut emitter = if let Some(emitter) = self.emitters_cache.pop() {
-            emitter
-        } else {
-            Emitter::new(self.config.clone())
-        };
-
-        emitter.mesh_dirty = true;
-        emitter.config.emitting = true;
-        emitter.reset();
-
-        self.active_emitters.push(Some((emitter, pos)));
-    }
-
-    pub fn draw(&mut self) {
-        let mut gl = unsafe { get_internal_gl() };
-
-        gl.flush();
-
-        let InternalGlContext {
-            quad_context: ctx,
-            quad_gl,
-        } = gl;
-
-        if !self.active_emitters.is_empty() {
-            self.emitter.setup_render_pass(quad_gl, ctx);
-        }
-        for i in &mut self.active_emitters {
-            if let Some((emitter, pos)) = i {
-                emitter.position = *pos;
-
-                emitter.update(ctx, get_frame_time());
-
-                emitter.perform_render_pass(quad_gl, ctx);
-
-                if !emitter.config.emitting {
-                    self.emitters_cache.push(i.take().unwrap().0);
-                }
-            }
-        }
-        if !self.active_emitters.is_empty() {
-            self.emitter.end_render_pass(quad_gl, ctx);
-        }
-
-        self.active_emitters.retain(|emitter| emitter.is_some())
     }
 }
 
