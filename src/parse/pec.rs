@@ -2,14 +2,12 @@ use super::{process_lines, BpmList, TWEEN_MAP};
 use crate::{
     core::{
         AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineKind, Keyframe, Note, NoteKind, Object,
-        TweenId,
+        TweenId, EPS,
     },
     ext::NotNanExt,
 };
 use anyhow::{anyhow, bail, Context, Result};
 use macroquad::prelude::warn;
-
-const EPS: f32 = 1e-5;
 
 trait Take {
     fn take_f32(&mut self) -> Result<f32>;
@@ -166,7 +164,11 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
         .1
         .iter_mut()
         .for_each(|it| it.end = it.end / 1400. * 2. - 1.);
-    pec.alpha_events.iter_mut().for_each(|it| it.end /= 255.);
+    pec.alpha_events.iter_mut().for_each(|it| {
+        if it.end >= 0.0 {
+            it.end /= 255.;
+        }
+    });
     process_notes(&mut pec.notes_above);
     process_notes(&mut pec.notes_below);
     Ok(JudgeLine {
@@ -177,6 +179,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
                 parse_events(pec.move_events.1, id, "move Y")?,
             ),
             rotation: parse_events(pec.rotate_events, id, "rotate")?,
+            scale: AnimVector(AnimFloat::fixed(3.91 / 6.), AnimFloat::default()),
             ..Default::default()
         },
         kind: JudgeLineKind::Normal,

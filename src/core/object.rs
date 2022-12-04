@@ -33,7 +33,8 @@ impl Object {
     }
 
     pub fn now_color(&self) -> Color {
-        Color::new(1.0, 1.0, 1.0, self.alpha.now_opt().unwrap_or(1.0))
+        let alpha = self.alpha.now_opt().unwrap_or(1.0);
+        Color::new(1.0, 1.0, 1.0, alpha.max(0.0))
     }
 
     pub fn now_scale(&self) -> Matrix {

@@ -2,9 +2,13 @@ pub use macroquad::color::Color;
 
 // NOT CREDIT uses this
 // pub const ASPECT_RATIO: f32 = 1.7009803921568627;
-pub const ASPECT_RATIO: f32 = 16. / 9.;
+// 多索雷斯 uses this
+pub const ASPECT_RATIO: f32 = 893. / 612.;
+// pub const ASPECT_RATIO: f32 = 16. / 9.;
 pub const NOTE_WIDTH_RATIO: f32 = 0.12175016;
 pub const HEIGHT_RATIO: f32 = 0.83175;
+
+pub const EPS: f32 = 1e-5;
 
 pub const JUDGE_LINE_PERFECT_COLOR: Color = Color::new(1., 0.921875, 0.623, 0.8823529);
 
@@ -22,7 +26,7 @@ mod line;
 pub use line::{JudgeLine, JudgeLineKind};
 
 mod note;
-pub use note::{Note, NoteKind};
+pub use note::{Note, NoteKind, RenderConfig};
 
 mod object;
 pub use object::{Object, ScopedTransform};

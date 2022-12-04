@@ -3,7 +3,7 @@ use super::{process_lines, BpmList, Triple, TWEEN_MAP};
 use crate::{
     core::{
         Anim, AnimFloat, AnimVector, Chart, ClampedTween, JudgeLine, JudgeLineKind, Keyframe, Note,
-        NoteKind, Object, StaticTween, HEIGHT_RATIO,
+        NoteKind, Object, StaticTween, EPS, HEIGHT_RATIO,
     },
     ext::NotNanExt,
 };
@@ -15,7 +15,6 @@ use std::rc::Rc;
 const RPE_WIDTH: f32 = 1350.;
 const RPE_HEIGHT: f32 = 900.;
 const SPEED_RATIO: f32 = 10. / 45. / HEIGHT_RATIO;
-const EPS: f32 = 1e-5;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

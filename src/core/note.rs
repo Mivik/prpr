@@ -34,6 +34,22 @@ pub struct Note {
     pub last_real_time: f32,
 }
 
+pub struct RenderConfig {
+    pub appear_before: f32,
+    pub draw_above: bool,
+    pub draw_below: bool,
+}
+
+impl Default for RenderConfig {
+    fn default() -> Self {
+        Self {
+            appear_before: f32::INFINITY,
+            draw_above: true,
+            draw_below: true,
+        }
+    }
+}
+
 fn draw_tex(
     res: &Resource,
     texture: Texture2D,
@@ -89,7 +105,10 @@ impl Note {
         Translation2::new(0., base).to_homogeneous() * self.object.now() * self.object.now_scale()
     }
 
-    pub fn render(&self, res: &mut Resource, line_height: f32) {
+    pub fn render(&self, res: &mut Resource, line_height: f32, config: &RenderConfig) {
+        if self.time - config.appear_before > res.time {
+            return;
+        }
         let scale = (if self.multiple_hint { 1.1 } else { 1.0 }) * NOTE_WIDTH_RATIO;
         let color = self.object.now_color();
 
@@ -97,6 +116,9 @@ impl Note {
         let height = self.height / ASPECT_RATIO * self.speed;
 
         let base = height - line_height;
+        if (base >= 0.0 && !config.draw_above) || (base < 0.0 && !config.draw_below) {
+            return;
+        }
         self.now_transform(base).apply_render(|| {
             let style = if self.multiple_hint {
                 &res.note_style_mh

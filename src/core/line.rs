@@ -1,5 +1,7 @@
+use crate::core::RenderConfig;
+
 use super::{
-    Anim, AnimFloat, Matrix, Note, Object, Resource, ScopedTransform, Vector,
+    Anim, AnimFloat, Matrix, Note, Object, Resource, ScopedTransform, Vector, EPS,
     JUDGE_LINE_PERFECT_COLOR,
 };
 use macroquad::prelude::*;
@@ -37,11 +39,12 @@ impl JudgeLine {
     }
 
     pub fn render(&self, res: &mut Resource) {
+        let alpha = self.object.alpha.now_opt().unwrap_or(1.0);
         self.object.now().apply_render(|| {
             self.object.now_scale().apply_render(|| match &self.kind {
                 JudgeLineKind::Normal => {
                     let mut c = JUDGE_LINE_PERFECT_COLOR;
-                    c.a = self.object.now_color().a;
+                    c.a = alpha.max(0.0);
                     draw_line(-6.0, 0.0, 6.0, 0.0, 0.01, c);
                 }
                 JudgeLineKind::Texture(texture) => {
@@ -83,14 +86,38 @@ impl JudgeLine {
                 }
             });
             let height = self.height.now();
+            let mut config = RenderConfig::default();
+            if alpha < 0.0 {
+                let w = (-alpha.round()) as u32;
+                match w {
+                    1 => {
+                        return;
+                    }
+                    2 => {
+                        config.draw_below = false;
+                    }
+                    w if 100 <= w && w < 1000 => {
+                        config.appear_before = (w as f32 - 100.) / 10.;
+                    }
+                    w if 1000 <= w && w < 2000 => {
+                        // TODO unsupported
+                    }
+                    _ => {}
+                }
+            }
+            if (alpha + 1.0).abs() < EPS {
+                return;
+            }
+            if -1000.0 < alpha && alpha <= -100.0 {}
             for note in &self.notes_above {
-                note.render(res, height);
+                note.render(res, height, &config);
             }
             Matrix::identity()
                 .append_nonuniform_scaling(&Vector::new(1.0, -1.0))
                 .apply_render(|| {
+                    std::mem::swap(&mut config.draw_above, &mut config.draw_below);
                     for note in &self.notes_below {
-                        note.render(res, height);
+                        note.render(res, height, &config);
                     }
                 });
         });
