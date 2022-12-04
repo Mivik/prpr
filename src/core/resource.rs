@@ -48,7 +48,7 @@ impl Resource {
         }
         async fn load_sfx(path: &str) -> Result<StaticSoundData> {
             Ok(StaticSoundData::from_cursor(
-                Cursor::new(load_file(&path).await?),
+                Cursor::new(load_file(path).await?),
                 StaticSoundSettings::default(),
             )?)
         }

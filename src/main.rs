@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     };
 
     let text = String::from_utf8(load_file(&format!("charts/{name}/chart.json")).await?)?;
-    let format = args.next().unwrap_or("rpe".to_string());
+    let format = args.next().unwrap_or_else(|| "rpe".to_string());
     let mut chart = match format.as_ref() {
         "rpe" => parse_rpe(&text).await?,
         "pgr" => parse_phigros(&text)?,

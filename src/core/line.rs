@@ -96,10 +96,10 @@ impl JudgeLine {
                     2 => {
                         config.draw_below = false;
                     }
-                    w if 100 <= w && w < 1000 => {
+                    w if (100..1000).contains(&w) => {
                         config.appear_before = (w as f32 - 100.) / 10.;
                     }
-                    w if 1000 <= w && w < 2000 => {
+                    w if (1000..2000).contains(&w) => {
                         // TODO unsupported
                     }
                     _ => {}

@@ -80,7 +80,7 @@ struct PECJudgeLine {
     notes_below: Vec<Note>,
 }
 
-fn sanitize_events(events: &mut Vec<PECEvent>, id: usize, desc: &str) {
+fn sanitize_events(events: &mut [PECEvent], id: usize, desc: &str) {
     events.sort_by_key(|e| (e.end_time.not_nan(), e.start_time.not_nan()));
     let mut last_start = 0.0;
     let mut last_end = f32::NEG_INFINITY;
@@ -210,7 +210,7 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
         bpm_list: &mut Vec<(f32, f32)>,
     ) -> &'a mut BpmList {
         if r.is_none() {
-            *r = Some(BpmList::new(std::mem::replace(bpm_list, Vec::new())));
+            *r = Some(BpmList::new(std::mem::take(bpm_list)));
         }
         r.as_mut().unwrap()
     }

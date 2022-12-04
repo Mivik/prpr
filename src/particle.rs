@@ -5,10 +5,12 @@
 // Edits:
 // 1. nanoserde related parts are removed for simplicity's sake.
 // 2. apply_viewport
+// 3. clippy
+
 use macroquad::prelude::*;
 use macroquad::window::miniquad::*;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interpolation {
     Linear,
     Bezier,
@@ -206,10 +208,10 @@ impl EmissionShape {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct PostProcessing;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ParticleShape {
     Rectangle {
         aspect_ratio: f32,
@@ -241,13 +243,13 @@ impl ParticleShape {
                     -1.0 * aspect_ratio,  1.0, 0.0,   0.0, 1.0,  1.0, 1.0, 1.0, 1.0,
                 ];
 
-                let vertex_buffer = Buffer::immutable(ctx, BufferType::VertexBuffer, &vertices);
+                let vertex_buffer = Buffer::immutable(ctx, BufferType::VertexBuffer, vertices);
 
                 #[rustfmt::skip]
                 let indices: &[u16] = &[
                     0, 1, 2, 0, 2, 3
                 ];
-                let index_buffer = Buffer::immutable(ctx, BufferType::IndexBuffer, &indices);
+                let index_buffer = Buffer::immutable(ctx, BufferType::IndexBuffer, indices);
 
                 (vertex_buffer, index_buffer)
             }
@@ -274,8 +276,8 @@ impl ParticleShape {
                 (vertex_buffer, index_buffer)
             }
             ParticleShape::CustomMesh { vertices, indices } => {
-                let vertex_buffer = Buffer::immutable(ctx, BufferType::VertexBuffer, &vertices);
-                let index_buffer = Buffer::immutable(ctx, BufferType::IndexBuffer, &indices);
+                let vertex_buffer = Buffer::immutable(ctx, BufferType::VertexBuffer, vertices);
+                let index_buffer = Buffer::immutable(ctx, BufferType::IndexBuffer, indices);
                 (vertex_buffer, index_buffer)
             }
         };
@@ -306,7 +308,7 @@ impl ParticleMaterial {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlendMode {
     /// Colors of overlapped particles will be blended by alpha channel.
     Alpha,
@@ -471,11 +473,10 @@ impl Emitter {
                     "particles.glsl".to_string(),
                     include_str!("particles.glsl").to_owned(),
                 )],
-                ..Default::default()
             };
 
-            let vertex = preprocess_shader(&vertex, &config);
-            let fragment = preprocess_shader(&fragment, &config);
+            let vertex = preprocess_shader(vertex, &config);
+            let fragment = preprocess_shader(fragment, &config);
 
             Shader::new(ctx, &vertex, &fragment, shader::meta()).unwrap()
         };
@@ -513,8 +514,8 @@ impl Emitter {
 
         let post_processing_shader = Shader::new(
             ctx,
-            &post_processing_shader::VERTEX,
-            &post_processing_shader::FRAGMENT,
+            post_processing_shader::VERTEX,
+            post_processing_shader::FRAGMENT,
             post_processing_shader::meta(),
         )
         .unwrap();
@@ -561,13 +562,13 @@ impl Emitter {
                 -1.0,  1.0,    0.0, 1.0,
             ];
 
-            let vertex_buffer = Buffer::immutable(ctx, BufferType::VertexBuffer, &vertices);
+            let vertex_buffer = Buffer::immutable(ctx, BufferType::VertexBuffer, vertices);
 
             #[rustfmt::skip]
             let indices: &[u16] = &[
                 0, 1, 2, 0, 2, 3
             ];
-            let index_buffer = Buffer::immutable(ctx, BufferType::IndexBuffer, &indices);
+            let index_buffer = Buffer::immutable(ctx, BufferType::IndexBuffer, indices);
             Bindings {
                 vertex_buffers: vec![vertex_buffer],
                 index_buffer,
@@ -576,7 +577,7 @@ impl Emitter {
         };
 
         Emitter {
-            blend_mode: config.blend_mode.clone(),
+            blend_mode: config.blend_mode,
             batched_size_curve: config.size_curve.as_ref().map(|curve| curve.batch()),
             post_processing_pass,
             post_processing_pipeline,
@@ -817,7 +818,7 @@ impl Emitter {
         if self.config.blend_mode != self.blend_mode {
             self.pipeline
                 .set_blend(ctx, Some(self.config.blend_mode.blend_state()));
-            self.blend_mode = self.config.blend_mode.clone();
+            self.blend_mode = self.config.blend_mode;
         }
 
         if self.config.post_processing.is_none() {
@@ -937,7 +938,7 @@ impl EmittersCache {
             quad_gl,
         } = gl;
 
-        if self.active_emitters.len() > 0 {
+        if !self.active_emitters.is_empty() {
             self.emitter.setup_render_pass(quad_gl, ctx);
         }
         for i in &mut self.active_emitters {
@@ -948,12 +949,12 @@ impl EmittersCache {
 
                 emitter.perform_render_pass(quad_gl, ctx);
 
-                if emitter.config.emitting == false {
+                if !emitter.config.emitting {
                     self.emitters_cache.push(i.take().unwrap().0);
                 }
             }
         }
-        if self.active_emitters.len() > 0 {
+        if !self.active_emitters.is_empty() {
             self.emitter.end_render_pass(quad_gl, ctx);
         }
 
