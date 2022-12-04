@@ -6,7 +6,7 @@ use kira::{
 use macroquad::prelude::*;
 use prpr::{
     core::Resource,
-    parse::{parse_phigros, parse_rpe},
+    parse::{parse_pec, parse_phigros, parse_rpe},
 };
 use std::io::Cursor;
 
@@ -37,6 +37,7 @@ async fn main() -> Result<()> {
     let mut chart = match format.as_ref() {
         "rpe" => parse_rpe(&text).await?,
         "pgr" => parse_phigros(&text)?,
+        "pec" => parse_pec(&text)?,
         _ => {
             bail!("Unknown chart format: {format}")
         }
@@ -50,18 +51,15 @@ async fn main() -> Result<()> {
     let mut handle = res.audio_manager.play(sound_data.clone())?;
     handle.pause(Tween::default())?;
 
-    let mut last_time = 0.0;
-
     let mut fps_time = -1;
     let mut fps_last = 0;
     let gl = unsafe { get_internal_gl() }.quad_gl;
     loop {
         let frame_start = get_time();
         clear_background(Color::from_rgba(0x15, 0x65, 0xc0, 0xff));
-        let now_time = handle.position() as f32;
-        last_time = (last_time * 2. + now_time) / 3.;
-        res.time = (last_time - chart.offset).max(0.0);
-        chart.set_time(res.time);
+        let time = (handle.position() as f32 - chart.offset).max(0.0);
+        res.set_real_time(time);
+        chart.update(&mut res);
 
         if res.update_size() {
             set_camera(&res.camera);
@@ -74,6 +72,8 @@ async fn main() -> Result<()> {
             2.0,
             Color::from_rgba(0x21, 0x96, 0xf3, 0xff),
         );
+        res.emitter.draw(vec2(0., 0.));
+        res.emitter_square.draw(vec2(0., 0.));
         chart.render(&mut res);
 
         push_camera_state();
@@ -92,8 +92,6 @@ async fn main() -> Result<()> {
             30.,
             WHITE,
         );
-        res.emitter.draw(vec2(0., 0.));
-        res.emitter_square.draw(vec2(0., 0.));
         pop_camera_state();
 
         if is_key_pressed(KeyCode::Space) {
@@ -104,11 +102,11 @@ async fn main() -> Result<()> {
             }
         }
         if is_key_pressed(KeyCode::Left) {
-            last_time -= 1.;
+            res.time -= 1.;
             handle.seek_by(-1.0)?;
         }
         if is_key_pressed(KeyCode::Right) {
-            last_time += 1.;
+            res.time += 1.;
             handle.seek_by(1.0)?;
         }
 

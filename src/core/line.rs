@@ -2,12 +2,7 @@ use super::{
     Anim, AnimFloat, Matrix, Note, Object, Resource, ScopedTransform, Vector,
     JUDGE_LINE_PERFECT_COLOR,
 };
-use macroquad::prelude::vec2;
-use macroquad::text::{draw_text_ex, measure_text, TextParams};
-use macroquad::{
-    shapes::draw_line,
-    texture::{draw_texture_ex, DrawTextureParams, Texture2D},
-};
+use macroquad::prelude::*;
 
 #[derive(Default)]
 pub enum JudgeLineKind {
@@ -27,23 +22,22 @@ pub struct JudgeLine {
 }
 
 impl JudgeLine {
-    pub fn set_time(&mut self, time: f32) {
-        self.object.set_time(time);
-        if let JudgeLineKind::Text(anim) = &mut self.kind {
-            anim.set_time(time);
-        }
-        self.height.set_time(time);
+    pub fn update(&mut self, res: &mut Resource) {
         for note in &mut self.notes_above {
-            note.set_time(time);
+            note.update(res, &mut self.object);
         }
         for note in &mut self.notes_below {
-            note.set_time(time);
+            note.update(res, &mut self.object);
         }
+        self.object.set_time(res.time);
+        if let JudgeLineKind::Text(anim) = &mut self.kind {
+            anim.set_time(res.time);
+        }
+        self.height.set_time(res.time);
     }
 
     pub fn render(&self, res: &mut Resource) {
-        let tr = self.object.now();
-        tr.apply_render(|| {
+        self.object.now().apply_render(|| {
             self.object.now_scale().apply_render(|| match &self.kind {
                 JudgeLineKind::Normal => {
                     let mut c = JUDGE_LINE_PERFECT_COLOR;

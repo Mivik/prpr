@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use super::process_lines;
 use crate::{
     core::{
@@ -46,9 +45,6 @@ pub struct PgrNote {
 #[serde(rename_all = "camelCase")]
 struct PgrJudgeLine {
     bpm: f32,
-    num_of_notes: u32,
-    num_of_notes_above: u32,
-    num_of_notes_below: u32,
     #[serde(rename = "judgeLineDisappearEvents")]
     alpha_events: Vec<PgrEvent>,
     #[serde(rename = "judgeLineRotateEvents")]
@@ -64,9 +60,7 @@ struct PgrJudgeLine {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PgrChart {
-    format_version: u8,
     offset: f32,
-    num_of_notes: u32,
     judge_line_list: Vec<PgrJudgeLine>,
 }
 
@@ -119,7 +113,6 @@ fn parse_float_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimFloat> {
         kfs.push(Keyframe::new(e.end_time * r, e.end, 2));
     }
     kfs.pop();
-    // kfs.last_mut().unwrap().tween = 0;
     Ok(AnimFloat::new(kfs))
 }
 
@@ -144,9 +137,7 @@ fn parse_move_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimVector> {
         kf2.push(Keyframe::new(en, e.end2, 2));
     }
     kf1.pop();
-    // kf1.last_mut().unwrap().tween = 0;
     kf2.pop();
-    // kf2.last_mut().unwrap().tween = 0;
     for kf in &mut kf1 {
         kf.value = -1. + kf.value * 2.;
     }
@@ -196,7 +187,7 @@ fn parse_notes(r: f32, pgr: Vec<PgrNote>, height: &mut AnimFloat) -> Result<Vec<
                 height: pgr.floor_position / HEIGHT_RATIO,
                 multiple_hint: false,
                 fake: false,
-                judge: false,
+                last_real_time: 0.0,
             })
         })
         .collect()

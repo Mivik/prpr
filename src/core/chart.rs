@@ -7,9 +7,9 @@ pub struct Chart {
 }
 
 impl Chart {
-    pub fn set_time(&mut self, time: f32) {
+    pub fn update(&mut self, res: &mut Resource) {
         for line in &mut self.lines {
-            line.set_time(time);
+            line.update(res);
         }
     }
 

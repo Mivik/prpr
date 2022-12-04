@@ -1,7 +1,10 @@
 // This is from https://raw.githubusercontent.com/not-fl3/macroquad/master/particles/src/lib.rs
 // We can't use macroquad-particles directly, since it implicitly depends on quad-snd (which is
 // obviously a mistake) and that conflicts with kira.
-// nanoserde related parts are removed for simplicity's sake.
+
+// Edits:
+// 1. nanoserde related parts are removed for simplicity's sake.
+// 2. apply_viewport
 use macroquad::prelude::*;
 use macroquad::window::miniquad::*;
 
@@ -832,6 +835,9 @@ impl Emitter {
         };
 
         ctx.apply_pipeline(&self.pipeline);
+        // This is made
+        let (x, y, w, h) = quad_gl.get_viewport();
+        ctx.apply_viewport(x, y, w, h);
     }
 
     pub fn end_render_pass(&mut self, quad_gl: &QuadGl, ctx: &mut Context) {

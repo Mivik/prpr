@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use super::process_lines;
+use super::{process_lines, BpmList, Triple, TWEEN_MAP};
 use crate::{
     core::{
         Anim, AnimFloat, AnimVector, Chart, ClampedTween, JudgeLine, JudgeLineKind, Keyframe, Note,
-        NoteKind, Object, StaticTween, TweenId, HEIGHT_RATIO,
+        NoteKind, Object, StaticTween, HEIGHT_RATIO,
     },
     ext::NotNanExt,
 };
@@ -16,60 +16,6 @@ const RPE_WIDTH: f32 = 1350.;
 const RPE_HEIGHT: f32 = 900.;
 const SPEED_RATIO: f32 = 10. / 45. / HEIGHT_RATIO;
 const EPS: f32 = 1e-5;
-
-#[derive(Deserialize)]
-struct Triple(u32, u32, u32);
-
-impl Triple {
-    pub fn ticks(&self) -> f32 {
-        self.0 as f32 + self.1 as f32 / self.2 as f32
-    }
-}
-
-struct BpmList {
-    elements: Vec<(f32, f32, f32)>, // (ticks, time, bpm)
-    cursor: usize,
-}
-
-impl BpmList {
-    pub fn new(ranges: Vec<RPEBpmItem>) -> Self {
-        let mut elements = Vec::new();
-        let mut time = 0.0;
-        let mut last_ticks = 0.0;
-        let mut last_bpm: Option<f32> = None;
-        for range in ranges {
-            let now_ticks = range.start_time.ticks();
-            if let Some(bpm) = last_bpm {
-                time += (now_ticks - last_ticks) * (60. / bpm);
-            }
-            last_ticks = now_ticks;
-            last_bpm = Some(range.bpm);
-            elements.push((now_ticks, time, range.bpm));
-        }
-        BpmList {
-            elements,
-            cursor: 0,
-        }
-    }
-
-    pub fn time_ticks(&mut self, ticks: f32) -> f32 {
-        while let Some(kf) = self.elements.get(self.cursor + 1) {
-            if kf.0 > ticks {
-                break;
-            }
-            self.cursor += 1;
-        }
-        while self.cursor != 0 && self.elements[self.cursor].0 > ticks {
-            self.cursor -= 1;
-        }
-        let (start_ticks, time, bpm) = &self.elements[self.cursor];
-        time + (ticks - start_ticks) * (60. / bpm)
-    }
-
-    pub fn time(&mut self, triple: &Triple) -> f32 {
-        self.time_ticks(triple.ticks())
-    }
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -142,7 +88,7 @@ struct RPEExtendedEvents {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RPENote {
-    // TODO above == 2? what does that even mean?
+    // TODO above == 0? what does that even mean?
     #[serde(rename = "type")]
     kind: u8,
     above: u8,
@@ -188,25 +134,6 @@ struct RPEChart {
 }
 
 fn parse_events(r: &mut BpmList, rpe: &[RPEEvent]) -> Result<AnimFloat> {
-    use crate::core::{easing_from as e, TweenMajor::*, TweenMinor::*};
-    #[rustfmt::skip]
-	const TWEEN_MAP: [TweenId; 30] = [
-		2, 2, // linear
-		e(Sine, Out), e(Sine, In),
-		e(Quad, Out), e(Quad, In),
-		e(Sine, InOut), e(Quad, InOut),
-		e(Cubic, Out), e(Cubic, In),
-		e(Quart, Out), e(Quart, In),
-		e(Cubic, InOut), e(Quart, InOut),
-		e(Quint, Out), e(Quint, In),
-		e(Expo, Out), e(Expo, In),
-		e(Circ, Out), e(Circ, In),
-		e(Back, Out), e(Back, In),
-		e(Circ, InOut), e(Back, InOut),
-		e(Elastic, Out), e(Elastic, In),
-		e(Bounce, Out), e(Bounce, In),
-		e(Bounce, InOut), e(Elastic, InOut),
-	];
     let mut kfs = Vec::new();
     for e in rpe {
         kfs.push(Keyframe {
@@ -345,7 +272,7 @@ fn parse_notes(
             speed: note.speed,
             multiple_hint: false,
             fake: note.is_fake != 0,
-            judge: false,
+            last_real_time: 0.0,
         });
     }
     Ok((notes_above, notes_below))
@@ -353,7 +280,7 @@ fn parse_notes(
 
 fn parse_text_events(r: &mut BpmList, rpe: &[RPETextEvent]) -> Result<Anim<String>> {
     let mut kfs = Vec::new();
-    if rpe[0].start_time.ticks() != 0.0 {
+    if rpe[0].start_time.beats() != 0.0 {
         kfs.push(Keyframe::new(0.0, String::new(), 0));
     }
     for e in rpe {
@@ -457,7 +384,12 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
 
 pub async fn parse_rpe(source: &str) -> Result<Chart> {
     let rpe: RPEChart = serde_json::from_str(source).context("Failed to parse JSON")?;
-    let mut r = BpmList::new(rpe.bpm_list);
+    let mut r = BpmList::new(
+        rpe.bpm_list
+            .into_iter()
+            .map(|it| (it.start_time.beats(), it.bpm))
+            .collect(),
+    );
     fn vec<T>(v: &Option<Vec<T>>) -> impl Iterator<Item = &T> {
         v.iter().flat_map(|it| it.iter())
     }
@@ -491,7 +423,7 @@ pub async fn parse_rpe(source: &str) -> Result<Chart> {
                 }).unwrap_or_default()
             )
         })
-        .max().unwrap_or_default() + 1.0;
+        .max().unwrap_or_default() + 1.;
     // don't want to add a whole crate for a mere join_all...
     let mut lines = Vec::new();
     for (id, rpe) in rpe.judge_line_list.into_iter().enumerate() {

@@ -1,5 +1,4 @@
-use std::io::Cursor;
-
+use super::{object::world_to_screen, Point};
 use crate::{
     core::{ASPECT_RATIO, JUDGE_LINE_PERFECT_COLOR},
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
@@ -9,14 +8,8 @@ use kira::{
     manager::{backend::cpal::CpalBackend, AudioManager, AudioManagerSettings},
     sound::static_sound::{StaticSoundData, StaticSoundSettings},
 };
-use macroquad::{
-    prelude::{load_file, vec2, warn, Camera, Camera2D, Mat4},
-    text::{load_ttf_font, Font},
-    texture::{load_image, Texture2D},
-    window::{screen_height, screen_width},
-};
-
-use super::{object::world_to_screen, Point};
+use macroquad::prelude::*;
+use std::io::Cursor;
 
 const FONT_PATH: &str = "font.ttf";
 
@@ -30,6 +23,7 @@ pub struct NoteStyle {
 }
 
 pub struct Resource {
+    pub real_time: f32,
     pub time: f32,
     pub camera: Camera2D,
     pub camera_matrix: Mat4,
@@ -81,6 +75,7 @@ impl Resource {
             ColorCurve { start, mid, end }
         };
         Ok(Self {
+            real_time: 0.0,
             time: 0.0,
             camera,
             camera_matrix: camera.matrix(),
@@ -109,7 +104,7 @@ impl Resource {
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 0.0,
                 initial_velocity: 0.0,
-                size: 0.,
+                size: 1. / 6.,
                 atlas: Some(AtlasConfig::new(1, 30, ..)),
                 emitting: false,
                 colors_curve,
@@ -120,8 +115,11 @@ impl Resource {
                 lifetime: 0.5,
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 2. * std::f32::consts::PI,
-                size: 0.,
+                size: 1. / 60.,
                 emitting: false,
+                initial_velocity: 1.,
+                initial_velocity_randomness: 1. / 10.,
+                linear_accel: -4. / 1.,
                 colors_curve,
                 ..Default::default()
             }),
@@ -135,10 +133,7 @@ impl Resource {
 
     pub fn emit_at_origin(&mut self) {
         let pt = world_to_screen(self, Point::default());
-        let pt = vec2(
-            (pt.x / 2. + 0.5) * screen_width(),
-            (0.5 - pt.y / 2.) * screen_height(),
-        );
+        let pt = vec2(pt.x, pt.y / ASPECT_RATIO);
         self.emitter.emit(pt, 1);
         self.emitter_square.emit(pt, 4);
     }
@@ -165,15 +160,14 @@ impl Resource {
         let vp = viewport();
         if Some(vp) != self.camera.viewport {
             self.camera.viewport = Some(vp);
-            let s = vp.2 as f32;
-            self.emitter.config.size = s / 11.;
-            self.emitter_square.config.size = s / 100.;
-            self.emitter_square.config.initial_velocity = s * 3. / 4.;
-            self.emitter_square.config.initial_velocity_randomness = 1. / 10.;
-            self.emitter_square.config.linear_accel = -s / 135.;
             true
         } else {
             false
         }
+    }
+
+    pub fn set_real_time(&mut self, real_time: f32) {
+        self.real_time = real_time;
+        self.time = (self.time * 2. + real_time) / 3.;
     }
 }

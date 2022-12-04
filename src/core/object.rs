@@ -1,8 +1,5 @@
 use super::{AnimFloat, AnimVector, Color, Matrix, Point, Resource, ASPECT_RATIO};
-use macroquad::{
-    prelude::{vec3, Mat4},
-    window::get_internal_gl,
-};
+use macroquad::prelude::*;
 use nalgebra::Rotation2;
 use std::cell::RefCell;
 
