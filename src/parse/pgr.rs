@@ -1,8 +1,8 @@
 use super::process_lines;
 use crate::{
     core::{
-        AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineKind, Keyframe, Note, NoteKind, Object,
-        HEIGHT_RATIO, NOTE_WIDTH_RATIO,
+        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineKind, Keyframe, Note, NoteKind,
+        Object, HEIGHT_RATIO, NOTE_WIDTH_RATIO,
     },
     ext::NotNanExt,
 };
@@ -215,6 +215,7 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
         height,
         notes_above,
         notes_below,
+        color: Anim::default(),
         parent: None,
         show_below: true,
     })

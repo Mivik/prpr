@@ -3,12 +3,12 @@ use super::{process_lines, BpmList, Triple, TWEEN_MAP};
 use crate::{
     core::{
         Anim, AnimFloat, AnimVector, Chart, ClampedTween, JudgeLine, JudgeLineKind, Keyframe, Note,
-        NoteKind, Object, StaticTween, EPS, HEIGHT_RATIO,
+        NoteKind, Object, StaticTween, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
 };
 use anyhow::{bail, Context, Result};
-use macroquad::texture::{load_image, Texture2D};
+use macroquad::{texture::{load_image, Texture2D}, prelude::Color};
 use serde::Deserialize;
 use std::rc::Rc;
 
@@ -78,7 +78,17 @@ struct RPETextEvent {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RPEColorEvent {
+    #[serde(rename = "start")]
+    color: (u8, u8, u8),
+    start_time: Triple,
+    end_time: Triple,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RPEExtendedEvents {
+    color_events: Option<Vec<RPEColorEvent>>,
     text_events: Option<Vec<RPETextEvent>>,
     scale_x_events: Option<Vec<RPEEvent>>,
     scale_y_events: Option<Vec<RPEEvent>>,
@@ -288,6 +298,17 @@ fn parse_notes(
     Ok((notes_above, notes_below))
 }
 
+fn parse_color_events(r: &mut BpmList, rpe: &[RPEColorEvent]) -> Result<Anim<Color>> {
+    let mut kfs = Vec::new();
+    if rpe[0].start_time.beats() != 0.0 {
+        kfs.push(Keyframe::new(0.0, JUDGE_LINE_PERFECT_COLOR, 0));
+    }
+    for e in rpe {
+        kfs.push(Keyframe::new(r.time(&e.start_time), Color::from_rgba(e.color.0, e.color.1, e.color.2, 0), 0));
+    }
+    Ok(Anim::new(kfs))
+}
+
 fn parse_text_events(r: &mut BpmList, rpe: &[RPETextEvent]) -> Result<Anim<String>> {
     let mut kfs = Vec::new();
     if rpe[0].start_time.beats() != 0.0 {
@@ -387,7 +408,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
         notes_above,
         notes_below,
         kind: if rpe.texture == "line.png" {
-            if let Some(events) = &rpe.extended.and_then(|e| e.text_events) {
+            if let Some(events) = rpe.extended.as_ref().and_then(|e| e.text_events.as_ref()) {
                 JudgeLineKind::Text(
                     parse_text_events(r, events).context("Failed to parse text events")?,
                 )
@@ -400,6 +421,11 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
                     .await
                     .with_context(|| format!("Failed to load texture {}", rpe.texture))?,
             ))
+        },
+        color: if let Some(events) = rpe.extended.as_ref().and_then(|e| e.color_events.as_ref()) {
+            parse_color_events(r, events).context("Failed to parse color events")?
+        } else {
+            Anim::default()
         },
         parent: {
             let parent = rpe.parent.unwrap_or(-1);

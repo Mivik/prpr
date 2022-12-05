@@ -20,6 +20,7 @@ pub struct JudgeLine {
     pub height: AnimFloat,
     pub notes_above: Vec<Note>,
     pub notes_below: Vec<Note>,
+    pub color: Anim<Color>,
     pub parent: Option<usize>,
     pub show_below: bool,
 }
@@ -36,11 +37,13 @@ impl JudgeLine {
         if let JudgeLineKind::Text(anim) = &mut self.kind {
             anim.set_time(res.time);
         }
+        self.color.set_time(res.time);
         self.height.set_time(res.time);
     }
 
     pub fn render(&self, res: &mut Resource, lines: &[JudgeLine]) {
         let alpha = self.object.alpha.now_opt().unwrap_or(1.0);
+        let color = self.color.now_opt();
         (if let Some(parent) = self.parent {
             // TODO currently we're only resolving one layer
             lines[parent].object.now() * self.object.now()
@@ -50,19 +53,21 @@ impl JudgeLine {
         .apply_render(|| {
             self.object.now_scale().apply_render(|| match &self.kind {
                 JudgeLineKind::Normal => {
-                    let mut c = JUDGE_LINE_PERFECT_COLOR;
-                    c.a = alpha.max(0.0);
+                    let mut color = color.unwrap_or(JUDGE_LINE_PERFECT_COLOR);
+                    color.a = alpha.max(0.0);
                     let len = 6.0;
-                    draw_line(-len, 0.0, len, 0.0, 0.01, c);
+                    draw_line(-len, 0.0, len, 0.0, 0.01, color);
                 }
                 JudgeLineKind::Texture(texture) => {
+                    let mut color = color.unwrap_or(WHITE);
+                    color.a = alpha.max(0.0);
                     let hw = texture.width() / 2.;
                     let hh = texture.height() / 2.;
                     draw_texture_ex(
                         *texture,
                         -hw,
                         -hh,
-                        self.object.now_color(),
+                        color,
                         DrawTextureParams {
                             dest_size: Some(vec2(hw * 2., hh * 2.)),
                             flip_y: true,
@@ -71,6 +76,8 @@ impl JudgeLine {
                     );
                 }
                 JudgeLineKind::Text(anim) => {
+                    let mut color = color.unwrap_or(WHITE);
+                    color.a = alpha.max(0.0);
                     let now = anim.now();
                     let size = 100;
                     let scale = 0.0008;
@@ -86,7 +93,7 @@ impl JudgeLine {
                                     font: res.font,
                                     font_size: size,
                                     font_scale: scale,
-                                    color: self.object.now_color(),
+                                    color,
                                     ..Default::default()
                                 },
                             );
@@ -94,8 +101,10 @@ impl JudgeLine {
                 }
             });
             let height = self.height.now();
-            let mut config = RenderConfig::default();
-            config.draw_below = self.show_below;
+            let mut config = RenderConfig {
+                draw_below: self.show_below,
+                ..Default::default()
+            };
             if alpha < 0.0 {
                 let w = (-alpha.round()) as u32;
                 match w {

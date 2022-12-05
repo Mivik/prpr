@@ -1,3 +1,4 @@
+use macroquad::prelude::Color;
 use once_cell::sync::Lazy;
 use std::{ops::Range, rc::Rc};
 
@@ -180,7 +181,9 @@ pub const fn easing_from(major: TweenMajor, minor: TweenMinor) -> TweenId {
 
 pub trait Tweenable: Clone {
     fn tween(x: &Self, y: &Self, t: f32) -> Self;
-    fn add(x: &Self, y: &Self) -> Self;
+    fn add(_x: &Self, _y: &Self) -> Self {
+        unimplemented!()
+    }
 }
 
 impl Tweenable for f32 {
@@ -193,12 +196,19 @@ impl Tweenable for f32 {
     }
 }
 
+impl Tweenable for Color {
+    fn tween(x: &Self, y: &Self, t: f32) -> Self {
+        Self::new(
+            f32::tween(&x.r, &y.r, t),
+            f32::tween(&x.g, &y.g, t),
+            f32::tween(&x.b, &y.b, t),
+            f32::tween(&x.a, &y.a, t),
+        )
+    }
+}
+
 impl Tweenable for String {
     fn tween(x: &Self, _y: &Self, _t: f32) -> Self {
         x.clone()
-    }
-
-    fn add(_x: &Self, _y: &Self) -> Self {
-        unimplemented!()
     }
 }

@@ -2,7 +2,7 @@ use super::{process_lines, BpmList, TWEEN_MAP};
 use crate::{
     core::{
         AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineKind, Keyframe, Note, NoteKind, Object,
-        TweenId, EPS,
+        TweenId, EPS, Anim,
     },
     ext::NotNanExt,
 };
@@ -186,6 +186,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
         height,
         notes_above: pec.notes_above,
         notes_below: pec.notes_below,
+        color: Anim::default(),
         parent: None,
         show_below: true,
     })
