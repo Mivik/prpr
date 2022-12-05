@@ -68,7 +68,7 @@ impl JudgeLine {
                             flip_y: true,
                             ..Default::default()
                         },
-                    )
+                    );
                 }
                 JudgeLineKind::Text(anim) => {
                     let now = anim.now();

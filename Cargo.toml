@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
+crate-type = ["lib", "cdylib"]
 
 [dependencies]
 anyhow = "1.0"

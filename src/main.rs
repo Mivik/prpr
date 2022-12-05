@@ -58,7 +58,6 @@ async fn main() -> Result<()> {
         let frame_start = get_time();
         clear_background(Color::from_rgba(0x15, 0x65, 0xc0, 0xff));
         let time = (handle.position() as f32 - chart.offset).max(0.0);
-        let delta = time - res.real_time;
         res.set_real_time(time);
         chart.update(&mut res);
 
@@ -74,6 +73,7 @@ async fn main() -> Result<()> {
             Color::from_rgba(0x21, 0x96, 0xf3, 0xff),
         );
         chart.render(&mut res);
+        let delta = get_frame_time();
         res.emitter.draw(vec2(0., 0.), delta);
         res.emitter_square.draw(vec2(0., 0.), delta);
 

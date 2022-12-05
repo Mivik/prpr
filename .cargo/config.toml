@@ -1,0 +1,7 @@
+#[target.aarch64-linux-android]
+#ar = "/home/mivik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+#linker = "/home/mivik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
+
+#[build]
+#rustflags = ["-C", "link-args=--sysroot /home/mivik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/sysroot -L /home/mivik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"]
+#rustflags = ["-C", "link-args=-lstdc++"]
