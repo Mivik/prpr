@@ -1,4 +1,5 @@
 use anyhow::{bail, Context, Result};
+use image::imageops::blur;
 use kira::{
     sound::static_sound::{PlaybackState, StaticSoundData, StaticSoundSettings},
     tween::Tween,
@@ -51,12 +52,57 @@ async fn main() -> Result<()> {
     let mut handle = res.audio_manager.play(sound_data.clone())?;
     handle.pause(Tween::default())?;
 
+    async fn load_background(path: &str) -> Result<Texture2D> {
+        let image =
+            image::load_from_memory(&load_file(path).await?).context("Failed to decode image")?;
+        let image = blur(&image, 15.);
+        Ok(Texture2D::from_image(&Image {
+            width: image.width() as u16,
+            height: image.height() as u16,
+            bytes: image.into_raw(),
+        }))
+    }
+
+    let background = load_background(&format!("charts/{name}/background.png"))
+        .await
+        .unwrap_or_else(|err| {
+            warn!("Failed to load background\n{:?}", err);
+            Texture2D::from_rgba8(1, 1, &[0, 0, 0, 1])
+        });
+
     let mut fps_time = -1;
     let mut fps_last = 0;
     let gl = unsafe { get_internal_gl() }.quad_gl;
     loop {
         let frame_start = get_time();
-        clear_background(Color::from_rgba(0x15, 0x65, 0xc0, 0xff));
+        push_camera_state();
+        set_default_camera();
+        {
+            let sw = screen_width();
+            let sh = screen_height();
+            let bw = background.width();
+            let bh = background.height();
+            let s = (sw / bw).max(sh / bh);
+            draw_texture_ex(
+                background,
+                (sw - bw * s) / 2.,
+                (sh - bh * s) / 2.,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(bw * s, bh * s)),
+                    ..Default::default()
+                },
+            );
+        }
+        draw_rectangle(
+            0.,
+            0.,
+            screen_width(),
+            screen_height(),
+            Color::new(0., 0., 0., 0.3),
+        );
+        pop_camera_state();
+
         let time = (handle.position() as f32 - chart.offset).max(0.0);
         res.set_real_time(time);
         chart.update(&mut res);
@@ -65,13 +111,7 @@ async fn main() -> Result<()> {
             set_camera(&res.camera);
         }
         gl.viewport(res.camera.viewport);
-        draw_rectangle(
-            -1.0,
-            -1.0,
-            2.0,
-            2.0,
-            Color::from_rgba(0x21, 0x96, 0xf3, 0xff),
-        );
+        draw_rectangle(-1., -1., 2., 2., Color::new(0., 0., 0., 0.6));
         chart.render(&mut res);
         let delta = get_frame_time();
         res.emitter.draw(vec2(0., 0.), delta);
