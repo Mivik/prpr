@@ -1,15 +1,11 @@
 use super::{object::world_to_screen, Point};
 use crate::{
+    audio::{Audio, AudioClip, DefaultAudio},
     core::{ASPECT_RATIO, JUDGE_LINE_PERFECT_COLOR},
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
 };
 use anyhow::Result;
-use kira::{
-    manager::{backend::cpal::CpalBackend, AudioManager, AudioManagerSettings},
-    sound::static_sound::{StaticSoundData, StaticSoundSettings},
-};
 use macroquad::prelude::*;
-use std::io::Cursor;
 
 const FONT_PATH: &str = "font.ttf";
 
@@ -35,22 +31,16 @@ pub struct Resource {
     pub emitter: Emitter,
     pub emitter_square: Emitter,
 
-    pub audio_manager: AudioManager,
-    pub sfx_click: StaticSoundData,
-    pub sfx_drag: StaticSoundData,
-    pub sfx_flick: StaticSoundData,
+    pub audio: DefaultAudio,
+    pub sfx_click: AudioClip,
+    pub sfx_drag: AudioClip,
+    pub sfx_flick: AudioClip,
 }
 
 impl Resource {
     pub async fn new() -> Result<Self> {
         async fn load_tex(path: &str) -> Result<Texture2D> {
             Ok(Texture2D::from_image(&load_image(path).await?))
-        }
-        async fn load_sfx(path: &str) -> Result<StaticSoundData> {
-            Ok(StaticSoundData::from_cursor(
-                Cursor::new(load_file(path).await?),
-                StaticSoundSettings::default(),
-            )?)
         }
         let hold_tail = load_tex("hold_tail.png").await?;
         let note_style = NoteStyle {
@@ -74,6 +64,13 @@ impl Resource {
             end.a = 0.;
             ColorCurve { start, mid, end }
         };
+        let audio = DefaultAudio::new()?;
+        async fn load_sfx(audio: &DefaultAudio, path: &str) -> Result<AudioClip> {
+            Ok(audio.create_clip(load_file(path).await?)?.await?)
+        }
+        let sfx_click = load_sfx(&audio, "click.ogg").await?;
+        let sfx_drag = load_sfx(&audio, "drag.ogg").await?;
+        let sfx_flick = load_sfx(&audio, "flick.ogg").await?;
         Ok(Self {
             real_time: 0.0,
             time: 0.0,
@@ -124,10 +121,10 @@ impl Resource {
                 ..Default::default()
             }),
 
-            audio_manager: AudioManager::<CpalBackend>::new(AudioManagerSettings::default())?,
-            sfx_click: load_sfx("click.ogg").await?,
-            sfx_drag: load_sfx("drag.ogg").await?,
-            sfx_flick: load_sfx("flick.ogg").await?,
+            audio,
+            sfx_click,
+            sfx_drag,
+            sfx_flick,
         })
     }
 

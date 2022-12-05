@@ -2,6 +2,7 @@ use super::{
     object::world_to_screen, Matrix, Object, Point, Resource, ScopedTransform, ASPECT_RATIO,
     NOTE_WIDTH_RATIO,
 };
+use crate::audio::Audio;
 use macroquad::prelude::*;
 use nalgebra::Translation2;
 
@@ -84,12 +85,16 @@ impl Note {
             && self.time <= res.real_time
             && (self.last_real_time - res.real_time).abs() < 0.5
         {
-            res.audio_manager
-                .play(match self.kind {
-                    NoteKind::Click | NoteKind::Hold { .. } => res.sfx_click.clone(),
-                    NoteKind::Drag => res.sfx_drag.clone(),
-                    NoteKind::Flick => res.sfx_flick.clone(),
-                })
+            res.audio
+                .play(
+                    match self.kind {
+                        NoteKind::Click | NoteKind::Hold { .. } => &res.sfx_click,
+                        NoteKind::Drag => &res.sfx_drag,
+                        NoteKind::Flick => &res.sfx_flick,
+                    },
+                    1.0,
+                    0.0,
+                )
                 .unwrap();
             self.object.set_time(self.time);
             object.set_time(self.time);

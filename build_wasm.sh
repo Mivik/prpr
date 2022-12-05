@@ -81,7 +81,7 @@ HTML=$(cat <<- END
 </head>
 <body style="margin: 0; padding: 0; height: 100vh; width: 100vw;">
     <canvas id="glcanvas" tabindex='1' hidden></canvas>
-    <script src="./mq_js_bundle.js"></script>
+    <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
     <script type="module">
         import init, { set_wasm } from "./${PROJECT_NAME}.js";
         async function impl_run() {
@@ -99,6 +99,7 @@ HTML=$(cat <<- END
         }
         window.run = function() {
             document.getElementById("run-container").remove();
+            document.getElementById("glcanvas").style.background = 'black';
             document.getElementById("glcanvas").removeAttribute("hidden");
             document.getElementById("glcanvas").focus();
             impl_run();
