@@ -39,13 +39,6 @@ pub async fn the_main() -> Result<()> {
 
     let mut res = Resource::new().await.context("Failed to load resources")?;
 
-    let clip = res
-        .audio
-        .create_clip(load_file(&format!("charts/{name}/song.mp3")).await?)?
-        .await?;
-    let mut handle = res.audio.play(&clip, 1.0, 0.0)?;
-    res.audio.pause(&mut handle)?;
-
     async fn load_background(path: &str) -> Result<Texture2D> {
         let image =
             image::load_from_memory(&load_file(path).await?).context("Failed to decode image")?;
@@ -68,6 +61,12 @@ pub async fn the_main() -> Result<()> {
     let mut fps_last = 0;
     let gl = unsafe { get_internal_gl() }.quad_gl;
 
+    let clip = res
+        .audio
+        .create_clip(load_file(&format!("charts/{name}/song.mp3")).await?)?;
+    let mut handle = res.audio.play(&clip, 1.0, 0.0)?;
+    // res.audio.pause(&mut handle)?;
+
     // we use performance.now() on web since audioContext.currentTime is not stable
     // and may cause serious latency problem
     #[cfg(target_arch = "wasm32")]
@@ -78,7 +77,7 @@ pub async fn the_main() -> Result<()> {
     #[cfg(target_arch = "wasm32")]
     let mut start_time = now();
     #[cfg(target_arch = "wasm32")]
-    let mut pause_time = Some(start_time);
+    let mut pause_time = None;
     loop {
         let frame_start = get_time();
         push_camera_state();
@@ -167,7 +166,7 @@ pub async fn the_main() -> Result<()> {
             res.audio.seek_to(&mut handle, dst)?;
             #[cfg(target_arch = "wasm32")]
             {
-                start_time += 1.;
+                start_time = now() - dst;
             }
         }
         if is_key_pressed(KeyCode::Right) {
@@ -176,7 +175,7 @@ pub async fn the_main() -> Result<()> {
             res.audio.seek_to(&mut handle, dst)?;
             #[cfg(target_arch = "wasm32")]
             {
-                start_time -= 1.;
+                start_time = now() - dst;
             }
         }
         if is_key_pressed(KeyCode::Q) {

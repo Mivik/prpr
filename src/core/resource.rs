@@ -66,7 +66,7 @@ impl Resource {
         };
         let audio = DefaultAudio::new()?;
         async fn load_sfx(audio: &DefaultAudio, path: &str) -> Result<AudioClip> {
-            Ok(audio.create_clip(load_file(path).await?)?.await?)
+            audio.create_clip(load_file(path).await?)
         }
         let sfx_click = load_sfx(&audio, "click.ogg").await?;
         let sfx_drag = load_sfx(&audio, "drag.ogg").await?;

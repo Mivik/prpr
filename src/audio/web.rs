@@ -1,13 +1,11 @@
 use super::Audio;
-use anyhow::{bail, Error, Result};
-use js_sys::Uint8Array;
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::{Arc, Mutex},
-    task::Poll,
+use anyhow::{anyhow, bail, Error, Result};
+use std::io::Cursor;
+use symphonia::core::{
+    audio::{AudioBufferRef, Signal},
+    io::MediaSourceStream,
 };
-use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
+use wasm_bindgen::JsValue;
 use web_sys::{AudioBuffer, AudioBufferSourceNode, AudioContext};
 
 pub struct WebAudio(AudioContext);
@@ -23,11 +21,43 @@ enum AudioState {
 
 pub struct AudioHandle(AudioBufferSourceNode, AudioState, AudioBuffer, f64);
 
-use wasm_bindgen::prelude::*;
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &JsValue);
+fn load_frames_from_buffer(
+    channels: &mut [Vec<f32>; 2],
+    buffer: &symphonia::core::audio::AudioBuffer<f32>,
+) {
+    for i in 0..buffer.spec().channels.count().min(2) {
+        channels[i].extend_from_slice(buffer.chan(i));
+    }
+}
+
+fn load_frames_from_buffer_ref(
+    channels: &mut [Vec<f32>; 2],
+    buffer: &AudioBufferRef,
+) -> Result<()> {
+    macro_rules! conv {
+        ($buffer:ident) => {{
+            let mut dest = symphonia::core::audio::AudioBuffer::new(
+                buffer.capacity() as u64,
+                buffer.spec().clone(),
+            );
+            $buffer.convert(&mut dest);
+            load_frames_from_buffer(channels, &dest);
+        }};
+    }
+    use AudioBufferRef::*;
+    match buffer {
+        F32(buffer) => load_frames_from_buffer(channels, buffer),
+        U8(buffer) => conv!(buffer),
+        U16(buffer) => conv!(buffer),
+        U24(buffer) => conv!(buffer),
+        U32(buffer) => conv!(buffer),
+        S8(buffer) => conv!(buffer),
+        S16(buffer) => conv!(buffer),
+        S24(buffer) => conv!(buffer),
+        S32(buffer) => conv!(buffer),
+        F64(buffer) => conv!(buffer),
+    }
+    Ok(())
 }
 
 impl Audio for WebAudio {
@@ -35,46 +65,64 @@ impl Audio for WebAudio {
     type Handle = AudioHandle;
 
     fn new() -> Result<Self> {
-        let nb = AudioContext::new().map_err(js_err)?;
-        log(nb.as_ref());
-        Ok(Self(nb))
+        Ok(Self(AudioContext::new().map_err(js_err)?))
     }
 
-    fn create_clip(
-        &self,
-        data: Vec<u8>,
-    ) -> Result<Pin<Box<dyn Future<Output = Result<Self::Clip>>>>> {
-        let buffer = Uint8Array::from(data.as_slice()).buffer();
-        let result = Arc::new(Mutex::new(None));
-        let callback = Closure::<dyn Fn(JsValue)>::new({
-            let result = Arc::clone(&result);
-            move |buffer: JsValue| {
-                *result.lock().unwrap() = Some(buffer);
-            }
-        });
-        let _ = self
-            .0
-            .decode_audio_data_with_success_callback(&buffer, callback.as_ref().unchecked_ref())
-            .map_err(js_err)?;
-        callback.forget();
-        struct DummyFuture(Arc<Mutex<Option<JsValue>>>);
-        impl Future for DummyFuture {
-            type Output = Result<<WebAudio as Audio>::Clip>;
-
-            fn poll(
-                self: Pin<&mut Self>,
-                _: &mut std::task::Context<'_>,
-            ) -> std::task::Poll<Self::Output> {
-                let mut result = self.0.lock().unwrap();
-                if let Some(result) = result.take() {
-                    log(&result);
-                    Poll::Ready(result.try_into().map_err(Error::new))
-                } else {
-                    Poll::Pending
+    fn create_clip(&self, data: Vec<u8>) -> Result<Self::Clip> {
+        let codecs = symphonia::default::get_codecs();
+        let probe = symphonia::default::get_probe();
+        let mss = MediaSourceStream::new(Box::new(Cursor::new(data)), Default::default());
+        let mut format_reader = probe
+            .format(
+                &Default::default(),
+                mss,
+                &Default::default(),
+                &Default::default(),
+            )?
+            .format;
+        let codec_params = &format_reader
+            .default_track()
+            .ok_or_else(|| anyhow!("Default track not found"))?
+            .codec_params;
+        let sample_rate = codec_params
+            .sample_rate
+            .ok_or_else(|| anyhow!("Unknown sample rate"))?;
+        let mut decoder = codecs.make(codec_params, &Default::default())?;
+        let mut channels = [vec![], vec![]];
+        loop {
+            match format_reader.next_packet() {
+                Ok(packet) => {
+                    let buffer = decoder.decode(&packet)?;
+                    load_frames_from_buffer_ref(&mut channels, &buffer)?;
                 }
+                Err(error) => match error {
+                    symphonia::core::errors::Error::IoError(error)
+                        if error.kind() == std::io::ErrorKind::UnexpectedEof =>
+                    {
+                        break;
+                    }
+                    _ => bail!(error),
+                },
             }
         }
-        Ok(Box::pin(DummyFuture(result)))
+
+        if !channels[1].is_empty() && channels[0].len() != channels[1].len() {
+            bail!("Mixed mono and stereo output");
+        }
+        let stereo = !channels[1].is_empty();
+        let clip = self
+            .0
+            .create_buffer(
+                if stereo { 2 } else { 1 },
+                channels[0].len() as u32,
+                sample_rate as f32,
+            )
+            .map_err(js_err)?;
+        clip.copy_to_channel(&channels[0], 0).map_err(js_err)?;
+        if stereo {
+            clip.copy_to_channel(&channels[1], 1).map_err(js_err)?;
+        }
+        Ok(clip)
     }
 
     fn position(&self, handle: &Self::Handle) -> Result<f64> {

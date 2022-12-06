@@ -5,7 +5,7 @@ use kira::{
     sound::static_sound::{PlaybackState, StaticSoundData, StaticSoundHandle, StaticSoundSettings},
     tween::Tween,
 };
-use std::{future::Future, io::Cursor, pin::Pin};
+use std::io::Cursor;
 
 pub struct KiraAudio(AudioManager<CpalBackend>);
 
@@ -17,12 +17,11 @@ impl Audio for KiraAudio {
         Ok(Self(AudioManager::new(AudioManagerSettings::default())?))
     }
 
-    fn create_clip(
-        &self,
-        data: Vec<u8>,
-    ) -> Result<Pin<Box<dyn Future<Output = Result<Self::Clip>>>>> {
-        let res = StaticSoundData::from_cursor(Cursor::new(data), StaticSoundSettings::default())?;
-        Ok(Box::pin(async move { Ok(res) }))
+    fn create_clip(&self, data: Vec<u8>) -> Result<Self::Clip> {
+        Ok(StaticSoundData::from_cursor(
+            Cursor::new(data),
+            StaticSoundSettings::default(),
+        )?)
     }
 
     fn play(&mut self, clip: &Self::Clip, volume: f64, offset: f64) -> Result<Self::Handle> {

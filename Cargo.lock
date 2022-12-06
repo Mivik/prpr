@@ -1038,6 +1038,7 @@ dependencies = [
  "ordered-float",
  "serde",
  "serde_json",
+ "symphonia",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -1336,6 +1337,7 @@ dependencies = [
  "symphonia-codec-pcm",
  "symphonia-codec-vorbis",
  "symphonia-core",
+ "symphonia-format-mkv",
  "symphonia-format-ogg",
  "symphonia-format-wav",
  "symphonia-metadata",
@@ -1398,6 +1400,19 @@ dependencies = [
  "bytemuck",
  "lazy_static",
  "log",
+]
+
+[[package]]
+name = "symphonia-format-mkv"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f405400330b2cc0c70e19515198628ae9a6a99a59c77800541127d4cff113b96"
+dependencies = [
+ "lazy_static",
+ "log",
+ "symphonia-core",
+ "symphonia-metadata",
+ "symphonia-utils-xiph",
 ]
 
 [[package]]
