@@ -17,7 +17,25 @@ use macroquad::prelude::*;
 pub async fn the_main() -> Result<()> {
     set_pc_assets_folder("assets");
     #[cfg(target_arch = "wasm32")]
-    let mut args = ["prpr", "nc"].map(str::to_owned).into_iter();
+    let mut args = {
+        fn js_err(err: wasm_bindgen::JsValue) -> anyhow::Error {
+            anyhow::Error::msg(format!("{err:?}"))
+        }
+        let params = web_sys::UrlSearchParams::new_with_str(
+            &web_sys::window()
+                .unwrap()
+                .location()
+                .search()
+                .map_err(js_err)?,
+        )
+        .map_err(js_err)?;
+        [
+            "prpr".to_string(),
+            params.get("chart").unwrap_or_else(|| "nc".to_string()),
+            params.get("format").unwrap_or_else(|| "rpe".to_string()),
+        ]
+        .into_iter()
+    };
     #[cfg(not(target_arch = "wasm32"))]
     let mut args = std::env::args();
 
@@ -70,12 +88,12 @@ pub async fn the_main() -> Result<()> {
     // we use performance.now() on web since audioContext.currentTime is not stable
     // and may cause serious latency problem
     #[cfg(target_arch = "wasm32")]
-    let now = {
+    let get_time = {
         let perf = web_sys::window().unwrap().performance().unwrap();
         move || perf.now() / 1000.
     };
     #[cfg(target_arch = "wasm32")]
-    let mut start_time = now();
+    let mut start_time = get_time();
     #[cfg(target_arch = "wasm32")]
     let mut pause_time = None;
     loop {
@@ -109,7 +127,7 @@ pub async fn the_main() -> Result<()> {
         pop_camera_state();
 
         #[cfg(target_arch = "wasm32")]
-        let time = pause_time.unwrap_or_else(&now) - start_time;
+        let time = pause_time.unwrap_or_else(&get_time) - start_time;
         #[cfg(not(target_arch = "wasm32"))]
         let time = res.audio.position(&handle)?;
 
@@ -150,13 +168,13 @@ pub async fn the_main() -> Result<()> {
                 res.audio.resume(&mut handle)?;
                 #[cfg(target_arch = "wasm32")]
                 {
-                    start_time += now() - pause_time.take().unwrap();
+                    start_time += get_time() - pause_time.take().unwrap();
                 }
             } else {
                 res.audio.pause(&mut handle)?;
                 #[cfg(target_arch = "wasm32")]
                 {
-                    pause_time = Some(now());
+                    pause_time = Some(get_time());
                 }
             }
         }
@@ -166,7 +184,7 @@ pub async fn the_main() -> Result<()> {
             res.audio.seek_to(&mut handle, dst)?;
             #[cfg(target_arch = "wasm32")]
             {
-                start_time = now() - dst;
+                start_time = get_time() - dst;
             }
         }
         if is_key_pressed(KeyCode::Right) {
@@ -175,7 +193,7 @@ pub async fn the_main() -> Result<()> {
             res.audio.seek_to(&mut handle, dst)?;
             #[cfg(target_arch = "wasm32")]
             {
-                start_time = now() - dst;
+                start_time = get_time() - dst;
             }
         }
         if is_key_pressed(KeyCode::Q) {
