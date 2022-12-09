@@ -227,24 +227,22 @@ pub async fn the_main() -> Result<()> {
                             WHITE,
                         );
                     }
-                    let bar_width = 0.01;
-                    let rect = draw_text_aligned(
+                    draw_text_aligned(
                         res,
                         &res.config.title,
-                        -1. + margin + bar_width + 0.01,
+                        -1. + margin,
                         -top - eps * 2.8,
                         (0., 1.),
-                        0.6,
+                        0.5,
                         WHITE,
                     );
-                    draw_rectangle(-1. + margin, rect.y - 0.034, bar_width, 0.034, WHITE);
                     draw_text_aligned(
                         res,
                         &res.config.level,
                         1. - margin,
                         -top - eps * 2.8,
                         (1., 1.),
-                        0.6,
+                        0.5,
                         WHITE,
                     );
                     let hw = 0.003;
