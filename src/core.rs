@@ -19,7 +19,7 @@ mod chart;
 pub use chart::Chart;
 
 mod line;
-pub use line::{JudgeLine, JudgeLineKind};
+pub use line::{JudgeLine, JudgeLineKind, JudgeLineCache};
 
 mod note;
 use macroquad::prelude::Rect;

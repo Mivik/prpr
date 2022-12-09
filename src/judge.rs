@@ -142,7 +142,7 @@ pub enum Judgement {
 pub struct Judge {
     // notes of each line in order
     // LinkedList::drain_filter is unstable...
-    notes: Vec<(Vec<usize>, usize)>,
+    notes: Vec<(Vec<u32>, usize)>,
     trackers: HashMap<u64, VelocityTracker>,
     subscriber_id: usize,
     last_time: f32,
@@ -159,10 +159,10 @@ impl Judge {
             .lines
             .iter()
             .map(|line| {
-                let mut idx: Vec<usize> = (0..line.notes.len())
-                    .filter(|it| !line.notes[*it].fake)
+                let mut idx: Vec<u32> = (0..(line.notes.len() as u32))
+                    .filter(|it| !line.notes[*it as usize].fake)
                     .collect();
-                idx.sort_by_key(|id| line.notes[*id].time.not_nan());
+                idx.sort_by_key(|id| line.notes[*id as usize].time.not_nan());
                 (idx, 0)
             })
             .collect();
@@ -183,18 +183,13 @@ impl Judge {
         }
     }
 
-    pub fn reset(&mut self, chart: &mut Chart) {
+    pub fn reset(&mut self) {
         self.notes.iter_mut().for_each(|it| it.1 = 0);
         self.trackers.clear();
         self.last_time = 0.;
         self.combo = 0;
         self.max_combo = 0;
         self.counts = [0; 4];
-        chart
-            .lines
-            .iter_mut()
-            .flat_map(|it| it.notes.iter_mut())
-            .for_each(|note| note.judge = JudgeStatus::NotJudged);
     }
 
     pub fn commit(&mut self, what: Judgement) {
@@ -363,7 +358,7 @@ impl Judge {
             {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
-                    let note = &mut line.notes[*id];
+                    let note = &mut line.notes[*id as usize];
                     if !matches!(note.judge, JudgeStatus::NotJudged) {
                         continue;
                     }
@@ -396,9 +391,9 @@ impl Judge {
                 if matches!(touch.phase, TouchPhase::Started) {
                     // click & hold
                     if dt <= LIMIT_GOOD {
-                        match line.notes[id].kind {
+                        match line.notes[id as usize].kind {
                             NoteKind::Click => {
-                                line.notes[id].judge = JudgeStatus::Judged;
+                                line.notes[id as usize].judge = JudgeStatus::Judged;
                                 judgements.push((
                                     if dt <= LIMIT_PERFECT {
                                         Judgement::Perfect
@@ -411,18 +406,18 @@ impl Judge {
                             }
                             NoteKind::Hold { .. } => {
                                 res.play_sfx(&res.sfx_click.clone());
-                                line.notes[id].judge =
+                                line.notes[id as usize].judge =
                                     JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, false);
                             }
                             _ => unreachable!(),
                         };
                     } else {
-                        line.notes[id].judge = JudgeStatus::Judged;
+                        line.notes[id as usize].judge = JudgeStatus::Judged;
                         judgements.push((Judgement::Bad, line_id, id));
                     }
                 } else {
                     // flick
-                    line.notes[id].judge = JudgeStatus::PreJudge;
+                    line.notes[id as usize].judge = JudgeStatus::PreJudge;
                 }
             }
         }
@@ -435,7 +430,7 @@ impl Judge {
         {
             line.object.set_time(t);
             for id in &idx[*st..] {
-                let note = &mut line.notes[*id];
+                let note = &mut line.notes[*id as usize];
                 if let NoteKind::Hold { end_time, .. } = &note.kind {
                     if let JudgeStatus::Hold(.., ref mut pre_judge) = note.judge {
                         if t + LIMIT_BAD >= *end_time {
@@ -491,12 +486,20 @@ impl Judge {
         {
             line.object.set_time(t);
             for id in &idx[*st..] {
-                let note = &mut line.notes[*id];
-                if matches!(note.judge, JudgeStatus::Hold(.., true)) {
+                let note = &mut line.notes[*id as usize];
+                if let JudgeStatus::Hold(perfect, _, true) = note.judge {
                     if let NoteKind::Hold { end_time, .. } = &note.kind {
                         if *end_time <= t {
                             note.judge = JudgeStatus::Judged;
-                            judgements.push((Judgement::Perfect, line_id, *id));
+                            judgements.push((
+                                if perfect {
+                                    Judgement::Perfect
+                                } else {
+                                    Judgement::Good
+                                },
+                                line_id,
+                                *id,
+                            ));
                             continue;
                         }
                     }
@@ -513,7 +516,7 @@ impl Judge {
         for (judgement, line_id, id) in judgements.into_iter() {
             self.commit(judgement);
             let line = &chart.lines[line_id];
-            let note = &line.notes[id];
+            let note = &line.notes[id as usize];
             if matches!(note.kind, NoteKind::Hold { .. }) {
                 continue;
             }
@@ -560,7 +563,7 @@ impl Judge {
         }
         for (line, (idx, st)) in chart.lines.iter().zip(self.notes.iter_mut()) {
             while idx.get(*st).map_or(false, |id| {
-                matches!(line.notes[*id].judge, JudgeStatus::Judged)
+                matches!(line.notes[*id as usize].judge, JudgeStatus::Judged)
             }) {
                 *st += 1;
             }
@@ -578,7 +581,7 @@ impl Judge {
             .enumerate()
         {
             for id in &idx[*st..] {
-                let note = &mut line.notes[*id];
+                let note = &mut line.notes[*id as usize];
                 if let JudgeStatus::Hold(..) = note.judge {
                     if let NoteKind::Hold { end_time, .. } = note.kind {
                         if t >= end_time {
@@ -603,7 +606,7 @@ impl Judge {
                 };
             }
             while idx.get(*st).map_or(false, |id| {
-                matches!(line.notes[*id].judge, JudgeStatus::Judged)
+                matches!(line.notes[*id as usize].judge, JudgeStatus::Judged)
             }) {
                 *st += 1;
             }
@@ -611,7 +614,7 @@ impl Judge {
         for (line_id, id) in judgements.into_iter() {
             self.commit(Judgement::Perfect);
             let line = &chart.lines[line_id];
-            let note = &line.notes[id];
+            let note = &line.notes[id as usize];
             res.with_model(line.object.now(res) * note.object.now(res), |res| {
                 res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR)
             });

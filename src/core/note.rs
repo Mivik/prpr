@@ -4,7 +4,6 @@ use super::{
 };
 use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
-use nalgebra::Translation2;
 
 const HOLD_PARTICLE_INTERVAL: f32 = 0.15;
 const FADEOUT_TIME: f32 = 0.16;
@@ -70,14 +69,16 @@ fn draw_tex(
             .map(|it| vec2(it.w, it.h))
             .unwrap_or_else(|| vec2(texture.width(), texture.height()))
     });
-    let pt1 = res.world_to_screen(Point::new(x, y));
-    let pt2 = res.world_to_screen(Point::new(x + w, y));
-    let pt3 = res.world_to_screen(Point::new(x, y + h));
-    let pt4 = res.world_to_screen(Point::new(x + w, y + h));
-    if pt1.x.min(pt2.x.min(pt3.x.min(pt4.x))) > 1.
-        || pt1.x.max(pt2.x.max(pt3.x.max(pt4.x))) < -1.
-        || pt1.y.min(pt2.y.min(pt3.y.min(pt4.y))) > 1.
-        || pt1.y.max(pt2.y.max(pt3.y.max(pt4.y))) < -1.
+    let mut p = [
+        res.world_to_screen(Point::new(x, y)),
+        res.world_to_screen(Point::new(x + w, y)),
+        res.world_to_screen(Point::new(x + w, y + h)),
+        res.world_to_screen(Point::new(x, y + h)),
+    ];
+    if p[0].x.min(p[1].x.min(p[2].x.min(p[3].x))) > 1.
+        || p[0].x.max(p[1].x.max(p[2].x.max(p[3].x))) < -1.
+        || p[0].y.min(p[1].y.min(p[2].y.min(p[3].y))) > 1.
+        || p[0].y.max(p[1].y.max(p[2].y.max(p[3].y))) < -1.
     {
         return;
     }
@@ -95,31 +96,15 @@ fn draw_tex(
         h: 1.,
     });
 
-    let mut w = w;
-    let mut h = h;
-    let mut x = x;
-    let mut y = y;
     if params.flip_x {
-        x += w;
-        w = -w;
+        p.swap(0, 1);
+        p.swap(2, 3);
     }
     if params.flip_y {
-        y += h;
-        h = -h;
+        p.swap(0, 3);
+        p.swap(1, 2);
     }
 
-    let p = [
-        Point::new(x, y),
-        Point::new(x + w, y),
-        Point::new(x + w, y + h),
-        Point::new(x, y + h),
-    ];
-    let p = [
-        res.world_to_screen(p[0]),
-        res.world_to_screen(p[1]),
-        res.world_to_screen(p[2]),
-        res.world_to_screen(p[3]),
-    ];
     #[rustfmt::skip]
     let vertices = [
         Vertex::new(p[0].x, p[0].y, 0., sx     , sy     , color),
@@ -151,6 +136,10 @@ fn draw_center(res: &Resource, tex: Texture2D, scale: f32, color: Color) {
 }
 
 impl Note {
+    pub fn plain(&self) -> bool {
+        self.object.translation.1.keyframes.len() <= 1
+    }
+
     pub fn update(&mut self, res: &mut Resource, object: &mut Object) {
         if let Some(color) = if let JudgeStatus::Hold(perfect, at, _) = &mut self.judge {
             if res.time > *at {
@@ -175,9 +164,15 @@ impl Note {
         self.object.set_time(res.time);
     }
 
+    pub fn dead(&self) -> bool {
+        (!matches!(self.kind, NoteKind::Hold { .. }) || matches!(self.judge, JudgeStatus::Judged))
+            && self.object.dead()
+    }
+
     pub fn now_transform(&self, res: &Resource, base: f32) -> Matrix {
-        Translation2::new(0., base).to_homogeneous()
-            * self.object.now(res)
+        self.object
+            .now(res)
+            .append_translation(&Vector::new(0., base))
             * self.object.now_scale()
     }
 

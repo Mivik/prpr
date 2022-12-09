@@ -1,8 +1,8 @@
 use super::process_lines;
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineKind, Keyframe, Note, NoteKind,
-        Object, HEIGHT_RATIO, NOTE_WIDTH_RATIO,
+        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe,
+        Note, NoteKind, Object, HEIGHT_RATIO, NOTE_WIDTH_RATIO,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -225,6 +225,7 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
         .context("Failed to parse notes below")?;
     let mut notes = notes_above;
     notes.append(&mut notes_below);
+    let cache = JudgeLineCache::new(&mut notes);
     Ok(JudgeLine {
         object: Object {
             alpha: parse_float_events(r, pgr.alpha_events)
@@ -241,6 +242,8 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
         color: Anim::default(),
         parent: None,
         show_below: true,
+
+        cache,
     })
 }
 

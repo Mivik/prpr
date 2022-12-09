@@ -358,7 +358,8 @@ pub async fn the_main() -> Result<()> {
                     break 'app;
                 }
                 Some(0) => {
-                    judge.reset(&mut chart);
+                    judge.reset();
+                    chart.reset();
                     res.judge_line_color = JUDGE_LINE_PERFECT_COLOR;
                     res.audio.resume(&mut handle)?;
                     res.audio.seek_to(&mut handle, 0.)?;
@@ -389,7 +390,7 @@ pub async fn the_main() -> Result<()> {
                     Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
                     |res| {
                         res.apply_model(|| {
-                            draw_text_aligned(&res, &t.to_string(), 0., 0., (0.5, 0.5), 1., WHITE);
+                            draw_text_aligned(res, &t.to_string(), 0., 0., (0.5, 0.5), 1., WHITE);
                         })
                     },
                 );

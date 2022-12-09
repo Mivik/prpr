@@ -11,18 +11,22 @@ fn process_lines(v: &mut [crate::core::JudgeLine]) {
     use crate::ext::NotNanExt;
     let mut times = Vec::new();
     // TODO optimize using k-merge sort
-    for line in v.iter_mut() {
+    let sorts = v.iter().map(|line| {
+        let mut idx: Vec<usize> = (0..line.notes.len()).collect();
+        idx.sort_by_key(|id| line.notes[*id].time.not_nan());
+        idx
+    }).collect::<Vec<_>>();
+    for (line, idx) in v.iter_mut().zip(sorts.iter()) {
         let v = &mut line.notes;
-        v.sort_by_key(|it| it.time.not_nan());
         let mut i = 0;
         while i < v.len() {
-            times.push(v[i].time.not_nan());
+            times.push(v[idx[i]].time.not_nan());
             let mut j = i + 1;
-            while j < v.len() && v[j].time == v[i].time {
+            while j < v.len() && v[idx[j]].time == v[idx[i]].time {
                 j += 1;
             }
             if j != i + 1 {
-                times.push(v[i].time.not_nan());
+                times.push(v[idx[i]].time.not_nan());
             }
             i = j;
         }
@@ -35,10 +39,10 @@ fn process_lines(v: &mut [crate::core::JudgeLine]) {
             mt.push(*times[i]);
         }
     }
-    for line in v.iter_mut() {
-        let v = &mut line.notes;
+    for (line, idx) in v.iter_mut().zip(sorts.iter()) {
         let mut i = 0;
-        for note in v.iter_mut() {
+        for id in idx {
+            let note = &mut line.notes[*id];
             let time = note.time;
             while i < mt.len() && mt[i] < time {
                 i += 1;
@@ -47,7 +51,6 @@ fn process_lines(v: &mut [crate::core::JudgeLine]) {
                 note.multiple_hint = true;
             }
         }
-        v.sort_by_key(|it| it.kind.order());
     }
 }
 

@@ -1,8 +1,8 @@
 use super::{process_lines, BpmList, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineKind, Keyframe, Note, NoteKind,
-        Object, TweenId, EPS,
+        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe,
+        Note, NoteKind, Object, TweenId, EPS,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -172,6 +172,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
         }
     });
     process_notes(&mut pec.notes);
+    let cache = JudgeLineCache::new(&mut pec.notes);
     Ok(JudgeLine {
         object: Object {
             alpha: parse_events(pec.alpha_events, id, "alpha")?,
@@ -188,6 +189,8 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
         color: Anim::default(),
         parent: None,
         show_below: false,
+
+        cache,
     })
 }
 
@@ -223,8 +226,8 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                                                bail!("No note has been inserted yet");
-                                            };
+                                                        bail!("No note has been inserted yet");
+                                                    };
             lines[last_line].notes.last_mut().unwrap()
         }};
     }

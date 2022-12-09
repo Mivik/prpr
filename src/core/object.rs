@@ -20,6 +20,15 @@ impl Object {
         self.translation.1.set_time(time);
     }
 
+    pub fn dead(&self) -> bool {
+        self.alpha.dead()
+            && self.scale.0.dead()
+            && self.scale.1.dead()
+            && self.rotation.dead()
+            && self.translation.0.dead()
+            && self.translation.1.dead()
+    }
+
     pub fn now(&self, res: &Resource) -> Matrix {
         let mut tr = self.translation.now();
         tr.y /= res.config.aspect_ratio;

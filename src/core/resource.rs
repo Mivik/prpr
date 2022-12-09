@@ -241,6 +241,15 @@ impl Resource {
         self.model_stack.last().unwrap().transform_point(&pt)
     }
 
+    pub fn screen_to_world(&self, pt: Point) -> Point {
+        self.model_stack
+            .last()
+            .unwrap()
+            .try_inverse()
+            .unwrap()
+            .transform_point(&pt)
+    }
+
     #[inline]
     pub fn with_model(&mut self, model: Matrix, f: impl FnOnce(&mut Self)) {
         let model = self.model_stack.last().unwrap() * model;

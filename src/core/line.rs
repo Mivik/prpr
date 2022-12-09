@@ -1,5 +1,7 @@
-use super::{draw_text_aligned, Anim, AnimFloat, Matrix, Note, Object, Resource, Vector, EPS};
-use crate::core::RenderConfig;
+use super::{
+    draw_text_aligned, Anim, AnimFloat, Matrix, Note, Object, Point, Resource, Vector, EPS,
+};
+use crate::{core::RenderConfig, ext::NotNanExt, judge::JudgeStatus};
 use macroquad::prelude::*;
 
 #[derive(Default)]
@@ -10,6 +12,43 @@ pub enum JudgeLineKind {
     Text(Anim<String>),
 }
 
+pub struct JudgeLineCache {
+    update_order: Vec<u32>,
+    start_index_above: usize,
+    start_index_below: usize,
+}
+
+impl JudgeLineCache {
+    pub fn new(notes: &mut Vec<Note>) -> Self {
+        notes.sort_by_key(|it| {
+            (
+                it.plain(),
+                !it.above,
+                (it.height /* TODO check this */ + it.object.translation.1.now()).not_nan(),
+                it.kind.order(),
+            )
+        });
+        let mut res = Self {
+            update_order: (0..notes.len() as u32).collect(),
+            start_index_above: 0,
+            start_index_below: 0,
+        };
+        res.reset(notes);
+        res
+    }
+
+    pub(crate) fn reset(&mut self, notes: &mut Vec<Note>) {
+        self.start_index_above = notes
+            .iter()
+            .position(|it| it.plain())
+            .unwrap_or(notes.len());
+        self.start_index_below = notes[self.start_index_above..]
+            .iter()
+            .position(|it| !it.above)
+            .unwrap_or(notes.len());
+    }
+}
+
 pub struct JudgeLine {
     pub object: Object,
     pub kind: JudgeLineKind,
@@ -18,19 +57,40 @@ pub struct JudgeLine {
     pub color: Anim<Color>,
     pub parent: Option<usize>,
     pub show_below: bool,
+
+    pub cache: JudgeLineCache,
 }
 
 impl JudgeLine {
     pub fn update(&mut self, res: &mut Resource) {
-        for note in &mut self.notes {
+        self.cache.update_order.retain(|id| {
+            let note = &mut self.notes[*id as usize];
             note.update(res, &mut self.object);
-        }
+            !note.dead()
+        });
         self.object.set_time(res.time);
         if let JudgeLineKind::Text(anim) = &mut self.kind {
             anim.set_time(res.time);
         }
         self.color.set_time(res.time);
         self.height.set_time(res.time);
+        while matches!(
+            self.notes
+                .get(self.cache.start_index_above)
+                .filter(|it| it.above)
+                .map(|note| &note.judge),
+            Some(JudgeStatus::Judged)
+        ) {
+            self.cache.start_index_above += 1;
+        }
+        while matches!(
+            self.notes
+                .get(self.cache.start_index_below)
+                .map(|note| &note.judge),
+            Some(JudgeStatus::Judged)
+        ) {
+            self.cache.start_index_below += 1;
+        }
     }
 
     pub fn render(&self, res: &mut Resource, lines: &[JudgeLine]) {
@@ -110,13 +170,57 @@ impl JudgeLine {
                     return;
                 }
                 if -1000.0 < alpha && alpha <= -100.0 {}
-                for note in self.notes.iter().filter(|it| it.above) {
+                let (vw, vh) = (1.1, 1.);
+                let p = [
+                    res.screen_to_world(Point::new(-vw, -vh)),
+                    res.screen_to_world(Point::new(-vw, vh)),
+                    res.screen_to_world(Point::new(vw, -vh)),
+                    res.screen_to_world(Point::new(vw, vh)),
+                ];
+                let height_above =
+                    p[0].y.max(p[1].y.max(p[2].y.max(p[3].y))) * res.config.aspect_ratio;
+                let height_below =
+                    -p[0].y.min(p[1].y.min(p[2].y.min(p[3].y))) * res.config.aspect_ratio;
+                let agg = res.config.aggressive;
+                for note in self
+                    .notes
+                    .iter()
+                    .take_while(|it| !it.plain())
+                    .filter(|it| it.above)
+                {
+                    note.render(res, height, &config);
+                }
+                for note in self.notes[self.cache.start_index_above..].iter() {
+                    if !note.above {
+                        break;
+                    }
+                    if agg
+                        && (note.height - height) / note.speed - note.object.translation.1.now()
+                            > height_above
+                    {
+                        break;
+                    }
                     note.render(res, height, &config);
                 }
                 res.with_model(
                     Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
                     |res| {
-                        for note in self.notes.iter().filter(|it| !it.above) {
+                        for note in self
+                            .notes
+                            .iter()
+                            .take_while(|it| !it.plain())
+                            .filter(|it| !it.above)
+                        {
+                            note.render(res, height, &config);
+                        }
+                        for note in self.notes[self.cache.start_index_below..].iter() {
+                            if agg
+                                && (note.height - height) / note.speed
+                                    - note.object.translation.1.now()
+                                    > height_below
+                            {
+                                break;
+                            }
                             note.render(res, height, &config);
                         }
                     },

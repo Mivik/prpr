@@ -2,8 +2,8 @@
 use super::{process_lines, BpmList, Triple, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, Chart, ClampedTween, JudgeLine, JudgeLineKind, Keyframe, Note,
-        NoteKind, Object, StaticTween, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
+        Anim, AnimFloat, AnimVector, Chart, ClampedTween, JudgeLine, JudgeLineCache, JudgeLineKind,
+        Keyframe, Note, NoteKind, Object, StaticTween, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -344,7 +344,8 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
         Ok(res)
     }
     let mut height = parse_speed_events(r, &event_layers, max_time)?;
-    let notes = parse_notes(r, rpe.notes.unwrap_or_default(), &mut height)?;
+    let mut notes = parse_notes(r, rpe.notes.unwrap_or_default(), &mut height)?;
+    let cache = JudgeLineCache::new(&mut notes);
     Ok(JudgeLine {
         object: Object {
             alpha: events_with_factor(
@@ -439,6 +440,8 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
             }
         },
         show_below: rpe.is_cover != 1,
+
+        cache,
     })
 }
 

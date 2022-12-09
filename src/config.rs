@@ -24,6 +24,7 @@ pub struct Config {
     pub music: String,
     pub illustration: Option<String>,
 
+    pub aggressive: bool,
     pub aspect_ratio: f32,
     pub autoplay: bool,
     pub line_length: f32,
@@ -48,6 +49,7 @@ impl Default for Config {
             music: "song.mp3".to_string(),
             illustration: None,
 
+            aggressive: true,
             aspect_ratio: 16. / 9.,
             autoplay: true,
             line_length: 6.,

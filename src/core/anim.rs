@@ -72,6 +72,10 @@ impl<T: Tweenable> Anim<T> {
         *elements.into_iter().next().unwrap()
     }
 
+    pub fn dead(&self) -> bool {
+        self.cursor + 1 >= self.keyframes.len()
+    }
+
     pub fn set_time(&mut self, time: f32) {
         assert!(time >= 0.0);
         if self.keyframes.is_empty() || time == self.time {
