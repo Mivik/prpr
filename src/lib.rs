@@ -11,7 +11,7 @@ use crate::{
     audio::{Audio, PlayParams},
     config::{ChartFormat, Config},
     core::{
-        draw_text_aligned, Matrix, Resource, Vector, JUDGE_LINE_GOOD_COLOR,
+        draw_text_aligned, Matrix, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR,
         JUDGE_LINE_PERFECT_COLOR,
     },
     judge::Judge,
@@ -20,8 +20,6 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
 use macroquad::prelude::*;
-
-const ADJUST_TIME_THRESHOLD: f64 = 0.05;
 
 pub fn build_conf() -> Conf {
     Conf {
@@ -114,9 +112,10 @@ pub async fn the_main() -> Result<()> {
     };
     let mut start_time = get_time();
     let mut pause_time = None;
+    let mut pause_rewind = None;
 
     let mut bad_notes = Vec::new();
-    loop {
+    'app: loop {
         let frame_start = get_time();
         push_camera_state();
         set_default_camera();
@@ -147,21 +146,23 @@ pub async fn the_main() -> Result<()> {
         pop_camera_state();
 
         let time = pause_time.unwrap_or_else(&get_time) - start_time;
-        let music_time = res.audio.position(&handle)?;
-        if !cfg!(target_arch = "wasm32") && (music_time - time).abs() > ADJUST_TIME_THRESHOLD {
-            warn!(
-                "Times differ a lot: {} {}. Syncing time...",
-                time, music_time
-            );
-            start_time -= music_time - time;
-        }
+        // let music_time = res.audio.position(&handle)?;
+        // if !cfg!(target_arch = "wasm32") && (music_time - time).abs() > ADJUST_TIME_THRESHOLD {
+        // warn!(
+        // "Times differ a lot: {} {}. Syncing time...",
+        // time, music_time
+        // );
+        // start_time -= music_time - time;
+        // }
 
         let time = (time as f32 - chart.offset).max(0.0);
         if time > res.track_length + 0.8 {
             break;
         }
         res.time = time;
-        judge.update(&mut res, &mut chart, &mut bad_notes);
+        if pause_time.is_none() && pause_rewind.is_none() {
+            judge.update(&mut res, &mut chart, &mut bad_notes);
+        }
         res.judge_line_color = if judge.counts[2] + judge.counts[3] == 0 {
             if judge.counts[1] == 0 {
                 JUDGE_LINE_PERFECT_COLOR
@@ -187,72 +188,196 @@ pub async fn the_main() -> Result<()> {
         }
 
         // UI overlay
-        res.with_model(
-            Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
-            |res| {
-                res.apply_model(|| {
-                    let eps = 2e-2 / res.config.aspect_ratio;
-                    let top = -1. / res.config.aspect_ratio;
-                    let margin = 0.03;
-                    draw_text_aligned(
-                        res,
-                        &format!("{:07}", judge.score()),
-                        1. - margin,
-                        top + eps * 2.8,
-                        (1., 0.),
-                        0.8,
-                        WHITE,
-                    );
-                    if judge.combo >= 2 {
-                        let rect = draw_text_aligned(
+        {
+            let eps = 2e-2 / res.config.aspect_ratio;
+            let top = -1. / res.config.aspect_ratio;
+            let pause_w = 0.015;
+            let pause_h = pause_w * 3.;
+            let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
+            if pause_time.is_none()
+                && Judge::get_touches().into_iter().any(|touch| {
+                    matches!(touch.phase, TouchPhase::Started) && {
+                        let p = touch.position;
+                        let p = Point::new(p.x, p.y / res.config.aspect_ratio);
+                        (pause_center - p).norm() < 0.05
+                    }
+                })
+            {
+                res.audio.pause(&mut handle)?;
+                pause_time = Some(get_time());
+            }
+            res.with_model(
+                Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
+                |res| {
+                    res.apply_model(|| {
+                        let margin = 0.03;
+                        draw_text_aligned(
                             res,
-                            &judge.combo.to_string(),
-                            0.,
-                            top + eps * 2.,
-                            (0.5, 0.),
-                            1.,
+                            &format!("{:07}", judge.score()),
+                            1. - margin,
+                            top + eps * 2.8,
+                            (1., 0.),
+                            0.8,
+                            WHITE,
+                        );
+                        draw_rectangle(
+                            pause_w * 2.5 - 1.,
+                            top + eps * 2.8,
+                            pause_w,
+                            pause_h,
+                            WHITE,
+                        );
+                        draw_rectangle(
+                            pause_w * 4.5 - 1.,
+                            top + eps * 2.8,
+                            pause_w,
+                            pause_h,
+                            WHITE,
+                        );
+                        if judge.combo >= 2 {
+                            let rect = draw_text_aligned(
+                                res,
+                                &judge.combo.to_string(),
+                                0.,
+                                top + eps * 2.,
+                                (0.5, 0.),
+                                1.,
+                                WHITE,
+                            );
+                            draw_text_aligned(
+                                res,
+                                if res.config.autoplay {
+                                    "AUTOPLAY"
+                                } else {
+                                    "COMBO"
+                                },
+                                0.,
+                                rect.y + eps * 1.5,
+                                (0.5, 0.),
+                                0.4,
+                                WHITE,
+                            );
+                        }
+                        draw_text_aligned(
+                            res,
+                            &res.config.title,
+                            -1. + margin,
+                            -top - eps * 2.8,
+                            (0., 1.),
+                            0.5,
                             WHITE,
                         );
                         draw_text_aligned(
                             res,
-                            if res.config.autoplay {
-                                "AUTOPLAY"
-                            } else {
-                                "COMBO"
-                            },
-                            0.,
-                            rect.y + eps * 1.5,
-                            (0.5, 0.),
-                            0.4,
+                            &res.config.level,
+                            1. - margin,
+                            -top - eps * 2.8,
+                            (1., 1.),
+                            0.5,
                             WHITE,
                         );
+                        let hw = 0.003;
+                        let height = eps * 1.2;
+                        let dest = 2. * res.time / res.track_length;
+                        draw_rectangle(-1., top, dest, height, Color::new(1., 1., 1., 0.6));
+                        draw_rectangle(-1. + dest - hw, top, hw * 2., height, WHITE);
+                    });
+                },
+            );
+        }
+        if pause_time.is_some() {
+            draw_rectangle(-1., -1., 2., 2., Color::new(0., 0., 0., 0.6));
+            let s = 0.06;
+            let w = 0.05;
+            draw_texture_ex(
+                res.icon_back,
+                -s * 3. - w,
+                -s,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(s * 2., s * 2.)),
+                    ..Default::default()
+                },
+            );
+            draw_texture_ex(
+                res.icon_retry,
+                -s,
+                -s,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(s * 2., s * 2.)),
+                    ..Default::default()
+                },
+            );
+            draw_texture_ex(
+                res.icon_resume,
+                s + w,
+                -s,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(s * 2., s * 2.)),
+                    ..Default::default()
+                },
+            );
+            match Judge::get_touches()
+                .into_iter()
+                .filter_map(|touch| {
+                    if !matches!(touch.phase, TouchPhase::Started) {
+                        return None;
                     }
-                    draw_text_aligned(
-                        res,
-                        &res.config.title,
-                        -1. + margin,
-                        -top - eps * 2.8,
-                        (0., 1.),
-                        0.5,
-                        WHITE,
-                    );
-                    draw_text_aligned(
-                        res,
-                        &res.config.level,
-                        1. - margin,
-                        -top - eps * 2.8,
-                        (1., 1.),
-                        0.5,
-                        WHITE,
-                    );
-                    let hw = 0.003;
-                    let height = eps * 1.2;
-                    let dest = 2. * res.time / res.track_length;
-                    draw_rectangle(-1., top, dest, height, Color::new(1., 1., 1., 0.6));
-                    draw_rectangle(-1. + dest - hw, top, hw * 2., height, WHITE);
+                    let p = touch.position;
+                    let p = Point::new(p.x, p.y / res.config.aspect_ratio);
+                    for i in -1..=1 {
+                        let ct = Point::new((s * 2. + w) * i as f32, 0.);
+                        let d = p - ct;
+                        if d.x.abs() <= s && d.y.abs() <= s {
+                            return Some(i);
+                        }
+                    }
+                    None
                 })
-            },
-        );
+                .next()
+            {
+                Some(-1) => {
+                    break 'app;
+                }
+                Some(0) => {
+                    judge.reset(&mut chart);
+                    res.judge_line_color = JUDGE_LINE_PERFECT_COLOR;
+                    res.audio.resume(&mut handle)?;
+                    res.audio.seek_to(&mut handle, 0.)?;
+                    start_time = get_time();
+                    pause_time = None;
+                }
+                Some(1) => {
+                    pause_time = None;
+                    res.audio.resume(&mut handle)?;
+                    res.time -= 1.;
+                    let dst = (res.audio.position(&handle)? - 3.).max(0.);
+                    res.audio.seek_to(&mut handle, dst)?;
+                    start_time = get_time() - dst;
+                    pause_rewind = Some(start_time + dst - 0.2);
+                }
+                _ => {}
+            }
+        }
+        if let Some(time) = pause_rewind {
+            let t = 3 - (get_time() - time).floor() as i32;
+            if t <= 0 {
+                pause_rewind = None;
+            } else {
+                let a = 0.3 * (t - 1) as f32;
+                draw_rectangle(-1., -1., 2., 2., Color::new(0., 0., 0., a));
+                res.with_model(
+                    Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
+                    |res| {
+                        res.apply_model(|| {
+                            draw_text_aligned(&res, &t.to_string(), 0., 0., (0.5, 0.5), 1., WHITE);
+                        })
+                    },
+                );
+            }
+        }
 
         let fps_now = get_time() as i32;
         if fps_now != fps_time {
@@ -271,7 +396,7 @@ pub async fn the_main() -> Result<()> {
         }
         if is_key_pressed(KeyCode::Left) {
             res.time -= 1.;
-            let dst = res.audio.position(&handle)? - 1.;
+            let dst = (res.audio.position(&handle)? - 1.).max(0.);
             res.audio.seek_to(&mut handle, dst)?;
             start_time = get_time() - dst;
         }
@@ -282,7 +407,7 @@ pub async fn the_main() -> Result<()> {
             start_time = get_time() - dst;
         }
         if is_key_pressed(KeyCode::Q) {
-            break;
+            break 'app;
         }
 
         next_frame().await;

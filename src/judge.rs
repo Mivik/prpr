@@ -106,10 +106,6 @@ impl VelocityTracker {
     pub fn has_flick(&mut self) -> bool {
         let spd = self.speed();
         let norm = spd.norm();
-        warn!(
-            "{norm} {}",
-            (self.last_dir.dot(&spd.unscale(norm)) - 1.).abs()
-        );
         if self.wait && (norm <= 0.5 || (self.last_dir.dot(&spd.unscale(norm)) - 1.).abs() > 0.4) {
             self.wait = false;
         }
@@ -187,6 +183,20 @@ impl Judge {
         }
     }
 
+    pub fn reset(&mut self, chart: &mut Chart) {
+        self.notes.iter_mut().for_each(|it| it.1 = 0);
+        self.trackers.clear();
+        self.last_time = 0.;
+        self.combo = 0;
+        self.max_combo = 0;
+        self.counts = [0; 4];
+        chart
+            .lines
+            .iter_mut()
+            .flat_map(|it| it.notes.iter_mut())
+            .for_each(|note| note.judge = JudgeStatus::NotJudged);
+    }
+
     pub fn commit(&mut self, what: Judgement) {
         use Judgement::*;
         self.counts[what as usize] += 1;
@@ -214,39 +224,53 @@ impl Judge {
         }
     }
 
+    pub fn get_touches() -> Vec<Touch> {
+        let mut touches = touches();
+        // TODO not complete
+        let btn = MouseButton::Left;
+        if is_mouse_button_pressed(btn) {
+            let p = mouse_position();
+            touches.push(Touch {
+                id: u64::MAX,
+                phase: TouchPhase::Started,
+                position: vec2(p.0, p.1),
+            });
+        } else if is_mouse_button_down(btn) {
+            let p = mouse_position();
+            touches.push(Touch {
+                id: u64::MAX,
+                phase: TouchPhase::Moved,
+                position: vec2(p.0, p.1),
+            });
+        } else if is_mouse_button_released(btn) {
+            let p = mouse_position();
+            touches.push(Touch {
+                id: u64::MAX,
+                phase: TouchPhase::Ended,
+                position: vec2(p.0, p.1),
+            });
+        }
+        let vp = unsafe { get_internal_gl() }.quad_gl.get_viewport();
+        touches
+            .into_iter()
+            .map(|mut touch| {
+                let p = touch.position;
+                touch.position = vec2(
+                    (p.x - vp.0 as f32) / vp.2 as f32 * 2. - 1.,
+                    (p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.,
+                );
+                touch
+            })
+            .collect()
+    }
+
     pub fn update(&mut self, res: &mut Resource, chart: &mut Chart, bad_notes: &mut Vec<BadNote>) {
         if res.config.autoplay {
             self.auto_play_update(res, chart);
             return;
         }
         let t = res.time;
-        let mut touches = touches_local();
-        if !touches.is_empty() {
-            warn!("{:?}", touches);
-        }
-        {
-            // TODO not complete
-            let btn = MouseButton::Left;
-            if is_mouse_button_pressed(btn) {
-                touches.push(Touch {
-                    id: u64::MAX,
-                    phase: TouchPhase::Started,
-                    position: mouse_position_local(),
-                });
-            } else if is_mouse_button_down(btn) {
-                touches.push(Touch {
-                    id: u64::MAX,
-                    phase: TouchPhase::Moved,
-                    position: mouse_position_local(),
-                });
-            } else if is_mouse_button_released(btn) {
-                touches.push(Touch {
-                    id: u64::MAX,
-                    phase: TouchPhase::Ended,
-                    position: mouse_position_local(),
-                });
-            }
-        }
+        let touches = Self::get_touches();
         // TODO optimize
         let mut touches: HashMap<u64, Touch> = touches.into_iter().map(|it| (it.id, it)).collect();
         let events = {

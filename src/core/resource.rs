@@ -34,6 +34,9 @@ pub struct Resource {
     pub background: Texture2D,
     pub note_style: NoteStyle,
     pub note_style_mh: NoteStyle,
+    pub icon_back: Texture2D,
+    pub icon_retry: Texture2D,
+    pub icon_resume: Texture2D,
 
     pub emitter: Emitter,
     pub emitter_square: Emitter,
@@ -139,6 +142,9 @@ impl Resource {
                 flick: load_tex("flick_mh.png").await?,
                 drag: load_tex("drag_mh.png").await?,
             },
+            icon_back: load_tex("back.png").await?,
+            icon_retry: load_tex("retry.png").await?,
+            icon_resume: load_tex("resume.png").await?,
 
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,
