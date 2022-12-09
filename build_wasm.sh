@@ -137,7 +137,11 @@ HTML=$(cat <<- END
                 status.innerText = 'Loading ' + url;
                 old.call(this, ...arguments);
                 this.onprogress = function(e) {
-                    status.innerText = 'Loading ' + url + ' (' + Math.round(e.loaded / e.total * 100) + '%)';
+                    if (e.total) {
+                        status.innerText = 'Loading ' + url + ' (' + Math.round(e.loaded / e.total * 100) + '%)';
+                    } else {
+                        status.innerText = 'Loading ' + url + ' (Loaded ' + (e.loaded / 1024).toFixed(1) + 'KB)';
+                    }
                 }
             }
         };

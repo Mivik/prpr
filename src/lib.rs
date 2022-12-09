@@ -378,11 +378,12 @@ pub async fn the_main() -> Result<()> {
             }
         }
         if let Some(time) = pause_rewind {
-            let t = 3 - (get_time() - time).floor() as i32;
+            let dt = get_time() - time;
+            let t = 3 - dt.floor() as i32;
             if t <= 0 {
                 pause_rewind = None;
             } else {
-                let a = 0.3 * (t - 1) as f32;
+                let a = (1. - dt as f32 / 3.) * 0.6;
                 draw_rectangle(-1., -1., 2., 2., Color::new(0., 0., 0., a));
                 res.with_model(
                     Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
