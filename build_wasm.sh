@@ -61,6 +61,7 @@ set -- "${POSITIONAL[@]}"
 PROJECT_NAME="prpr"
 
 HTML=$(cat <<- END
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
@@ -68,7 +69,8 @@ HTML=$(cat <<- END
     <style>
         html,
         body,
-        canvas {
+        canvas,
+        #container {
             margin: 0px;
             padding: 0px;
             width: 100%;
@@ -77,10 +79,19 @@ HTML=$(cat <<- END
             position: absolute;
             z-index: 0;
         }
+
+        #container {
+            position: relative;
+        }
     </style>
 </head>
 <body style="margin: 0; padding: 0; height: 100vh; width: 100vw;">
-    <canvas onclick="full()" id="glcanvas" tabindex='1' hidden></canvas>
+    <div id="container" hidden>
+        <div style="position: absolute; display: flex; justify-content: center; align-items: center; width: 100vw; height: 100%; flex-direction: column; z-index: 1;">
+            <h1 id="status" style="color: white;">Loading WASM</h1>
+        </div>
+        <canvas onclick="full()" id="glcanvas" tabindex="1" hidden></canvas>
+    </div>
     <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
     <script type="module">
         import init, { set_wasm } from "./${PROJECT_NAME}.js";
@@ -98,21 +109,36 @@ HTML=$(cat <<- END
             load("./${PROJECT_NAME}_bg.wasm");
         }
         window.run = function() {
-            document.getElementById("run-container").remove();
-            document.getElementById("glcanvas").style.background = 'black';
-            document.getElementById("glcanvas").removeAttribute("hidden");
-            document.getElementById("glcanvas").focus();
-            impl_run();
-            full();
+            document.getElementById('container').removeAttribute('hidden');
+            // document.getElementById('status').style.color = 'white';
+            document.getElementById('glcanvas').removeAttribute('hidden');
+            document.getElementById('glcanvas').style.background = 'black';
+            document.getElementById('glcanvas').focus();
+            full(); setTimeout(impl_run, 1);
+        }
+        window.on_game_start = function() {
+            document.getElementById('status').parentNode.remove();
+            // full();
         }
         window.full = function() {
-            document.getElementById("glcanvas").requestFullscreen();
+            document.getElementById('container').requestFullscreen();
         }
     </script>
     <div id="run-container" style="display: flex; justify-content: center; align-items: center; height: 100%; flex-direction: column;">
-        <p>Game can't play audio unless a button has been clicked.</p>
+        <p id="status">Game can't play audio unless a button has been clicked.</p>
         <button onclick="run()">Run Game</button>
     </div>
+    <script>
+        window.onload = () => {
+            let old = XMLHttpRequest.prototype.open;
+            let status = document.getElementById('status');
+            XMLHttpRequest.prototype.open = function() {
+                let url = arguments[1];
+                status.innerText = 'Loading ' + url;
+                old.call(this, ...arguments);
+            }
+        };
+    </script>
 </body>
 </html>
 END

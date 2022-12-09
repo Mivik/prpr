@@ -34,6 +34,12 @@ pub fn build_conf() -> Conf {
 
 static MESSAGES_TX: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+extern "C" {
+    fn on_game_start();
+}
+
 pub async fn the_main() -> Result<()> {
     set_pc_assets_folder("assets");
     simulate_mouse_with_touch(false);
@@ -92,6 +98,9 @@ pub async fn the_main() -> Result<()> {
 
     let (tx, rx) = mpsc::channel();
     *MESSAGES_TX.lock().unwrap() = Some(tx);
+
+    #[cfg(target_arch = "wasm32")]
+    on_game_start();
 
     let mut handle = res.audio.play(
         &res.music,
