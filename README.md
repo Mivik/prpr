@@ -21,6 +21,7 @@ prpr
 ├── assets
 |   ├── charts
 |   │   └── mychart
+|   │       ├── info.yml
 |   │       ├── chart.json
 |   │       ├── song.mp3
 |   │       └── ...
@@ -33,12 +34,41 @@ prpr
 
 That is to say, you should unzip your textures into the `texture` folder, and your chart in the `charts` folder, with `song.mp3` and `chart.json` in it.
 
-Finally, run `prpr` with your chart's name. If necessary, you could append `pgr` or `rpe` to the arguments to specify the format of the chart. The default format is `rpe`.
+Attention! You should create a `info.yml` in the chart folder as well. Its format is elaborated in [this section](#infoyml-format)
+
+Finally, run `prpr` with your chart's name.
 
 ```shell
-cargo run --release mychart pgr
+cargo run --release mychart
+```
+
+## `info.yml` format
+
+Available configurations are listed here:
+
+```yml
+title: (string) (default: 'UK')
+level: (string) (default: 'UK Lv.?')
+charter: (string) (default: 'UK')
+composer: (string) (default: 'UK')
+illustrator: (string) (default: 'UK')
+
+chart: (string, the path of the chart file) (default: 'chart.json')
+format: (string, the format of the chart) (default: 'rpe', available: 'rpe', 'pgr', 'pec')
+music: (string, the path of the music file) (default: 'music.mp3')
+illustration: (string, the path of the illustration) (default: none)
+
+aspect-ratio: (float, the aspect ratio of the screen (w / h)) (default: 16 / 9)
+autoplay: (bool, to enable the auto play mode) (default: true)
+line-length: (float, half the length of the judge line) (default: 6)
+particle: (bool, should particle be enabled or not) (default: false)
+speed: (float, the speed of the chart) (default: 1)
+volume-music: (float, the volume of the music) (default: 1)
+volume-sfx: (float, the volume of sound effects) (default: 1)
 ```
 
 ## Acknowledgement
 
 Some assets come from [@lchzh3473](https://github.com/lchzh3473).
+
+Thanks [@inokana](https://github.com/GBTP) for hints on implementation!
