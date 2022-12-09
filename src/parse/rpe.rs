@@ -246,11 +246,16 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
             Ok(Note {
                 object: Object {
                     alpha: if note.visible_time >= time {
-                        AnimFloat::default()
+                        if note.alpha >= 255 {
+                            AnimFloat::default()
+                        } else {
+                            AnimFloat::fixed(note.alpha as f32 / 255.)
+                        }
                     } else {
+                        let alpha = note.alpha.min(255) as f32 / 255.;
                         AnimFloat::new(vec![
                             Keyframe::new(0.0, 0.0, 0),
-                            Keyframe::new(time - note.visible_time, 1.0, 0),
+                            Keyframe::new(time - note.visible_time, alpha, 0),
                         ])
                     },
                     translation: AnimVector(
