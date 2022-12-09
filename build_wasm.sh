@@ -136,6 +136,9 @@ HTML=$(cat <<- END
                 let url = arguments[1];
                 status.innerText = 'Loading ' + url;
                 old.call(this, ...arguments);
+                this.onprogress = function(e) {
+                    status.innerText = 'Loading ' + url + ' (' + Math.round(e.loaded / e.total * 100) + '%)';
+                }
             }
         };
     </script>
