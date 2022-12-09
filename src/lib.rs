@@ -7,6 +7,8 @@ pub mod judge;
 pub mod parse;
 pub mod particle;
 
+use std::sync::{mpsc, Mutex};
+
 use crate::{
     audio::{Audio, PlayParams},
     config::{ChartFormat, Config},
@@ -29,6 +31,8 @@ pub fn build_conf() -> Conf {
         ..Default::default()
     }
 }
+
+static MESSAGES_TX: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 
 pub async fn the_main() -> Result<()> {
     set_pc_assets_folder("assets");
@@ -85,6 +89,9 @@ pub async fn the_main() -> Result<()> {
     let mut judge = Judge::new(&chart);
 
     let gl = unsafe { get_internal_gl() }.quad_gl;
+
+    let (tx, rx) = mpsc::channel();
+    *MESSAGES_TX.lock().unwrap() = Some(tx);
 
     let mut handle = res.audio.play(
         &res.music,
@@ -385,7 +392,7 @@ pub async fn the_main() -> Result<()> {
             info!("| {}", (1. / (get_time() - frame_start)) as u32);
         }
 
-        if is_key_pressed(KeyCode::Space) {
+        if is_key_pressed(KeyCode::Space) || (pause_time.is_none() && rx.try_recv().is_ok()) {
             if res.audio.paused(&handle)? {
                 res.audio.resume(&mut handle)?;
                 start_time += get_time() - pause_time.take().unwrap();
@@ -423,4 +430,19 @@ pub extern "C" fn quad_main() {
             error!("Error: {:?}", err);
         }
     });
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "C" fn Java_quad_1native_QuadNative_prprActivityOnPause(
+    _: *mut std::ffi::c_void,
+    _: *const std::ffi::c_void,
+) {
+    MESSAGES_TX
+        .lock()
+        .unwrap()
+        .as_mut()
+        .unwrap()
+        .send(())
+        .unwrap();
 }

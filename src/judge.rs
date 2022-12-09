@@ -106,7 +106,7 @@ impl VelocityTracker {
     pub fn has_flick(&mut self) -> bool {
         let spd = self.speed();
         let norm = spd.norm();
-        if self.wait && (norm <= 0.5 || (self.last_dir.dot(&spd.unscale(norm)) - 1.).abs() > 0.4) {
+        if self.wait && (norm <= 1. || (self.last_dir.dot(&spd.unscale(norm)) - 1.).abs() > 0.4) {
             self.wait = false;
         }
         if self.wait {
