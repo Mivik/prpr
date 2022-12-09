@@ -21,6 +21,8 @@ use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
 use macroquad::prelude::*;
 
+const ADJUST_TIME_THRESHOLD: f64 = 0.05;
+
 pub fn build_conf() -> Conf {
     Conf {
         window_title: "prpr".to_string(),
@@ -145,8 +147,11 @@ pub async fn the_main() -> Result<()> {
         pop_camera_state();
 
         let time = pause_time.unwrap_or_else(&get_time) - start_time;
-        // #[cfg(not(target_arch = "wasm32"))]
-        // let time = (res.audio.position(&handle)? + time * 2.) / 3.;
+        let music_time = res.audio.position(&handle)?;
+        if (music_time - time).abs() > ADJUST_TIME_THRESHOLD {
+            warn!("Times differ a lot: {} {}. Syncing time...", time, music_time);
+            start_time -= music_time - time;
+        }
 
         let time = (time as f32 - chart.offset).max(0.0);
         if time > res.track_length + 0.8 {
