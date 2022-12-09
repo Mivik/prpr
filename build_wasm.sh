@@ -80,7 +80,7 @@ HTML=$(cat <<- END
     </style>
 </head>
 <body style="margin: 0; padding: 0; height: 100vh; width: 100vw;">
-    <canvas id="glcanvas" tabindex='1' hidden></canvas>
+    <canvas onclick="full()" id="glcanvas" tabindex='1' hidden></canvas>
     <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
     <script type="module">
         import init, { set_wasm } from "./${PROJECT_NAME}.js";
@@ -103,6 +103,9 @@ HTML=$(cat <<- END
             document.getElementById("glcanvas").removeAttribute("hidden");
             document.getElementById("glcanvas").focus();
             impl_run();
+        }
+        window.full = function() {
+            document.getElementById("glcanvas").requestFullscreen();
         }
     </script>
     <div id="run-container" style="display: flex; justify-content: center; align-items: center; height: 100%; flex-direction: column;">

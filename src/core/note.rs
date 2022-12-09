@@ -1,11 +1,16 @@
 use super::{
-    object::world_to_screen, Matrix, Object, Point, Resource, ScopedTransform, ASPECT_RATIO,
+    Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR,
     NOTE_WIDTH_RATIO,
 };
-use crate::audio::Audio;
+use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
 use nalgebra::Translation2;
 
+const HOLD_PARTICLE_INTERVAL: f32 = 0.15;
+const FADEOUT_TIME: f32 = 0.16;
+const BAD_TIME: f32 = 0.5;
+
+#[derive(Clone, Debug)]
 pub enum NoteKind {
     Click,
     Hold { end_time: f32, end_height: f32 },
@@ -30,9 +35,11 @@ pub struct Note {
     pub time: f32,
     pub height: f32,
     pub speed: f32,
+
+    pub above: bool,
     pub multiple_hint: bool,
     pub fake: bool,
-    pub last_real_time: f32,
+    pub judge: JudgeStatus,
 }
 
 pub struct RenderConfig {
@@ -57,17 +64,16 @@ fn draw_tex(
     color: Color,
     params: DrawTextureParams,
 ) {
-    // TODO better rejection based on rectangle intersection
     let Vec2 { x: w, y: h } = params.dest_size.unwrap_or_else(|| {
         params
             .source
             .map(|it| vec2(it.w, it.h))
             .unwrap_or_else(|| vec2(texture.width(), texture.height()))
     });
-    let pt1 = world_to_screen(res, Point::new(x, y));
-    let pt2 = world_to_screen(res, Point::new(x + w, y));
-    let pt3 = world_to_screen(res, Point::new(x, y + h));
-    let pt4 = world_to_screen(res, Point::new(x + w, y + h));
+    let pt1 = res.world_to_screen(Point::new(x, y));
+    let pt2 = res.world_to_screen(Point::new(x + w, y));
+    let pt3 = res.world_to_screen(Point::new(x, y + h));
+    let pt4 = res.world_to_screen(Point::new(x + w, y + h));
     if pt1.x.min(pt2.x.min(pt3.x.min(pt4.x))) > 1.
         || pt1.x.max(pt2.x.max(pt3.x.max(pt4.x))) < -1.
         || pt1.y.min(pt2.y.min(pt3.y.min(pt4.y))) > 1.
@@ -75,76 +81,138 @@ fn draw_tex(
     {
         return;
     }
-    draw_texture_ex(texture, x, y, color, params);
+    let gl = unsafe { get_internal_gl() }.quad_gl;
+
+    let Rect {
+        x: sx,
+        y: sy,
+        w: sw,
+        h: sh,
+    } = params.source.unwrap_or(Rect {
+        x: 0.,
+        y: 0.,
+        w: 1.,
+        h: 1.,
+    });
+
+    let mut w = w;
+    let mut h = h;
+    let mut x = x;
+    let mut y = y;
+    if params.flip_x {
+        x += w;
+        w = -w;
+    }
+    if params.flip_y {
+        y += h;
+        h = -h;
+    }
+
+    let p = [
+        Point::new(x, y),
+        Point::new(x + w, y),
+        Point::new(x + w, y + h),
+        Point::new(x, y + h),
+    ];
+    let p = [
+        res.world_to_screen(p[0]),
+        res.world_to_screen(p[1]),
+        res.world_to_screen(p[2]),
+        res.world_to_screen(p[3]),
+    ];
+    #[rustfmt::skip]
+    let vertices = [
+        Vertex::new(p[0].x, p[0].y, 0., sx     , sy     , color),
+        Vertex::new(p[1].x, p[1].y, 0., sx + sw, sy     , color),
+        Vertex::new(p[2].x, p[2].y, 0., sx + sw, sy + sh, color),
+        Vertex::new(p[3].x, p[3].y, 0., sx     , sy + sh, color),
+    ];
+    let indices: [u16; 6] = [0, 1, 2, 0, 2, 3];
+
+    gl.texture(Some(texture));
+    gl.draw_mode(DrawMode::Triangles);
+    gl.geometry(&vertices, &indices);
+}
+
+fn draw_center(res: &Resource, tex: Texture2D, scale: f32, color: Color) {
+    let hf = vec2(scale, tex.height() * scale / tex.width());
+    draw_tex(
+        res,
+        tex,
+        -hf.x,
+        -hf.y,
+        color,
+        DrawTextureParams {
+            dest_size: Some(hf * 2.),
+            flip_y: true,
+            ..Default::default()
+        },
+    );
 }
 
 impl Note {
     pub fn update(&mut self, res: &mut Resource, object: &mut Object) {
-        if !self.fake
-            && self.last_real_time < self.time
-            && self.time <= res.real_time
-            && (self.last_real_time - res.real_time).abs() < 0.5
-        {
-            res.audio
-                .play(
-                    match self.kind {
-                        NoteKind::Click | NoteKind::Hold { .. } => &res.sfx_click,
-                        NoteKind::Drag => &res.sfx_drag,
-                        NoteKind::Flick => &res.sfx_flick,
-                    },
-                    1.0,
-                    0.0,
-                )
-                .unwrap();
-            self.object.set_time(self.time);
-            object.set_time(self.time);
-            (object.now() * self.now_transform(0.)).apply_render(|| res.emit_at_origin());
+        if let Some(color) = if let JudgeStatus::Hold(perfect, at, _) = &mut self.judge {
+            if res.time > *at {
+                *at += HOLD_PARTICLE_INTERVAL;
+                Some(if *perfect {
+                    JUDGE_LINE_PERFECT_COLOR
+                } else {
+                    JUDGE_LINE_GOOD_COLOR
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        } {
+            self.object.set_time(res.time);
+            object.set_time(res.time);
+            res.with_model(object.now(res) * self.now_transform(res, 0.), |res| {
+                res.emit_at_origin(color)
+            });
         }
-        self.last_real_time = res.real_time;
         self.object.set_time(res.time);
     }
 
-    fn now_transform(&self, base: f32) -> Matrix {
-        Translation2::new(0., base).to_homogeneous() * self.object.now() * self.object.now_scale()
+    pub fn now_transform(&self, res: &Resource, base: f32) -> Matrix {
+        Translation2::new(0., base).to_homogeneous()
+            * self.object.now(res)
+            * self.object.now_scale()
     }
 
     pub fn render(&self, res: &mut Resource, line_height: f32, config: &RenderConfig) {
-        if self.time - config.appear_before > res.time {
+        if self.time - config.appear_before > res.time
+            || (matches!(self.judge, JudgeStatus::Judged)
+                && !matches!(self.kind, NoteKind::Hold { .. }))
+        {
             return;
         }
         let scale = (if self.multiple_hint { 1.1 } else { 1.0 }) * NOTE_WIDTH_RATIO;
-        let color = self.object.now_color();
+        let mut color = WHITE;
 
-        let line_height = line_height / ASPECT_RATIO * self.speed;
-        let height = self.height / ASPECT_RATIO * self.speed;
+        let line_height = line_height / res.config.aspect_ratio * self.speed;
+        let height = self.height / res.config.aspect_ratio * self.speed;
 
         let base = height - line_height;
-        if base < -1e-2 && !config.draw_below && !matches!(self.kind, NoteKind::Hold { .. }) {
+        if !config.draw_below
+            && (res.time - FADEOUT_TIME >= self.time || (self.fake && res.time >= self.time))
+            && !matches!(self.kind, NoteKind::Hold { .. })
+        {
             return;
         }
-        self.now_transform(base).apply_render(|| {
+        res.with_model(self.now_transform(res, base), |res| {
             let style = if self.multiple_hint {
                 &res.note_style_mh
             } else {
                 &res.note_style
             };
             let draw = |tex: Texture2D| {
-                if res.time >= self.time {
-                    return;
+                let mut color = color;
+                if !config.draw_below {
+                    color.a *= (self.time - res.time).min(0.) / FADEOUT_TIME + 1.;
                 }
-                let hf = vec2(scale, tex.height() * scale / tex.width());
-                draw_tex(
-                    res,
-                    tex,
-                    -hf.x,
-                    -hf.y,
-                    color,
-                    DrawTextureParams {
-                        dest_size: Some(hf * 2.),
-                        flip_y: true,
-                        ..Default::default()
-                    },
-                );
+                draw_center(res, tex, scale, color);
             };
             match self.kind {
                 NoteKind::Click => {
@@ -154,10 +222,14 @@ impl Note {
                     end_time,
                     end_height,
                 } => {
+                    if matches!(self.judge, JudgeStatus::Judged) {
+                        // miss
+                        color.a *= 0.5;
+                    }
                     if res.time >= end_time {
                         return;
                     }
-                    let end_height = end_height / ASPECT_RATIO * self.speed;
+                    let end_height = end_height / res.config.aspect_ratio * self.speed;
                     let base = height - line_height;
                     // head
                     if res.time < self.time {
@@ -185,8 +257,6 @@ impl Note {
                         height
                     };
                     // TODO (end_height - height) is not always total height
-                    let en =
-                        (tex.height() * ((end_height - h) / (end_height - height)).min(1.)).abs();
                     draw_tex(
                         res,
                         tex,
@@ -197,8 +267,8 @@ impl Note {
                             source: Some(Rect {
                                 x: 0.,
                                 y: 0.,
-                                w: tex.width(),
-                                h: en,
+                                w: 1.,
+                                h: ((end_height - h) / (end_height - height)).min(1.).abs(),
                             }),
                             dest_size: Some(vec2(w * 2., end_height - h)),
                             flip_y: true,
@@ -232,5 +302,41 @@ impl Note {
                 }
             }
         });
+    }
+}
+
+pub struct BadNote {
+    pub time: f32,
+    pub kind: NoteKind,
+    pub matrix: Matrix,
+    pub speed: Vector,
+}
+
+impl BadNote {
+    pub fn render(&self, res: &mut Resource) -> bool {
+        if res.time > self.time + BAD_TIME {
+            return false;
+        }
+        res.with_model(self.matrix, |res| {
+            res.apply_model(|| {
+                draw_center(
+                    res,
+                    match &self.kind {
+                        NoteKind::Click => res.note_style.click,
+                        NoteKind::Drag => res.note_style.drag,
+                        NoteKind::Flick => res.note_style.flick,
+                        _ => unreachable!(),
+                    },
+                    NOTE_WIDTH_RATIO,
+                    Color::new(
+                        0.423529,
+                        0.262745,
+                        0.262745,
+                        (self.time - res.time).min(0.) / BAD_TIME + 1.,
+                    ),
+                )
+            });
+        });
+        true
     }
 }

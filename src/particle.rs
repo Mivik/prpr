@@ -168,6 +168,7 @@ pub struct EmitterConfig {
     /// Particles rendering mode.
     pub blend_mode: BlendMode,
 
+    pub base_color: Color,
     /// How particles should change base color along the lifetime.
     pub colors_curve: ColorCurve,
 
@@ -392,6 +393,7 @@ impl Default for EmitterConfig {
             size_randomness: 0.0,
             size_curve: None,
             blend_mode: BlendMode::Alpha,
+            base_color: WHITE,
             colors_curve: ColorCurve::default(),
             gravity: vec2(0.0, 0.0),
             texture: None,
@@ -417,6 +419,7 @@ struct CpuParticle {
     lifetime: f32,
     frame: u16,
     initial_size: f32,
+    color: Color,
 }
 
 pub struct Emitter {
@@ -444,7 +447,7 @@ pub struct Emitter {
 }
 
 impl Emitter {
-    const MAX_PARTICLES: usize = 10000;
+    const MAX_PARTICLES: usize = 12000;
 
     pub fn new(config: EmitterConfig) -> Emitter {
         let InternalGlContext {
@@ -606,6 +609,9 @@ impl Emitter {
     }
 
     fn emit_particle(&mut self, offset: Vec2) {
+        if self.gpu_particles.len() == Self::MAX_PARTICLES {
+            return;
+        }
         let offset = offset + self.config.emission_shape.gen_random_point();
 
         fn random_initial_vector(dir: Vec2, spread: f32, velocity: f32) -> Vec2 {
@@ -667,6 +673,7 @@ impl Emitter {
                 - self.config.lifetime * rand::gen_range(0.0, self.config.lifetime_randomness),
             frame: 0,
             initial_size: r,
+            color: self.config.base_color,
         });
     }
 
@@ -731,6 +738,7 @@ impl Emitter {
                         + self.config.colors_curve.end.to_vec() * t
                 }
             };
+            gpu.color *= cpu.color.to_vec();
             gpu.pos += vec4(cpu.velocity.x, cpu.velocity.y, cpu.angular_velocity, 0.0) * dt;
 
             gpu.pos.w = cpu.initial_size

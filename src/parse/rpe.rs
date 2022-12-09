@@ -6,9 +6,13 @@ use crate::{
         NoteKind, Object, StaticTween, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
+    judge::JudgeStatus,
 };
 use anyhow::{bail, Context, Result};
-use macroquad::{texture::{load_image, Texture2D}, prelude::Color};
+use macroquad::{
+    prelude::Color,
+    texture::{load_image, Texture2D},
+};
 use serde::Deserialize;
 use std::rc::Rc;
 
@@ -105,7 +109,7 @@ struct RPENote {
     end_time: Triple,
     position_x: f32,
     y_offset: f32,
-    alpha: u8,
+    alpha: u16, // some alpha has 256...
     size: f32,
     speed: f32,
     is_fake: u8,
@@ -232,70 +236,62 @@ fn parse_speed_events(r: &mut BpmList, rpe: &[RPEEventLayer], max_time: f32) -> 
     Ok(AnimFloat::new(kfs))
 }
 
-fn parse_notes(
-    r: &mut BpmList,
-    rpe: Vec<RPENote>,
-    height: &mut AnimFloat,
-) -> Result<(Vec<Note>, Vec<Note>)> {
-    let mut notes_above = Vec::new();
-    let mut notes_below = Vec::new();
-    for note in rpe {
-        let dst = if note.above == 1 {
-            &mut notes_above
-        } else {
-            &mut notes_below
-        };
-        let time = r.time(&note.start_time);
-        height.set_time(time);
-        let note_height = height.now();
-        let y_offset = note.y_offset * 2. / RPE_HEIGHT;
-        dst.push(Note {
-            object: Object {
-                alpha: if note.visible_time >= time {
-                    AnimFloat::default()
-                } else {
-                    AnimFloat::new(vec![
-                        Keyframe::new(0.0, 0.0, 0),
-                        Keyframe::new(time - note.visible_time, 1.0, 0),
-                    ])
-                },
-                translation: AnimVector(
-                    AnimFloat::fixed(note.position_x / (RPE_WIDTH / 2.)),
-                    AnimFloat::default(),
-                ),
-                scale: AnimVector(
-                    if note.size == 1.0 {
+fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Result<Vec<Note>> {
+    rpe.into_iter()
+        .map(|note| {
+            let time = r.time(&note.start_time);
+            height.set_time(time);
+            let note_height = height.now();
+            let y_offset = note.y_offset * 2. / RPE_HEIGHT;
+            Ok(Note {
+                object: Object {
+                    alpha: if note.visible_time >= time {
                         AnimFloat::default()
                     } else {
-                        AnimFloat::fixed(note.size)
+                        AnimFloat::new(vec![
+                            Keyframe::new(0.0, 0.0, 0),
+                            Keyframe::new(time - note.visible_time, 1.0, 0),
+                        ])
                     },
-                    AnimFloat::default(),
-                ),
-                ..Default::default()
-            },
-            kind: match note.kind {
-                1 => NoteKind::Click,
-                2 => {
-                    let end_time = r.time(&note.end_time);
-                    height.set_time(end_time);
-                    NoteKind::Hold {
-                        end_time,
-                        end_height: height.now() + y_offset,
+                    translation: AnimVector(
+                        AnimFloat::fixed(note.position_x / (RPE_WIDTH / 2.)),
+                        AnimFloat::default(),
+                    ),
+                    scale: AnimVector(
+                        if note.size == 1.0 {
+                            AnimFloat::default()
+                        } else {
+                            AnimFloat::fixed(note.size)
+                        },
+                        AnimFloat::default(),
+                    ),
+                    ..Default::default()
+                },
+                kind: match note.kind {
+                    1 => NoteKind::Click,
+                    2 => {
+                        let end_time = r.time(&note.end_time);
+                        height.set_time(end_time);
+                        NoteKind::Hold {
+                            end_time,
+                            end_height: height.now() + y_offset,
+                        }
                     }
-                }
-                3 => NoteKind::Flick,
-                4 => NoteKind::Drag,
-                _ => bail!("Unknown note type: {}", note.kind),
-            },
-            time,
-            height: note_height + y_offset,
-            speed: note.speed,
-            multiple_hint: false,
-            fake: note.is_fake != 0,
-            last_real_time: 0.0,
-        });
-    }
-    Ok((notes_above, notes_below))
+                    3 => NoteKind::Flick,
+                    4 => NoteKind::Drag,
+                    _ => bail!("Unknown note type: {}", note.kind),
+                },
+                time,
+                height: note_height + y_offset,
+                speed: note.speed,
+
+                above: note.above == 1,
+                multiple_hint: false,
+                fake: note.is_fake != 0,
+                judge: JudgeStatus::NotJudged,
+            })
+        })
+        .collect()
 }
 
 fn parse_color_events(r: &mut BpmList, rpe: &[RPEColorEvent]) -> Result<Anim<Color>> {
@@ -304,7 +300,11 @@ fn parse_color_events(r: &mut BpmList, rpe: &[RPEColorEvent]) -> Result<Anim<Col
         kfs.push(Keyframe::new(0.0, JUDGE_LINE_PERFECT_COLOR, 0));
     }
     for e in rpe {
-        kfs.push(Keyframe::new(r.time(&e.start_time), Color::from_rgba(e.color.0, e.color.1, e.color.2, 0), 0));
+        kfs.push(Keyframe::new(
+            r.time(&e.start_time),
+            Color::from_rgba(e.color.0, e.color.1, e.color.2, 0),
+            0,
+        ));
     }
     Ok(Anim::new(kfs))
 }
@@ -339,7 +339,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
         Ok(res)
     }
     let mut height = parse_speed_events(r, &event_layers, max_time)?;
-    let (notes_above, notes_below) = parse_notes(r, rpe.notes.unwrap_or_default(), &mut height)?;
+    let notes = parse_notes(r, rpe.notes.unwrap_or_default(), &mut height)?;
     Ok(JudgeLine {
         object: Object {
             alpha: events_with_factor(
@@ -402,11 +402,9 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
                     .transpose()?
                     .unwrap_or_default()
             },
-            ..Default::default()
         },
         height,
-        notes_above,
-        notes_below,
+        notes,
         kind: if rpe.texture == "line.png" {
             if let Some(events) = rpe.extended.as_ref().and_then(|e| e.text_events.as_ref()) {
                 JudgeLineKind::Text(

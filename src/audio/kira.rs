@@ -1,7 +1,7 @@
-use super::Audio;
+use super::{Audio, PlayParams};
 use anyhow::Result;
 use kira::{
-    manager::{backend::cpal::CpalBackend, AudioManager, AudioManagerSettings},
+    manager::{backend::cpal::CpalBackend, AudioManager, AudioManagerSettings, Capacities},
     sound::static_sound::{PlaybackState, StaticSoundData, StaticSoundHandle, StaticSoundSettings},
     tween::Tween,
 };
@@ -14,20 +14,28 @@ impl Audio for KiraAudio {
     type Handle = StaticSoundHandle;
 
     fn new() -> Result<Self> {
-        Ok(Self(AudioManager::new(AudioManagerSettings::default())?))
+        Ok(Self(AudioManager::new(AudioManagerSettings {
+            capacities: Capacities {
+                sound_capacity: 2048,
+                command_capacity: 2048,
+                ..Default::default()
+            },
+            ..Default::default()
+        })?))
     }
 
-    fn create_clip(&self, data: Vec<u8>) -> Result<Self::Clip> {
-        Ok(StaticSoundData::from_cursor(
-            Cursor::new(data),
-            StaticSoundSettings::default(),
-        )?)
+    fn create_clip(&self, data: Vec<u8>) -> Result<(Self::Clip, f64)> {
+        let data = StaticSoundData::from_cursor(Cursor::new(data), StaticSoundSettings::default())?;
+        let length = data.frames.len() as f64 / data.sample_rate as f64;
+        Ok((data, length))
     }
 
-    fn play(&mut self, clip: &Self::Clip, volume: f64, offset: f64) -> Result<Self::Handle> {
-        Ok(self
-            .0
-            .play(clip.with_modified_settings(|it| it.start_position(offset).volume(volume)))?)
+    fn play(&mut self, clip: &Self::Clip, params: PlayParams) -> Result<Self::Handle> {
+        Ok(self.0.play(clip.with_modified_settings(|it| {
+            it.volume(params.volume)
+                .playback_rate(params.playback_rate)
+                .start_position(params.offset)
+        }))?)
     }
 
     fn pause(&mut self, handle: &mut Self::Handle) -> Result<()> {

@@ -1,4 +1,4 @@
-use super::Audio;
+use super::{Audio, PlayParams};
 use anyhow::{anyhow, bail, Error, Result};
 use std::io::Cursor;
 use symphonia::core::{
@@ -19,7 +19,7 @@ enum AudioState {
     Paused(f64),  // paused at
 }
 
-pub struct AudioHandle(AudioBufferSourceNode, AudioState, AudioBuffer, f64);
+pub struct AudioHandle(AudioBufferSourceNode, AudioState, AudioBuffer, PlayParams);
 
 fn load_frames_from_buffer(
     channels: &mut [Vec<f32>; 2],
@@ -68,7 +68,7 @@ impl Audio for WebAudio {
         Ok(Self(AudioContext::new().map_err(js_err)?))
     }
 
-    fn create_clip(&self, data: Vec<u8>) -> Result<Self::Clip> {
+    fn create_clip(&self, data: Vec<u8>) -> Result<(Self::Clip, f64)> {
         let codecs = symphonia::default::get_codecs();
         let probe = symphonia::default::get_probe();
         let mss = MediaSourceStream::new(Box::new(Cursor::new(data)), Default::default());
@@ -122,7 +122,7 @@ impl Audio for WebAudio {
         if stereo {
             clip.copy_to_channel(&channels[1], 1).map_err(js_err)?;
         }
-        Ok(clip)
+        Ok((clip, channels[0].len() as f64 / sample_rate as f64))
     }
 
     fn position(&self, handle: &Self::Handle) -> Result<f64> {
@@ -136,21 +136,22 @@ impl Audio for WebAudio {
         Ok(matches!(handle.1, AudioState::Paused(_)))
     }
 
-    fn play(&mut self, clip: &Self::Clip, volume: f64, offset: f64) -> Result<Self::Handle> {
+    fn play(&mut self, clip: &Self::Clip, params: PlayParams) -> Result<Self::Handle> {
         let gain = self.0.create_gain().map_err(js_err)?;
-        gain.gain().set_value(volume as _);
+        gain.gain().set_value(params.volume as _);
         let node = self.0.create_buffer_source().map_err(js_err)?;
         node.set_buffer(Some(clip));
+        node.playback_rate().set_value(params.playback_rate as f32);
         node.connect_with_audio_node(&gain).map_err(js_err)?;
-        node.connect_with_audio_node(&self.0.destination())
+        gain.connect_with_audio_node(&self.0.destination())
             .map_err(js_err)?;
-        node.start_with_when_and_grain_offset(0., offset)
+        node.start_with_when_and_grain_offset(0., params.offset)
             .map_err(js_err)?;
         Ok(AudioHandle(
             node,
-            AudioState::Playing(self.0.current_time() - offset),
+            AudioState::Playing(self.0.current_time() - params.offset),
             clip.clone(),
-            volume,
+            params,
         ))
     }
 
@@ -167,13 +168,25 @@ impl Audio for WebAudio {
         let AudioState::Paused(time) = handle.1 else {
             bail!("Resuming an playing clip");
         };
-        *handle = self.play(&handle.2, handle.3, time)?;
+        *handle = self.play(
+            &handle.2,
+            PlayParams {
+                offset: time,
+                ..handle.3
+            },
+        )?;
         Ok(())
     }
 
     fn seek_to(&mut self, handle: &mut Self::Handle, position: f64) -> Result<()> {
         handle.0.stop().map_err(js_err)?;
-        *handle = self.play(&handle.2, handle.3, position)?;
+        *handle = self.play(
+            &handle.2,
+            PlayParams {
+                offset: position,
+                ..handle.3
+            },
+        )?;
         Ok(())
     }
 }

@@ -5,6 +5,7 @@ use crate::{
         Object, HEIGHT_RATIO, NOTE_WIDTH_RATIO,
     },
     ext::NotNanExt,
+    judge::JudgeStatus,
 };
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -118,7 +119,7 @@ fn parse_float_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimFloat> {
     validate_events!(pgr);
     let mut kfs = Vec::<Keyframe<f32>>::new();
     for e in pgr {
-        if !kfs.last().map(|it| it.value == e.start).unwrap_or_default() {
+        if !kfs.last().map_or(false, |it| it.value == e.start) {
             kfs.push(Keyframe::new((e.start_time * r).max(0.), e.start, 2));
         }
         kfs.push(Keyframe::new(e.end_time * r, e.end, 2));
@@ -134,14 +135,10 @@ fn parse_move_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimVector> {
     for e in pgr {
         let st = (e.start_time * r).max(0.);
         let en = e.end_time * r;
-        if !kf1.last().map(|it| it.value == e.start).unwrap_or_default() {
+        if !kf1.last().map_or(false, |it| it.value == e.start) {
             kf1.push(Keyframe::new(st, e.start, 2));
         }
-        if !kf2
-            .last()
-            .map(|it| it.value == e.start2)
-            .unwrap_or_default()
-        {
+        if !kf2.last().map_or(false, |it| it.value == e.start2) {
             kf2.push(Keyframe::new(st, e.start2, 2));
         }
         kf1.push(Keyframe::new(en, e.end, 2));
@@ -163,6 +160,7 @@ fn parse_notes(
     pgr: Vec<PgrNote>,
     speed: &mut AnimFloat,
     height: &mut AnimFloat,
+    above: bool,
 ) -> Result<Vec<Note>> {
     // is_sorted is unstable...
     if pgr.is_empty() {
@@ -207,9 +205,11 @@ fn parse_notes(
                     pgr.speed
                 },
                 height: pgr.floor_position / HEIGHT_RATIO,
+
+                above,
                 multiple_hint: false,
                 fake: false,
-                last_real_time: 0.0,
+                judge: JudgeStatus::NotJudged,
             })
         })
         .collect()
@@ -219,10 +219,12 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
     let r = 60. / pgr.bpm / 32.;
     let (mut speed, mut height) = parse_speed_events(r, pgr.speed_events, max_time)
         .context("Failed to parse speed events")?;
-    let notes_above = parse_notes(r, pgr.notes_above, &mut speed, &mut height)
+    let notes_above = parse_notes(r, pgr.notes_above, &mut speed, &mut height, true)
         .context("Failed to parse notes above")?;
-    let notes_below = parse_notes(r, pgr.notes_below, &mut speed, &mut height)
+    let mut notes_below = parse_notes(r, pgr.notes_below, &mut speed, &mut height, false)
         .context("Failed to parse notes below")?;
+    let mut notes = notes_above;
+    notes.append(&mut notes_below);
     Ok(JudgeLine {
         object: Object {
             alpha: parse_float_events(r, pgr.alpha_events)
@@ -235,8 +237,7 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
         },
         kind: JudgeLineKind::Normal,
         height,
-        notes_above,
-        notes_below,
+        notes,
         color: Anim::default(),
         parent: None,
         show_below: true,

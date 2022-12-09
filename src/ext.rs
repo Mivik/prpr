@@ -1,4 +1,4 @@
-use ordered_float::{NotNan, Float};
+use ordered_float::{Float, NotNan};
 
 pub trait NotNanExt: Sized {
     fn not_nan(self) -> NotNan<Self>;

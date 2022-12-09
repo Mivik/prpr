@@ -1,10 +1,11 @@
 use super::{process_lines, BpmList, TWEEN_MAP};
 use crate::{
     core::{
-        AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineKind, Keyframe, Note, NoteKind, Object,
-        TweenId, EPS, Anim,
+        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineKind, Keyframe, Note, NoteKind,
+        Object, TweenId, EPS,
     },
     ext::NotNanExt,
+    judge::JudgeStatus,
 };
 use anyhow::{anyhow, bail, Context, Result};
 use macroquad::prelude::warn;
@@ -76,8 +77,7 @@ struct PECJudgeLine {
     alpha_events: Vec<PECEvent>,
     move_events: (Vec<PECEvent>, Vec<PECEvent>),
     rotate_events: Vec<PECEvent>,
-    notes_above: Vec<Note>,
-    notes_below: Vec<Note>,
+    notes: Vec<Note>,
 }
 
 fn sanitize_events(events: &mut [PECEvent], id: usize, desc: &str) {
@@ -120,8 +120,10 @@ fn parse_events(mut events: Vec<PECEvent>, id: usize, desc: &str) -> Result<Anim
     Ok(AnimFloat::new(kfs))
 }
 
-fn parse_speed_events(pec: Vec<(f32, f32)>, max_time: f32) -> AnimFloat {
-    assert!(pec[0].0.abs() < EPS);
+fn parse_speed_events(mut pec: Vec<(f32, f32)>, max_time: f32) -> AnimFloat {
+    if pec[0].0 >= EPS {
+        pec.insert(0, (0., 0.));
+    }
     let mut kfs = Vec::new();
     let mut height = 0.0;
     let mut last_time = 0.0;
@@ -169,8 +171,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
             it.end /= 255.;
         }
     });
-    process_notes(&mut pec.notes_above);
-    process_notes(&mut pec.notes_below);
+    process_notes(&mut pec.notes);
     Ok(JudgeLine {
         object: Object {
             alpha: parse_events(pec.alpha_events, id, "alpha")?,
@@ -180,15 +181,13 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
             ),
             rotation: parse_events(pec.rotate_events, id, "rotate")?,
             scale: AnimVector(AnimFloat::fixed(3.91 / 6.), AnimFloat::default()),
-            ..Default::default()
         },
         kind: JudgeLineKind::Normal,
         height,
-        notes_above: pec.notes_above,
-        notes_below: pec.notes_below,
+        notes: pec.notes,
         color: Anim::default(),
         parent: None,
-        show_below: true,
+        show_below: false,
     })
 }
 
@@ -198,7 +197,6 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     let mut lines = Vec::new();
     let mut bpm_list = Vec::new();
     let mut last_line = None;
-    let mut last_side_above = false;
     fn get_line(lines: &mut Vec<PECJudgeLine>, id: usize) -> &mut PECJudgeLine {
         if lines.len() <= id {
             lines.reserve(id + 1);
@@ -225,16 +223,9 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                bail!("No note has been inserted yet");
-            };
-            let line = &mut lines[last_line];
-            (if last_side_above {
-                &mut line.notes_above
-            } else {
-                &mut line.notes_below
-            })
-            .last_mut()
-            .unwrap()
+                                                bail!("No note has been inserted yet");
+                                            };
+            lines[last_line].notes.last_mut().unwrap()
         }};
     }
     let mut inner = |line: &str| -> Result<()> {
@@ -274,19 +265,13 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
                     };
                     let position_x = it.take_f32()? / 1024.;
                     // TODO we don't understand..
-                    let dst = if it.take_usize()? == 1 {
-                        last_side_above = true;
-                        &mut line.notes_above
-                    } else {
-                        last_side_above = false;
-                        &mut line.notes_below
-                    };
+                    let above = it.take_usize()? == 1;
                     let fake = match it.take_usize()? {
                         0 => false,
                         1 => true,
                         _ => bail!("Expected 0 / 1 (real note / fake note)"),
                     };
-                    dst.push(Note {
+                    line.notes.push(Note {
                         object: Object {
                             translation: AnimVector(
                                 AnimFloat::fixed(position_x),
@@ -298,9 +283,11 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
                         time,
                         height: 0.0,
                         speed: 1.0,
+
+                        above,
                         multiple_hint: false,
                         fake,
-                        last_real_time: 0.0,
+                        judge: JudgeStatus::NotJudged,
                     });
                 }
                 '#' if cs.len() == 1 => {
@@ -383,12 +370,7 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
                 .chain(it.move_events.1.iter())
                 .map(|it| it.end_time.not_nan())
                 .chain(it.speed_events.iter().map(|it| it.0.not_nan()))
-                .chain(
-                    it.notes_above
-                        .iter()
-                        .chain(it.notes_below.iter())
-                        .map(|it| it.time.not_nan()),
-                )
+                .chain(it.notes.iter().map(|it| it.time.not_nan()))
                 .max()
                 .unwrap_or_default()
         })
