@@ -82,7 +82,7 @@ pub async fn the_main() -> Result<()> {
         .await
         .context("Failed to load resources")?;
 
-    // let mut fps_time = -1;
+    let mut fps_time = -1;
 
     let mut judge = Judge::new(&chart);
 
@@ -117,7 +117,7 @@ pub async fn the_main() -> Result<()> {
 
     let mut bad_notes = Vec::new();
     loop {
-        // let frame_start = get_time();
+        let frame_start = get_time();
         push_camera_state();
         set_default_camera();
         {
@@ -148,8 +148,11 @@ pub async fn the_main() -> Result<()> {
 
         let time = pause_time.unwrap_or_else(&get_time) - start_time;
         let music_time = res.audio.position(&handle)?;
-        if (music_time - time).abs() > ADJUST_TIME_THRESHOLD {
-            warn!("Times differ a lot: {} {}. Syncing time...", time, music_time);
+        if !cfg!(target_arch = "wasm32") && (music_time - time).abs() > ADJUST_TIME_THRESHOLD {
+            warn!(
+                "Times differ a lot: {} {}. Syncing time...",
+                time, music_time
+            );
             start_time -= music_time - time;
         }
 
@@ -234,7 +237,7 @@ pub async fn the_main() -> Result<()> {
                         0.6,
                         WHITE,
                     );
-                    draw_rectangle(-1. + margin, rect.y - rect.h, bar_width, 0.034, WHITE);
+                    draw_rectangle(-1. + margin, rect.y - 0.034, bar_width, 0.034, WHITE);
                     draw_text_aligned(
                         res,
                         &res.config.level,
@@ -253,11 +256,11 @@ pub async fn the_main() -> Result<()> {
             },
         );
 
-        // let fps_now = get_time() as i32;
-        // if fps_now != fps_time {
-        // fps_time = fps_now;
-        // eprintln!("| {}", (1. / (get_time() - frame_start)) as u32);
-        // }
+        let fps_now = get_time() as i32;
+        if fps_now != fps_time {
+            fps_time = fps_now;
+            info!("| {}", (1. / (get_time() - frame_start)) as u32);
+        }
 
         if is_key_pressed(KeyCode::Space) {
             if res.audio.paused(&handle)? {

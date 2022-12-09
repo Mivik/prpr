@@ -103,6 +103,7 @@ HTML=$(cat <<- END
             document.getElementById("glcanvas").removeAttribute("hidden");
             document.getElementById("glcanvas").focus();
             impl_run();
+            full();
         }
         window.full = function() {
             document.getElementById("glcanvas").requestFullscreen();
