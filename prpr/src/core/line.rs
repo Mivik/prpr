@@ -24,7 +24,7 @@ impl JudgeLineCache {
             (
                 it.plain(),
                 !it.above,
-                (it.height /* TODO check this */ + it.object.translation.1.now()).not_nan(),
+                (it.height + it.object.translation.1.now()).not_nan(),
                 it.kind.order(),
             )
         });
@@ -45,6 +45,7 @@ impl JudgeLineCache {
         self.start_index_below = notes[self.start_index_above..]
             .iter()
             .position(|it| !it.above)
+            .map(|it| it + self.start_index_above)
             .unwrap_or(notes.len());
     }
 }
@@ -194,9 +195,7 @@ impl JudgeLine {
                     if !note.above {
                         break;
                     }
-                    if agg
-                        && note.height - height - note.object.translation.1.now()
-                            > height_above
+                    if agg && note.height - height + note.object.translation.1.now() > height_above
                     {
                         break;
                     }
@@ -215,8 +214,7 @@ impl JudgeLine {
                         }
                         for note in self.notes[self.cache.start_index_below..].iter() {
                             if agg
-                                && note.height - height
-                                    - note.object.translation.1.now()
+                                && note.height - height + note.object.translation.1.now()
                                     > height_below
                             {
                                 break;
