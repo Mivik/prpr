@@ -8,10 +8,10 @@ To begin with, clone the repo:
 git clone https://github.com/Mivik/prpr.git && cd prpr
 ```
 
-For compactness's sake, `font.ttf` used to render the text is not included in this repo. As the fallback, `prpr` will use the default pixel font. You could fetch `font.ttf` from [https://mivik.moe/static/font.ttf].
+For compactness's sake, `font.ttf` used to render the text is not included in this repo. As the fallback, `prpr` will use the default pixel font. You could fetch `font.ttf` from [https://mivik.moe/prpr/font.ttf].
 
 ```shell
-wget https://mivik.moe/static/font.ttf -O assets/
+wget https://mivik.moe/prpr/font.ttf -O assets/font.ttf
 ```
 
 Then place your chart in the `assets` folder. The folder structure should be like this:
@@ -39,7 +39,7 @@ Attention! You should create a `info.yml` in the chart folder as well. Its forma
 Finally, run `prpr` with your chart's name.
 
 ```shell
-cargo run --release mychart
+cargo run --release --bin prpr-player mychart
 ```
 
 ## `info.yml` format

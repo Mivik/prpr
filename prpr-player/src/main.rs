@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use macroquad::prelude::*;
 use prpr::{build_conf, config::Config, Prpr};
 
@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
         let mut args = std::env::args();
         let program = args.next().unwrap();
         let Some(name) = args.next() else {
-            bail!("Usage: {program} <chart name>");
+            anyhow::bail!("Usage: {program} <chart name>");
         };
         name
     };
