@@ -97,9 +97,9 @@ async fn main() -> Result<()> {
         // TODO optimize?
         for frame in clip.frames.iter() {
             let dst = it.next().unwrap();
-            *dst = *dst + frame.left - *dst * frame.left;
+            *dst += frame.left;
             let dst = it.next().unwrap();
-            *dst = *dst + frame.right - *dst * frame.right;
+            *dst += frame.right;
         }
     };
     place(-prpr.chart.offset.min(0.) as f64, &prpr.res.music);
