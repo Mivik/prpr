@@ -196,9 +196,10 @@ impl Resource {
         self.emitter_square.emit(pt, 4);
     }
 
-    pub fn update_size(&mut self) -> bool {
-        fn viewport(aspect_ratio: f32) -> (i32, i32, i32, i32) {
-            let (w, h) = (screen_width(), screen_height());
+    pub fn update_size(&mut self, dim: (u32, u32)) -> bool {
+        fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {
+            let w = w as f32;
+            let h = h as f32;
             let (rw, rh) = {
                 let ew = h * aspect_ratio;
                 if ew > w {
@@ -215,7 +216,7 @@ impl Resource {
                 rh as i32,
             )
         }
-        let vp = viewport(self.config.aspect_ratio);
+        let vp = viewport(self.config.aspect_ratio, dim);
         if Some(vp) != self.camera.viewport {
             self.camera.viewport = Some(vp);
             true

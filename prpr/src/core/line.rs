@@ -195,7 +195,7 @@ impl JudgeLine {
                         break;
                     }
                     if agg
-                        && (note.height - height) / note.speed - note.object.translation.1.now()
+                        && note.height - height - note.object.translation.1.now()
                             > height_above
                     {
                         break;
@@ -215,7 +215,7 @@ impl JudgeLine {
                         }
                         for note in self.notes[self.cache.start_index_below..].iter() {
                             if agg
-                                && (note.height - height) / note.speed
+                                && note.height - height
                                     - note.object.translation.1.now()
                                     > height_below
                             {

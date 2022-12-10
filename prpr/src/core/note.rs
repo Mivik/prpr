@@ -137,7 +137,7 @@ fn draw_center(res: &Resource, tex: Texture2D, scale: f32, color: Color) {
 
 impl Note {
     pub fn plain(&self) -> bool {
-        self.object.translation.1.keyframes.len() <= 1
+        !self.fake && self.speed == 1.0 && self.object.translation.1.keyframes.len() <= 1
     }
 
     pub fn update(&mut self, res: &mut Resource, object: &mut Object) {

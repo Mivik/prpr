@@ -1061,11 +1061,30 @@ dependencies = [
  "ordered-float",
  "serde",
  "serde_json",
- "serde_yaml",
  "symphonia",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "prpr-player"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "macroquad",
+ "prpr",
+ "serde_yaml",
+]
+
+[[package]]
+name = "prpr-render"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "macroquad",
+ "prpr",
+ "serde_yaml",
 ]
 
 [[package]]

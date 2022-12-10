@@ -1,0 +1,42 @@
+[package]
+name = "prpr"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+anyhow = "1.0"
+concat-string = "1.0.1"
+image = "0.24"
+macroquad = { version = "0.3.25", default-features = false }
+miniquad = "*"
+# macroquad = { path = "../macroquad", default-features = false }
+# miniquad = { path = "../miniquad" }
+nalgebra = "*"
+once_cell = "1.16.0"
+ordered-float = "3.4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+symphonia = { version = "0.5", features = ["flac", "mp3", "ogg", "vorbis", "wav", "pcm"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+kira = "0.7.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = [
+	"AudioBuffer",
+	"AudioBufferSourceNode",
+	"AudioContext",
+	"AudioDestinationNode",
+	"AudioParam",
+	"GainNode",
+	"Location",
+	"Performance",
+	"UrlSearchParams",
+	"Window",
+] }
+js-sys = "*"
+wasm-bindgen = "*"
+wasm-bindgen-futures = "0.4"
