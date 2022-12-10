@@ -12,6 +12,9 @@ const FRAME_DELTA: f32 = 1. / FPS as f32;
 const VIDEO_WIDTH: u32 = 1920;
 const VIDEO_HEIGHT: u32 = 1080;
 
+#[cfg(target_arch = "wasm32")]
+compile_error!("WASM target is not supported");
+
 #[macroquad::main(build_conf)]
 async fn main() -> Result<()> {
     set_pc_assets_folder("assets");

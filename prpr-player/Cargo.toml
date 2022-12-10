@@ -8,3 +8,7 @@ anyhow = "1.0"
 macroquad = { version = "*", default-features = false }
 prpr = { path = "../prpr" }
 serde_yaml = "0.9"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = "*"
+wasm-bindgen = "*"

@@ -1075,6 +1075,8 @@ dependencies = [
  "macroquad",
  "prpr",
  "serde_yaml",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
