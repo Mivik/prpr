@@ -29,7 +29,7 @@ impl JudgeLineCache {
             )
         });
         let mut res = Self {
-            update_order: (0..notes.len() as u32).collect(),
+            update_order: Vec::new(),
             start_index_above: 0,
             start_index_below: 0,
         };
@@ -38,6 +38,7 @@ impl JudgeLineCache {
     }
 
     pub(crate) fn reset(&mut self, notes: &mut Vec<Note>) {
+        self.update_order = (0..notes.len() as u32).collect();
         self.start_index_above = notes
             .iter()
             .position(|it| it.plain())

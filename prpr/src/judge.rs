@@ -186,7 +186,6 @@ impl Judge {
     pub fn reset(&mut self) {
         self.notes.iter_mut().for_each(|it| it.1 = 0);
         self.trackers.clear();
-        self.last_time = 0.;
         self.combo = 0;
         self.max_combo = 0;
         self.counts = [0; 4];
