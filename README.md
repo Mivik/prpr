@@ -74,3 +74,7 @@ volume-sfx: (float, the volume of sound effects) (default: 1)
 Some assets come from [@lchzh3473](https://github.com/lchzh3473).
 
 Thanks [@inokana](https://github.com/GBTP) for hints on implementation!
+
+## License
+
+This project is licensed under [GNU General Public License v3.0](LICENSE).

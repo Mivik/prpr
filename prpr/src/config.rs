@@ -12,6 +12,8 @@ pub enum ChartFormat {
 #[serde(default)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
+    pub id: String,
+
     pub title: String,
     pub level: String,
     pub charter: String,
