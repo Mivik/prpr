@@ -2,10 +2,10 @@ use super::{Matrix, Point, JUDGE_LINE_PERFECT_COLOR};
 use crate::{
     audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
+    fs::FileSystem,
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
 };
 use anyhow::{Context, Result};
-use concat_string::concat_string;
 use image::imageops::blur;
 use macroquad::prelude::*;
 
@@ -52,19 +52,20 @@ pub struct Resource {
 }
 
 impl Resource {
-    pub async fn new(config: Config) -> Result<Self> {
-        let prefix = concat_string!("charts/", config.id, "/");
-        async fn load_tex(path: &str) -> Result<Texture2D> {
-            Ok(Texture2D::from_image(&load_image(path).await?))
+    pub async fn new(config: Config, mut fs: Box<dyn FileSystem>) -> Result<Self> {
+        macro_rules! load_tex {
+            ($path:literal) => {
+                Texture2D::from_image(&load_image($path).await?)
+            };
         }
-        let hold_tail = load_tex("hold_tail.png").await?;
+        let hold_tail = load_tex!("hold_tail.png");
         let note_style = NoteStyle {
-            click: load_tex("click.png").await?,
-            hold_head: load_tex("hold_head.png").await?,
-            hold: load_tex("hold.png").await?,
+            click: load_tex!("click.png"),
+            hold_head: load_tex!("hold_head.png"),
+            hold: load_tex!("hold.png"),
             hold_tail,
-            flick: load_tex("flick.png").await?,
-            drag: load_tex("drag.png").await?,
+            flick: load_tex!("flick.png"),
+            drag: load_tex!("drag.png"),
         };
         let camera = Camera2D {
             target: vec2(0., 0.),
@@ -80,8 +81,8 @@ impl Resource {
             ColorCurve { start, mid, end }
         };
 
-        async fn load_background(path: &str) -> Result<Texture2D> {
-            let image = image::load_from_memory(&load_file(path).await?)
+        async fn load_background(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<Texture2D> {
+            let image = image::load_from_memory(&fs.load_file(path).await?)
                 .context("Failed to decode image")?;
             let image = blur(&image, 15.);
             Ok(Texture2D::from_image(&Image {
@@ -92,10 +93,10 @@ impl Resource {
         }
 
         let background = if let Some(bg) = config.illustration.as_ref() {
-            match load_background(&concat_string!(prefix, bg)).await {
+            match load_background(&mut fs, bg).await {
                 Ok(bg) => Some(bg),
                 Err(err) => {
-                    warn!("Failed to load background\n{:?}", err);
+                    warn!("Failed to load background: {:?}", err);
                     None
                 }
             }
@@ -105,15 +106,16 @@ impl Resource {
         let background = background.unwrap_or_else(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 1]));
 
         let audio = DefaultAudio::new()?;
-        async fn load_sfx(audio: &DefaultAudio, path: &str) -> Result<AudioClip> {
-            Ok(audio.create_clip(load_file(path).await?)?.0)
+        macro_rules! load_sfx {
+            ($path:literal) => {
+                audio.create_clip(load_file($path).await?)?.0
+            };
         }
-        let (music, track_length) =
-            audio.create_clip(load_file(&concat_string!(prefix, config.music)).await?)?;
+        let (music, track_length) = audio.create_clip(fs.load_file(&config.music).await?)?;
         let track_length = track_length as f32;
-        let sfx_click = load_sfx(&audio, "click.ogg").await?;
-        let sfx_drag = load_sfx(&audio, "drag.ogg").await?;
-        let sfx_flick = load_sfx(&audio, "flick.ogg").await?;
+        let sfx_click = load_sfx!("click.ogg");
+        let sfx_drag = load_sfx!("drag.ogg");
+        let sfx_flick = load_sfx!("flick.ogg");
 
         Ok(Self {
             config,
@@ -135,20 +137,20 @@ impl Resource {
             },
             note_style,
             note_style_mh: NoteStyle {
-                click: load_tex("click_mh.png").await?,
-                hold_head: load_tex("hold_head_mh.png").await?,
-                hold: load_tex("hold_mh.png").await?,
+                click: load_tex!("click_mh.png"),
+                hold_head: load_tex!("hold_head_mh.png"),
+                hold: load_tex!("hold_mh.png"),
                 hold_tail,
-                flick: load_tex("flick_mh.png").await?,
-                drag: load_tex("drag_mh.png").await?,
+                flick: load_tex!("flick_mh.png"),
+                drag: load_tex!("drag_mh.png"),
             },
-            icon_back: load_tex("back.png").await?,
-            icon_retry: load_tex("retry.png").await?,
-            icon_resume: load_tex("resume.png").await?,
+            icon_back: load_tex!("back.png"),
+            icon_retry: load_tex!("retry.png"),
+            icon_resume: load_tex!("resume.png"),
 
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,
-                texture: Some(load_tex("hit_fx.png").await?),
+                texture: Some(load_tex!("hit_fx.png")),
                 lifetime: 0.5,
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 0.0,

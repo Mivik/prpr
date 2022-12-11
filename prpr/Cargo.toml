@@ -8,8 +8,10 @@ crate-type = ["lib", "cdylib"]
 
 [dependencies]
 anyhow = "1.0"
+async-trait = "0.1"
 circular-queue = "0.2.6"
 concat-string = "1.0.1"
+csv = "1.1.6"
 image = "0.24"
 macroquad = { version = "0.3.25", default-features = false }
 miniquad = "*"
@@ -21,7 +23,9 @@ ordered-float = "3.4.0"
 rayon = "=1.6.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.9"
 symphonia = { version = "0.5", features = ["flac", "mp3", "ogg", "vorbis", "wav", "pcm"] }
+zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 kira = "0.7.1"

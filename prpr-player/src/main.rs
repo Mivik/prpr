@@ -1,13 +1,13 @@
 use anyhow::Result;
 use macroquad::prelude::*;
-use prpr::{build_conf, config::Config, Prpr};
+use prpr::{build_conf, Prpr, fs};
 
 #[macroquad::main(build_conf)]
 async fn main() -> Result<()> {
     set_pc_assets_folder("assets");
 
     #[cfg(target_arch = "wasm32")]
-    let name = {
+    let fs = {
         fn js_err(err: wasm_bindgen::JsValue) -> anyhow::Error {
             anyhow::Error::msg(format!("{err:?}"))
         }
@@ -19,28 +19,27 @@ async fn main() -> Result<()> {
                 .map_err(js_err)?,
         )
         .map_err(js_err)?;
-        params.get("chart").unwrap_or_else(|| "nc".to_string())
+        let name = params.get("chart").unwrap_or_else(|| "nc".to_string());
+        fs::fs_from_assets(&name)?
     };
     #[cfg(target_os = "android")]
-    let name = "strife".to_string();
+    let fs = fs::fs_from_assets("moment")?;
     #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-    let name = {
+    let fs = {
         let mut args = std::env::args();
         let program = args.next().unwrap();
-        let Some(name) = args.next() else {
-            anyhow::bail!("Usage: {program} <chart name>");
+        let Some(path) = args.next() else {
+            anyhow::bail!("Usage: {program} <chart>");
         };
-        name
+        fs::fs_from_file(&path)?
     };
 
-    let mut config: Config = serde_yaml::from_str(&String::from_utf8(
-        load_file(&format!("charts/{name}/info.yml")).await?,
-    )?)?;
-    config.id = name.clone();
+    let (config, fs) = fs::load_config(fs).await?;
 
     let mut fps_time = -1;
 
-    let mut prpr = Prpr::new(config, None).await?;
+    let mut prpr = Prpr::new(config, fs, None).await?;
+
     'app: loop {
         let frame_start = prpr.get_time();
         prpr.update(None)?;

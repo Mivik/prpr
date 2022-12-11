@@ -3,6 +3,7 @@ mod ext;
 pub mod audio;
 pub mod config;
 pub mod core;
+pub mod fs;
 pub mod judge;
 pub mod parse;
 pub mod particle;
@@ -20,7 +21,7 @@ use crate::{
 use anyhow::{Context, Result};
 use audio::AudioHandle;
 use circular_queue::CircularQueue;
-use concat_string::concat_string;
+use fs::FileSystem;
 use macroquad::prelude::*;
 
 const ADJUST_TIME_SAMPLE_NUM: usize = 64;
@@ -66,19 +67,34 @@ pub struct Prpr {
 impl Prpr {
     pub async fn new(
         config: Config,
+        mut fs: Box<dyn FileSystem>,
         get_size_fn: Option<Box<dyn Fn() -> (u32, u32)>>,
     ) -> Result<Self> {
         simulate_mouse_with_touch(false);
 
-        let prefix = concat_string!("charts/", config.id, "/");
-        let text = String::from_utf8(load_file(&concat_string!(prefix, config.chart)).await?)?;
-        let chart = match config.format {
+        let text = String::from_utf8(
+            fs.load_file(&config.chart)
+                .await
+                .context("Failed to load chart file")?,
+        )?;
+        let format = config.format.clone().unwrap_or_else(|| {
+            if text.starts_with('{') {
+                if text.contains("\"META\"") {
+                    ChartFormat::Rpe
+                } else {
+                    ChartFormat::Pgr
+                }
+            } else {
+                ChartFormat::Pec
+            }
+        });
+        let chart = match format {
             ChartFormat::Rpe => parse_rpe(&text).await?,
             ChartFormat::Pgr => parse_phigros(&text)?,
             ChartFormat::Pec => parse_pec(&text)?,
         };
 
-        let mut res = Resource::new(config)
+        let mut res = Resource::new(config, fs)
             .await
             .context("Failed to load resources")?;
 

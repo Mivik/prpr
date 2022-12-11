@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChartFormat {
     Rpe,
@@ -12,7 +12,6 @@ pub enum ChartFormat {
 #[serde(default)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
-    pub id: String,
     pub title: String,
     pub level: String,
     pub charter: String,
@@ -20,7 +19,7 @@ pub struct Config {
     pub illustrator: String,
 
     pub chart: String,
-    pub format: ChartFormat,
+    pub format: Option<ChartFormat>,
     pub music: String,
     pub illustration: Option<String>,
 
@@ -38,7 +37,6 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            id: String::new(),
             title: "UK".to_string(),
             level: "UK Lv.?".to_string(),
             charter: "UK".to_string(),
@@ -46,7 +44,7 @@ impl Default for Config {
             illustrator: "UK".to_string(),
 
             chart: "chart.json".to_string(),
-            format: ChartFormat::Rpe,
+            format: None,
             music: "song.mp3".to_string(),
             illustration: None,
 

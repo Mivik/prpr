@@ -14,17 +14,11 @@ For compactness's sake, `font.ttf` used to render the text is not included in th
 wget https://mivik.moe/prpr/font.ttf -O assets/font.ttf
 ```
 
-Then place your chart in the `assets` folder. The folder structure should be like this:
+If your chart contains textures, place then in the `assets/texture` folder. Now the folder structure should be like this:
 
 ```
 prpr
 ├── assets
-|   ├── charts
-|   │   └── mychart
-|   │       ├── info.yml
-|   │       ├── chart.json
-|   │       ├── song.mp3
-|   │       └── ...
 |   ├── texture
 |   │   └── ...
 |   ├── (font.ttf)
@@ -32,15 +26,21 @@ prpr
 └── ...
 ```
 
-That is to say, you should unzip your textures into the `texture` folder, and your chart in the `charts` folder, with `song.mp3` and `chart.json` in it.
-
-Attention! You should create a `info.yml` in the chart folder as well. Its format is elaborated in [this section](#infoyml-format)
-
-Finally, run `prpr` with your chart's name.
+Finally, run `prpr` with your chart's path.
 
 ```shell
-cargo run --release --bin prpr-player mychart
+# .pez file can be recognized
+cargo run --release --bin prpr-player mychart.pez
+
+# ... or unzipped folder
+cargo run --release --bin prpr-player ./mychart/
 ```
+
+## Configuration
+
+Global configuration is currently unsupported. You can provide configuration for each chart, by providing a `info.yml` file under the root. The format is shown as below.
+
+Attention! If `info.yml` is found, `info.txt` and `info.csv` will be **ignored**.
 
 ## `info.yml` format
 

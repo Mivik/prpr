@@ -1,8 +1,7 @@
-use std::sync::{mpsc, Mutex};
-
 use anyhow::Result;
 use macroquad::prelude::*;
-use prpr::{build_conf, config::Config, Prpr};
+use prpr::{build_conf, fs, Prpr};
+use std::sync::{mpsc, Mutex};
 
 #[cfg(not(target_os = "android"))]
 compile_error!("Only supports android build");
@@ -14,10 +13,7 @@ async fn the_main() -> Result<()> {
 
     let name = "moment".to_string();
 
-    let mut config: Config = serde_yaml::from_str(&String::from_utf8(
-        load_file(&format!("charts/{name}/info.yml")).await?,
-    )?)?;
-    config.id = name.clone();
+    let (config, fs) = fs::load_config(fs::fs_from_assets(&name)?).await?;
 
     let rx = {
         let (tx, rx) = mpsc::channel();
@@ -27,7 +23,7 @@ async fn the_main() -> Result<()> {
 
     let mut fps_time = -1;
 
-    let mut prpr = Prpr::new(config, None).await?;
+    let mut prpr = Prpr::new(config, fs, None).await?;
     'app: loop {
         let frame_start = prpr.get_time();
         prpr.update(None)?;

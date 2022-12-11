@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use macroquad::{miniquad::TextureFormat, prelude::*};
-use prpr::{audio::AudioClip, build_conf, config::Config, core::NoteKind, Prpr};
+use prpr::{audio::AudioClip, build_conf, core::NoteKind, fs, Prpr};
 use std::{
     io::{BufWriter, Write},
     process::{Command, Stdio},
@@ -19,19 +19,16 @@ compile_error!("WASM target is not supported");
 async fn main() -> Result<()> {
     set_pc_assets_folder("assets");
 
-    let name = {
+    let path = {
         let mut args = std::env::args();
         let program = args.next().unwrap();
-        let Some(name) = args.next() else {
-            bail!("Usage: {program} <chart name>");
+        let Some(path) = args.next() else {
+            bail!("Usage: {program} <chart>");
         };
-        name
+        path
     };
 
-    let mut config: Config = serde_yaml::from_str(&String::from_utf8(
-        load_file(&format!("charts/{name}/info.yml")).await?,
-    )?)?;
-    config.id = name.clone();
+    let (mut config, fs) = fs::load_config(fs::fs_from_file(&path)?).await?;
     config.adjust_time = false;
     config.autoplay = true;
     config.volume_music = 0.;
@@ -44,7 +41,7 @@ async fn main() -> Result<()> {
         .spawn()?;
     let input = proc.stdin.as_mut().unwrap();
 
-    let mut prpr = Prpr::new(config, Some(Box::new(|| (VIDEO_WIDTH, VIDEO_HEIGHT)))).await?;
+    let mut prpr = Prpr::new(config, fs, Some(Box::new(|| (VIDEO_WIDTH, VIDEO_HEIGHT)))).await?;
 
     let texture = miniquad::Texture::new_render_texture(
         prpr.gl.quad_context,
@@ -58,7 +55,7 @@ async fn main() -> Result<()> {
     prpr.res.camera.render_target = Some({
         let render_pass = miniquad::RenderPass::new(prpr.gl.quad_context, texture, None);
         RenderTarget {
-            texture: Texture2D::from_miniquad_texture(texture.clone()),
+            texture: Texture2D::from_miniquad_texture(texture),
             render_pass,
         }
     });
@@ -79,7 +76,7 @@ async fn main() -> Result<()> {
         prpr.gl.flush();
 
         texture.read_pixels(&mut bytes);
-        input.write(&bytes)?;
+        input.write_all(&bytes)?;
         if frame % 100 == 0 {
             info!(
                 "{frame} / {frames}, {:.2}fps",
@@ -127,14 +124,14 @@ async fn main() -> Result<()> {
 
     info!("[3] Merging...");
     let mut proc = Command::new("ffmpeg")
-        .args(format!("-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -af loudnorm -c:v copy -c:a mp3 -map 0:v:0 -map 1:a:0 out.mp4").split_whitespace())
+        .args("-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -af loudnorm -c:v copy -c:a mp3 -map 0:v:0 -map 1:a:0 out.mp4".to_string().split_whitespace())
         .stdin(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()?;
     let input = proc.stdin.as_mut().unwrap();
     let mut writer = BufWriter::new(input);
     for sample in output.into_iter() {
-        writer.write(&sample.to_le_bytes())?;
+        writer.write_all(&sample.to_le_bytes())?;
     }
     std::fs::remove_file("t_video.mp4")?;
 
