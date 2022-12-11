@@ -32,6 +32,8 @@ async fn main() -> Result<()> {
         load_file(&format!("charts/{name}/info.yml")).await?,
     )?)?;
     config.id = name.clone();
+    config.adjust_time = false;
+    config.autoplay = true;
     config.volume_music = 0.;
     config.volume_sfx = 0.;
 
@@ -125,7 +127,7 @@ async fn main() -> Result<()> {
 
     info!("[3] Merging...");
     let mut proc = Command::new("ffmpeg")
-        .args(format!("-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -c:v copy -map 0:v:0 -map 1:a:0 out.mp4").split_whitespace())
+        .args(format!("-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -af loudnorm -c:v copy -c:a mp3 -map 0:v:0 -map 1:a:0 out.mp4").split_whitespace())
         .stdin(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()?;
@@ -134,6 +136,7 @@ async fn main() -> Result<()> {
     for sample in output.into_iter() {
         writer.write(&sample.to_le_bytes())?;
     }
+    std::fs::remove_file("t_video.mp4")?;
 
     info!("[4] Done!");
 
