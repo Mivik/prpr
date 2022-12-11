@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
     let frames = (length as f64 / FRAME_DELTA as f64).ceil() as u64;
     let start_time = Instant::now();
     for frame in 0..frames {
-        prpr.update(Some((frame as f32 * FRAME_DELTA - offset).max(0.)));
+        prpr.update(Some((frame as f32 * FRAME_DELTA - offset).max(0.) as f64))?;
         prpr.render(Some(1. / 60.))?;
         prpr.ui(false)?;
         prpr.gl.flush();

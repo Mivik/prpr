@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     let mut prpr = Prpr::new(config, None).await?;
     'app: loop {
         let frame_start = prpr.get_time();
-        prpr.update(None);
+        prpr.update(None)?;
         prpr.render(None)?;
         prpr.ui(true)?;
         prpr.process_keys()?;

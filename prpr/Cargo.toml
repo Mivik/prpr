@@ -8,6 +8,7 @@ crate-type = ["lib", "cdylib"]
 
 [dependencies]
 anyhow = "1.0"
+circular-queue = "0.2.6"
 concat-string = "1.0.1"
 image = "0.24"
 macroquad = { version = "0.3.25", default-features = false }

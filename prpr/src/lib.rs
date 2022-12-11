@@ -19,9 +19,13 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use audio::AudioHandle;
+use circular_queue::CircularQueue;
 use concat_string::concat_string;
 use macroquad::prelude::*;
 use std::sync::{mpsc, Mutex};
+
+const ADJUST_TIME_SAMPLE_NUM: usize = 64;
+const ADJUST_TIME_THRESHOLD: f64 = 0.02;
 
 pub fn build_conf() -> macroquad::window::Conf {
     Conf {
@@ -55,6 +59,8 @@ pub struct Prpr {
     get_size_fn: Box<dyn Fn() -> (u32, u32)>,
 
     start_time: f64,
+    time_errors: CircularQueue<f64>,
+    time_errors_sum: f64,
     pause_time: Option<f64>,
     pause_rewind: Option<f64>,
 
@@ -130,6 +136,8 @@ impl Prpr {
                 .unwrap_or_else(|| Box::new(|| (screen_width() as u32, screen_height() as u32))),
 
             start_time,
+            time_errors: CircularQueue::with_capacity(ADJUST_TIME_SAMPLE_NUM),
+            time_errors_sum: 0.,
             pause_time: None,
             pause_rewind: None,
 
@@ -142,18 +150,32 @@ impl Prpr {
         (self.get_time_fn)()
     }
 
-    pub fn update(&mut self, time: Option<f32>) {
-        let time = time.unwrap_or_else(|| {
-            (self.pause_time.unwrap_or_else(&self.get_time_fn) - self.start_time) as f32
-        });
-        // let music_time = res.audio.position(&handle)?;
-        // if !cfg!(target_arch = "wasm32") && (music_time - time).abs() > ADJUST_TIME_THRESHOLD {
-        // warn!(
-        // "Times differ a lot: {} {}. Syncing time...",
-        // time, music_time
-        // );
-        // start_time -= music_time - time;
-        // }
+    pub fn update(&mut self, time: Option<f64>) -> Result<()> {
+        let mut time = time
+            .unwrap_or_else(|| self.pause_time.unwrap_or_else(&self.get_time_fn) - self.start_time);
+        if self.res.config.adjust_time {
+            let music_time = self.res.audio.position(&self.audio_handle)?;
+            let error = music_time - time;
+            if self.time_errors.is_full() {
+                self.time_errors_sum -= *self.time_errors.asc_iter().next().unwrap();
+            }
+            self.time_errors.push(error);
+            self.time_errors_sum += error;
+            if self.time_errors.is_full() {
+                let delta = self.time_errors_sum / ADJUST_TIME_SAMPLE_NUM as f64;
+                if delta.abs() > ADJUST_TIME_THRESHOLD {
+                    warn!(
+                        "Time misalignment detected. Syncing time by offset {}...",
+                        delta
+                    );
+                    self.start_time -= delta;
+                    time += delta;
+                    self.time_errors.clear();
+                    self.time_errors_sum = 0.;
+                }
+            }
+        }
+        let time = time as f32;
 
         let time = (time as f32 - self.chart.offset).max(0.0);
         if time > self.res.track_length + 0.8 {
@@ -174,6 +196,7 @@ impl Prpr {
             WHITE
         };
         self.chart.update(&mut self.res);
+        Ok(())
     }
 
     pub fn render(&mut self, dt: Option<f32>) -> Result<()> {
@@ -378,6 +401,8 @@ impl Prpr {
                         res.audio.seek_to(&mut self.audio_handle, 0.)?;
                         self.start_time = t;
                         self.pause_time = None;
+                        self.time_errors.clear();
+                        self.time_errors_sum = 0.;
                     }
                     Some(1) => {
                         self.pause_time = None;

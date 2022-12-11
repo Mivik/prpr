@@ -58,6 +58,7 @@ format: (string, the format of the chart) (default: 'rpe', available: 'rpe', 'pg
 music: (string, the path of the music file) (default: 'music.mp3')
 illustration: (string, the path of the illustration) (default: none)
 
+adjust-time: (bool, whether automatical time alignment adjustment should be enabled) (default: true)
 aggresive: (bool, enable aggresive optimization, may cause inconsistent render result) (default: true)
 aspect-ratio: (float, the aspect ratio of the screen (w / h)) (default: 16 / 9)
 autoplay: (bool, to enable the auto play mode) (default: true)
