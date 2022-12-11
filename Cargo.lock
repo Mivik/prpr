@@ -630,6 +630,19 @@ dependencies = [
 [[package]]
 name = "macroquad"
 version = "0.3.25"
+dependencies = [
+ "bumpalo",
+ "fontdue",
+ "glam",
+ "image",
+ "macroquad_macro",
+ "miniquad 0.3.14",
+ "quad-rand",
+]
+
+[[package]]
+name = "macroquad"
+version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3790f7fd2e4c480108cbfc86488f023b72e1e0bb6ffd5c6cba38049c7e2fbfc"
 dependencies = [
@@ -638,7 +651,7 @@ dependencies = [
  "glam",
  "image",
  "macroquad_macro",
- "miniquad",
+ "miniquad 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "quad-rand",
 ]
 
@@ -695,6 +708,17 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
+name = "miniquad"
+version = "0.3.14"
+dependencies = [
+ "libc",
+ "ndk-context",
+ "ndk-sys 0.2.2",
+ "objc",
+ "winapi",
+]
 
 [[package]]
 name = "miniquad"
@@ -1064,11 +1088,12 @@ dependencies = [
  "image",
  "js-sys",
  "kira",
- "macroquad",
- "miniquad",
+ "macroquad 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "miniquad 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "nalgebra",
  "once_cell",
  "ordered-float",
+ "rayon",
  "serde",
  "serde_json",
  "symphonia",
@@ -1078,11 +1103,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "prpr-android"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "macroquad 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "prpr",
+ "serde_yaml",
+]
+
+[[package]]
 name = "prpr-player"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "macroquad",
+ "macroquad 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "prpr",
  "serde_yaml",
  "wasm-bindgen",
@@ -1094,7 +1129,7 @@ name = "prpr-render"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "macroquad",
+ "macroquad 0.3.25",
  "prpr",
  "serde_yaml",
 ]
@@ -1570,9 +1605,9 @@ dependencies = [
 
 [[package]]
 name = "tiff"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f17def29300a156c19ae30814710d9c63cd50288a49c6fd3a10ccfbe4cf886fd"
+checksum = "7449334f9ff2baf290d55d73983a7d6fa15e01198faef72af07e2a8db851e471"
 dependencies = [
  "flate2",
  "jpeg-decoder",

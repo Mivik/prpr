@@ -10,11 +10,14 @@ use macroquad::prelude::{
     *,
 };
 use miniquad::{EventHandler, MouseButton};
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    num::FpCategory,
+};
 
 const X_DIFF_MAX: f32 = 1.9 * NOTE_WIDTH_RATIO;
 
-const FLICK_SPEED_THRESHOLD: f32 = 2.7;
+const FLICK_SPEED_THRESHOLD: f32 = 2.5;
 const LIMIT_PERFECT: f32 = 0.08;
 const LIMIT_GOOD: f32 = 0.18;
 const LIMIT_BAD: f32 = 0.22;
@@ -71,7 +74,6 @@ impl VelocityTracker {
     }
 
     pub fn push(&mut self, time: f32, position: Point) {
-        // println!("PUSH {} {}", time, position);
         let time = time - self.start_time;
         if self.movements.len() == Self::RECORD_MAX {
             let pair = self.movements.pop_front().unwrap();
@@ -106,7 +108,7 @@ impl VelocityTracker {
     pub fn has_flick(&mut self) -> bool {
         let spd = self.speed();
         let norm = spd.norm();
-        if self.wait && (norm <= 1. || (self.last_dir.dot(&spd.unscale(norm)) - 1.).abs() > 0.4) {
+        if self.wait && (norm <= 1.2 || (self.last_dir.dot(&spd.unscale(norm)) - 1.).abs() > 0.4) {
             self.wait = false;
         }
         if self.wait {
@@ -307,20 +309,29 @@ impl Judge {
         }
         let touches: Vec<Touch> = touches.into_values().collect();
         // pos[line][touch]
+        let mut index = 0;
         let pos: Vec<Vec<Option<Point>>> = chart
             .lines
-            .iter()
+            .iter_mut()
             .map(|line| {
+                index += 1;
+                line.object.set_time(t);
                 let inv = line.object.now(res).try_inverse().unwrap();
                 touches
                     .iter()
                     .map(|touch| {
                         let p = touch.position;
                         let p = inv.transform_point(&Point::new(p.x, -p.y));
-                        if !p.x.is_normal() || !p.y.is_normal() {
-                            None
-                        } else {
+                        fn ok(f: f32) -> bool {
+                            matches!(
+                                f.classify(),
+                                FpCategory::Zero | FpCategory::Subnormal | FpCategory::Normal
+                            )
+                        }
+                        if ok(p.x) && ok(p.y) {
                             Some(p)
+                        } else {
+                            None
                         }
                     })
                     .collect()
@@ -367,9 +378,6 @@ impl Judge {
                     if note.time - t >= closest.2 {
                         break;
                     }
-                    if t - note.time >= closest.2 {
-                        continue;
-                    }
                     let x = &mut note.object.translation.0;
                     x.set_time(t);
                     let dist = (x.now() - pos.x).abs();
@@ -381,7 +389,7 @@ impl Judge {
                     if dist < closest.1 {
                         closest.0 = Some((line_id, *id));
                         closest.1 = dist;
-                        closest.2 = dt + 0.01;
+                        closest.2 = note.time - t + 0.01;
                     }
                 }
             }
@@ -464,7 +472,6 @@ impl Judge {
                 if !matches!(note.kind, NoteKind::Drag) {
                     continue;
                 }
-
                 let dt = (t - note.time).abs();
                 let x = &mut note.object.translation.0;
                 x.set_time(t);

@@ -22,7 +22,6 @@ use audio::AudioHandle;
 use circular_queue::CircularQueue;
 use concat_string::concat_string;
 use macroquad::prelude::*;
-use std::sync::{mpsc, Mutex};
 
 const ADJUST_TIME_SAMPLE_NUM: usize = 64;
 const ADJUST_TIME_THRESHOLD: f64 = 0.02;
@@ -35,8 +34,6 @@ pub fn build_conf() -> macroquad::window::Conf {
         ..Default::default()
     }
 }
-
-static MESSAGES_TX: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
@@ -53,7 +50,6 @@ pub struct Prpr {
     pub gl: InternalGlContext<'static>,
 
     audio_handle: AudioHandle,
-    rx: mpsc::Receiver<()>,
 
     get_time_fn: Box<dyn Fn() -> f64>,
     get_size_fn: Box<dyn Fn() -> (u32, u32)>,
@@ -125,11 +121,6 @@ impl Prpr {
             gl: unsafe { get_internal_gl() },
 
             audio_handle,
-            rx: {
-                let (tx, rx) = mpsc::channel();
-                *MESSAGES_TX.lock().unwrap() = Some(tx);
-                rx
-            },
 
             get_time_fn: Box::new(get_time),
             get_size_fn: get_size_fn
@@ -161,7 +152,10 @@ impl Prpr {
             }
             self.time_errors.push(error);
             self.time_errors_sum += error;
-            if self.time_errors.is_full() {
+            if self.time_errors.is_full()
+                && self.pause_time.is_none()
+                && self.pause_rewind.is_none()
+            {
                 let delta = self.time_errors_sum / ADJUST_TIME_SAMPLE_NUM as f64;
                 if delta.abs() > ADJUST_TIME_THRESHOLD {
                     warn!(
@@ -407,7 +401,7 @@ impl Prpr {
                     Some(1) => {
                         self.pause_time = None;
                         res.audio.resume(&mut self.audio_handle)?;
-                        res.time -= 1.;
+                        res.time -= 3.;
                         let dst = (res.audio.position(&self.audio_handle)? - 3.).max(0.);
                         res.audio.seek_to(&mut self.audio_handle, dst)?;
                         self.start_time = t - dst;
@@ -441,15 +435,14 @@ impl Prpr {
     pub fn process_keys(&mut self) -> Result<()> {
         let t = self.get_time();
         let res = &mut self.res;
-        if is_key_pressed(KeyCode::Space)
-            || (self.pause_time.is_none() && self.rx.try_recv().is_ok())
-        {
+        if is_key_pressed(KeyCode::Space) {
             if res.audio.paused(&self.audio_handle)? {
                 res.audio.resume(&mut self.audio_handle)?;
                 self.start_time += t - self.pause_time.take().unwrap();
             } else {
                 res.audio.pause(&mut self.audio_handle)?;
                 self.pause_time = Some(t);
+                self.pause_rewind = None;
             }
         }
         if is_key_pressed(KeyCode::Left) {
@@ -469,29 +462,13 @@ impl Prpr {
         }
         Ok(())
     }
-}
 
-#[cfg(target_os = "android")]
-#[no_mangle]
-pub extern "C" fn quad_main() {
-    macroquad::Window::from_config(build_conf(), async {
-        if let Err(err) = the_main().await {
-            error!("Error: {:?}", err);
+    pub fn pause(&mut self) -> Result<()> {
+        if self.pause_time.is_none() {
+            self.res.audio.pause(&mut self.audio_handle)?;
+            self.pause_time = Some(self.get_time());
+            self.pause_rewind = None;
         }
-    });
-}
-
-#[cfg(target_os = "android")]
-#[no_mangle]
-pub extern "C" fn Java_quad_1native_QuadNative_prprActivityOnPause(
-    _: *mut std::ffi::c_void,
-    _: *const std::ffi::c_void,
-) {
-    MESSAGES_TX
-        .lock()
-        .unwrap()
-        .as_mut()
-        .unwrap()
-        .send(())
-        .unwrap();
+        Ok(())
+    }
 }
