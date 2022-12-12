@@ -50,7 +50,7 @@ pub struct Prpr {
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
 
-    audio_handle: AudioHandle,
+    pub audio_handle: AudioHandle,
 
     get_time_fn: Box<dyn Fn() -> f64>,
     get_size_fn: Box<dyn Fn() -> (u32, u32)>,
@@ -322,7 +322,7 @@ impl Prpr {
                     }
                     draw_text_aligned(
                         res,
-                        &res.config.title,
+                        &res.config.name,
                         -1. + margin,
                         -top - eps * 2.8,
                         (0., 1.),

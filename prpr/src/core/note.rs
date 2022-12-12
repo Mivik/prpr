@@ -200,7 +200,7 @@ impl Note {
             return;
         }
         res.with_model(self.now_transform(res, base), |res| {
-            let style = if self.multiple_hint {
+            let style = if res.config.multiple_hint && self.multiple_hint {
                 &res.note_style_mh
             } else {
                 &res.note_style

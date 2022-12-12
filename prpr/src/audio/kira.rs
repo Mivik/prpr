@@ -7,7 +7,7 @@ use kira::{
 };
 use std::io::Cursor;
 
-pub struct KiraAudio(AudioManager<CpalBackend>);
+pub struct KiraAudio(pub AudioManager<CpalBackend>);
 
 impl Audio for KiraAudio {
     type Clip = StaticSoundData;

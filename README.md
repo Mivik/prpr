@@ -47,7 +47,7 @@ Attention! If `info.yml` is found, `info.txt` and `info.csv` will be **ignored**
 Available configurations are listed here:
 
 ```yml
-title: (string) (default: 'UK')
+name: (string) (default: 'UK')
 level: (string) (default: 'UK Lv.?')
 charter: (string) (default: 'UK')
 composer: (string) (default: 'UK')

@@ -67,7 +67,7 @@ fn config_from_txt(text: &str) -> Result<Config> {
             _ => {}
         }
         *match key {
-            "Name" => &mut config.title,
+            "Name" => &mut config.name,
             "Song" => &mut config.music,
             "Chart" => &mut config.chart,
             "Level" => &mut config.level,
@@ -101,7 +101,7 @@ fn config_from_csv(bytes: Vec<u8>) -> Result<Config> {
             continue;
         }
         *match key.as_str() {
-            "Name" => &mut config.title,
+            "Name" => &mut config.name,
             "Music" => &mut config.music,
             "Chart" => &mut config.chart,
             "Level" => &mut config.level,

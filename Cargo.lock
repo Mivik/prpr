@@ -681,6 +681,19 @@ dependencies = [
 [[package]]
 name = "macroquad"
 version = "0.3.25"
+dependencies = [
+ "bumpalo",
+ "fontdue",
+ "glam",
+ "image",
+ "macroquad_macro",
+ "miniquad 0.3.14",
+ "quad-rand",
+]
+
+[[package]]
+name = "macroquad"
+version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3790f7fd2e4c480108cbfc86488f023b72e1e0bb6ffd5c6cba38049c7e2fbfc"
 dependencies = [
@@ -689,7 +702,7 @@ dependencies = [
  "glam",
  "image",
  "macroquad_macro",
- "miniquad",
+ "miniquad 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "quad-rand",
 ]
 
@@ -746,6 +759,17 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
+name = "miniquad"
+version = "0.3.14"
+dependencies = [
+ "libc",
+ "ndk-context",
+ "ndk-sys 0.2.2",
+ "objc",
+ "winapi",
+]
 
 [[package]]
 name = "miniquad"
@@ -1117,8 +1141,8 @@ dependencies = [
  "image",
  "js-sys",
  "kira",
- "macroquad",
- "miniquad",
+ "macroquad 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "miniquad 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "nalgebra",
  "once_cell",
  "ordered-float",
@@ -1138,7 +1162,9 @@ name = "prpr-android"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "macroquad",
+ "macroquad 0.3.25",
+ "ndk-sys 0.4.1+23.1.7779620",
+ "once_cell",
  "prpr",
  "serde_yaml",
 ]
@@ -1148,7 +1174,7 @@ name = "prpr-player"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "macroquad",
+ "macroquad 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "prpr",
  "serde_yaml",
  "wasm-bindgen",
@@ -1160,7 +1186,7 @@ name = "prpr-render"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "macroquad",
+ "macroquad 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "prpr",
  "serde_yaml",
 ]
@@ -1325,18 +1351,18 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
-version = "1.0.149"
+version = "1.0.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "256b9932320c590e707b94576e3cc1f7c9024d0ee6612dfbcf1cb106cbe8e055"
+checksum = "e326c9ec8042f1b5da33252c8a37e9ffbd2c9bef0155215b6e6c80c790e05f91"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.149"
+version = "1.0.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4eae9b04cbffdfd550eb462ed33bc6a1b68c935127d008b27444d08380f94e4"
+checksum = "42a3df25b0713732468deadad63ab9da1f1fd75a48a15024b50363f128db627e"
 dependencies = [
  "proc-macro2",
  "quote",
