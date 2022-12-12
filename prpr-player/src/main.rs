@@ -22,9 +22,9 @@ async fn main() -> Result<()> {
         let name = params.get("chart").unwrap_or_else(|| "nc".to_string());
         fs::fs_from_assets(&name)?
     };
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let fs = fs::fs_from_assets("moment")?;
-    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))]
     let fs = {
         let mut args = std::env::args();
         let program = args.next().unwrap();
