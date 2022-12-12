@@ -18,9 +18,10 @@ use crate::{
     judge::Judge,
     parse::{parse_pec, parse_phigros, parse_rpe},
 };
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use audio::AudioHandle;
 use circular_queue::CircularQueue;
+use concat_string::concat_string;
 use fs::FileSystem;
 use macroquad::prelude::*;
 
@@ -72,10 +73,24 @@ impl Prpr {
     ) -> Result<Self> {
         simulate_mouse_with_touch(false);
 
+        async fn load_chart_bytes(
+            fs: &mut Box<dyn FileSystem>,
+            config: &Config,
+        ) -> Result<Vec<u8>> {
+            if let Ok(bytes) = fs.load_file(&config.chart).await {
+                return Ok(bytes);
+            }
+            if let Some(name) = config.chart.strip_suffix(".pec") {
+                if let Ok(bytes) = fs.load_file(&concat_string!(name, ".json")).await {
+                    return Ok(bytes);
+                }
+            }
+            bail!("Cannot find chart file")
+        }
         let text = String::from_utf8(
-            fs.load_file(&config.chart)
+            load_chart_bytes(&mut fs, &config)
                 .await
-                .context("Failed to load chart file")?,
+                .context("Failed to load chart")?,
         )?;
         let format = config.format.clone().unwrap_or_else(|| {
             if text.starts_with('{') {
