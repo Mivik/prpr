@@ -47,8 +47,8 @@ pub fn draw_text_aligned(
     color: Color,
 ) -> Rect {
     use macroquad::prelude::*;
-    let size = 100;
-    let scale = 0.0008 * scale;
+    let size = (screen_width() / 25. * scale) as u16;
+    let scale = 0.08 * scale / size as f32;
     let dim = measure_text(text, Some(res.font), size, scale);
     let rect = Rect::new(
         x - dim.width * anchor.0,

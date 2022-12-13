@@ -5,3 +5,4 @@
 /wbindgen
 /dist
 Cargo.lock
+conf.yml

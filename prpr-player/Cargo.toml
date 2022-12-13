@@ -5,8 +5,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-egui-miniquad = "0.13"
-egui = "*"
 macroquad = { version = "*", default-features = false }
 # macroquad = { path = "../../macroquad", default-features = false }
 prpr = { path = "../prpr" }
