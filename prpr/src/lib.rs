@@ -289,10 +289,10 @@ impl Prpr {
         let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
         if interactive
             && self.pause_time.is_none()
-            && Judge::get_touches().into_iter().any(|touch| {
+            && Judge::get_touches(res).into_iter().any(|touch| {
                 matches!(touch.phase, TouchPhase::Started) && {
                     let p = touch.position;
-                    let p = Point::new(p.x, p.y / res.aspect_ratio);
+                    let p = Point::new(p.x, p.y);
                     (pause_center - p).norm() < 0.05
                 }
             })
@@ -402,14 +402,14 @@ impl Prpr {
                 },
             );
             if interactive {
-                match Judge::get_touches()
+                match Judge::get_touches(res)
                     .into_iter()
                     .filter_map(|touch| {
                         if !matches!(touch.phase, TouchPhase::Started) {
                             return None;
                         }
                         let p = touch.position;
-                        let p = Point::new(p.x, p.y / res.aspect_ratio);
+                        let p = Point::new(p.x, p.y);
                         for i in -1..=1 {
                             let ct = Point::new((s * 2. + w) * i as f32, 0.);
                             let d = p - ct;

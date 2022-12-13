@@ -17,7 +17,7 @@ use std::{
 
 const X_DIFF_MAX: f32 = 1.9 * NOTE_WIDTH_RATIO;
 
-const FLICK_SPEED_THRESHOLD: f32 = 2.5;
+const FLICK_SPEED_THRESHOLD: f32 = 2.2;
 const LIMIT_PERFECT: f32 = 0.08;
 const LIMIT_GOOD: f32 = 0.18;
 const LIMIT_BAD: f32 = 0.22;
@@ -222,7 +222,7 @@ impl Judge {
         }
     }
 
-    pub fn get_touches() -> Vec<Touch> {
+    pub fn get_touches(res: &Resource) -> Vec<Touch> {
         let mut touches = touches();
         // TODO not complete
         let btn = MouseButton::Left;
@@ -255,7 +255,7 @@ impl Judge {
                 let p = touch.position;
                 touch.position = vec2(
                     (p.x - vp.0 as f32) / vp.2 as f32 * 2. - 1.,
-                    (p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.,
+                    ((p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / res.aspect_ratio,
                 );
                 touch
             })
@@ -268,7 +268,7 @@ impl Judge {
             return;
         }
         let t = res.time;
-        let touches = Self::get_touches();
+        let touches = Self::get_touches(res);
         // TODO optimize
         let mut touches: HashMap<u64, Touch> = touches.into_iter().map(|it| (it.id, it)).collect();
         let (events, keys_down) = {
