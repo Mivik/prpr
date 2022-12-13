@@ -206,7 +206,7 @@ impl Prpr {
         }
         let time = time as f32;
 
-        let time = (time as f32 - self.chart.offset).max(0.0);
+        let time = (time as f32 - self.chart.offset - self.res.config.offset).max(0.0);
         if time > self.res.track_length + 0.8 {
             self.should_exit = true;
         }
