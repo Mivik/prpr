@@ -22,7 +22,6 @@ mod line;
 pub use line::{JudgeLine, JudgeLineKind, JudgeLineCache};
 
 mod note;
-use macroquad::prelude::Rect;
 pub use note::{BadNote, Note, NoteKind, RenderConfig};
 
 mod object;
@@ -36,37 +35,3 @@ pub use tween::{
     easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor,
     Tweenable, TWEEN_FUNCTIONS,
 };
-
-pub fn draw_text_aligned(
-    res: &Resource,
-    text: &str,
-    x: f32,
-    y: f32,
-    anchor: (f32, f32),
-    scale: f32,
-    color: Color,
-) -> Rect {
-    use macroquad::prelude::*;
-    let size = (screen_width() / 25. * scale) as u16;
-    let scale = 0.08 * scale / size as f32;
-    let dim = measure_text(text, Some(res.font), size, scale);
-    let rect = Rect::new(
-        x - dim.width * anchor.0,
-        y + dim.offset_y - dim.height * anchor.1,
-        dim.width,
-        dim.height,
-    );
-    draw_text_ex(
-        text,
-        rect.x,
-        rect.y,
-        TextParams {
-            font: res.font,
-            font_size: size,
-            font_scale: scale,
-            color,
-            ..Default::default()
-        },
-    );
-    rect
-}

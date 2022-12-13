@@ -1,7 +1,9 @@
-use super::{
-    draw_text_aligned, Anim, AnimFloat, Matrix, Note, Object, Point, Resource, Vector, EPS,
+use super::{Anim, AnimFloat, Matrix, Note, Object, Point, Resource, Vector, EPS};
+use crate::{
+    core::RenderConfig,
+    ext::{draw_text_aligned, NotNanExt},
+    judge::JudgeStatus,
 };
-use crate::{core::RenderConfig, ext::NotNanExt, judge::JudgeStatus};
 use macroquad::prelude::*;
 
 #[derive(Default)]

@@ -20,7 +20,10 @@ async fn main() -> Result<()> {
         )
         .map_err(js_err)?;
         let name = params.get("chart").unwrap_or_else(|| "nc".to_string());
-        (fs::fs_from_assets(&name)?, None)
+        (fs::fs_from_assets(&name)?, Some(prpr::config::Config {
+            autoplay: false,
+            ..Default::default()
+        }))
     };
     #[cfg(any(target_os = "android", target_os = "ios"))]
     let (fs, config) = (fs::fs_from_assets("moment")?, None);

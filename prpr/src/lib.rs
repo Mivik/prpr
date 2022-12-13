@@ -13,7 +13,7 @@ use crate::{
     audio::{Audio, PlayParams},
     config::Config,
     core::{
-        draw_text_aligned, BadNote, Chart, Matrix, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR,
+        BadNote, Chart, Matrix, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR,
         JUDGE_LINE_PERFECT_COLOR,
     },
     info::ChartFormat,
@@ -24,6 +24,7 @@ use anyhow::{bail, Context, Result};
 use audio::AudioHandle;
 use circular_queue::CircularQueue;
 use concat_string::concat_string;
+use ext::{draw_parallelogram, draw_text_aligned};
 use fs::FileSystem;
 use info::ChartInfo;
 use macroquad::prelude::*;
@@ -60,6 +61,7 @@ pub struct Prpr {
     get_size_fn: Box<dyn Fn() -> (u32, u32)>,
 
     start_time: f64,
+    last_update_time: f64,
     time_errors: CircularQueue<f64>,
     time_errors_sum: f64,
     pause_time: Option<f64>,
@@ -162,6 +164,7 @@ impl Prpr {
                 .unwrap_or_else(|| Box::new(|| (screen_width() as u32, screen_height() as u32))),
 
             start_time,
+            last_update_time: f64::NEG_INFINITY,
             time_errors: CircularQueue::with_capacity(ADJUST_TIME_SAMPLE_NUM),
             time_errors_sum: 0.,
             pause_time: None,
@@ -179,7 +182,7 @@ impl Prpr {
     pub fn update(&mut self, time: Option<f64>) -> Result<()> {
         let mut time = time
             .unwrap_or_else(|| self.pause_time.unwrap_or_else(&self.get_time_fn) - self.start_time);
-        if self.res.config.adjust_time {
+        if self.res.config.adjust_time && self.pause_time.is_none() && self.pause_rewind.is_none() && self.get_time() - self.last_update_time > 0.1 {
             let music_time = self.res.audio.position(&self.audio_handle)?;
             let error = music_time - time;
             if self.time_errors.is_full() {
@@ -187,10 +190,7 @@ impl Prpr {
             }
             self.time_errors.push(error);
             self.time_errors_sum += error;
-            if self.time_errors.is_full()
-                && self.pause_time.is_none()
-                && self.pause_rewind.is_none()
-            {
+            if self.time_errors.is_full() {
                 let delta = self.time_errors_sum / ADJUST_TIME_SAMPLE_NUM as f64;
                 if delta.abs() > ADJUST_TIME_THRESHOLD {
                     warn!(
@@ -430,6 +430,7 @@ impl Prpr {
                         res.judge_line_color = JUDGE_LINE_PERFECT_COLOR;
                         res.audio.resume(&mut self.audio_handle)?;
                         res.audio.seek_to(&mut self.audio_handle, 0.)?;
+                        self.last_update_time = t;
                         self.start_time = t;
                         self.pause_time = None;
                         self.time_errors.clear();
@@ -441,6 +442,7 @@ impl Prpr {
                         res.time -= 3.;
                         let dst = (res.audio.position(&self.audio_handle)? - 3.).max(0.);
                         res.audio.seek_to(&mut self.audio_handle, dst)?;
+                        self.last_update_time = t;
                         self.start_time = t - dst;
                         self.pause_rewind = Some(self.start_time + dst - 0.2);
                     }
@@ -487,12 +489,14 @@ impl Prpr {
             res.time -= 1.;
             let dst = (res.audio.position(&self.audio_handle)? - 1.).max(0.);
             res.audio.seek_to(&mut self.audio_handle, dst)?;
+            self.last_update_time = t;
             self.start_time = t - dst;
         }
         if is_key_pressed(KeyCode::Right) {
             res.time += 1.;
             let dst = res.audio.position(&self.audio_handle)? + 1.;
             res.audio.seek_to(&mut self.audio_handle, dst)?;
+            self.last_update_time = t;
             self.start_time = t - dst;
         }
         if is_key_pressed(KeyCode::Q) {
