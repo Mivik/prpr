@@ -8,6 +8,7 @@ pub mod info;
 pub mod judge;
 pub mod parse;
 pub mod particle;
+pub mod time;
 
 use crate::{
     audio::{Audio, PlayParams},
@@ -22,15 +23,12 @@ use crate::{
 };
 use anyhow::{bail, Context, Result};
 use audio::AudioHandle;
-use circular_queue::CircularQueue;
 use concat_string::concat_string;
-use ext::{draw_parallelogram, draw_text_aligned};
+use ext::draw_text_aligned;
 use fs::FileSystem;
 use info::ChartInfo;
 use macroquad::prelude::*;
-
-const ADJUST_TIME_SAMPLE_NUM: usize = 64;
-const ADJUST_TIME_THRESHOLD: f64 = 0.02;
+use time::TimeManager;
 
 pub fn build_conf() -> macroquad::window::Conf {
     Conf {
@@ -57,14 +55,9 @@ pub struct Prpr {
 
     pub audio_handle: AudioHandle,
 
-    get_time_fn: Box<dyn Fn() -> f64>,
     get_size_fn: Box<dyn Fn() -> (u32, u32)>,
 
-    start_time: f64,
-    last_update_time: f64,
-    time_errors: CircularQueue<f64>,
-    time_errors_sum: f64,
-    pause_time: Option<f64>,
+    time: TimeManager,
     pause_rewind: Option<f64>,
 
     bad_notes: Vec<BadNote>,
@@ -115,6 +108,8 @@ impl Prpr {
             ChartFormat::Pec => parse_pec(&text)?,
         };
 
+        let adjust_time = config.adjust_time;
+
         let mut res = Resource::new(config, info, fs)
             .await
             .context("Failed to load resources")?;
@@ -147,8 +142,6 @@ impl Prpr {
                 ..Default::default()
             },
         )?;
-
-        let start_time = get_time();
         Ok(Self {
             should_exit: false,
 
@@ -159,59 +152,35 @@ impl Prpr {
 
             audio_handle,
 
-            get_time_fn: Box::new(get_time),
             get_size_fn: get_size_fn
                 .unwrap_or_else(|| Box::new(|| (screen_width() as u32, screen_height() as u32))),
 
-            start_time,
-            last_update_time: f64::NEG_INFINITY,
-            time_errors: CircularQueue::with_capacity(ADJUST_TIME_SAMPLE_NUM),
-            time_errors_sum: 0.,
-            pause_time: None,
+            time: TimeManager::new(adjust_time, Box::new(get_time)),
             pause_rewind: None,
 
             bad_notes: Vec::new(),
         })
     }
 
-    #[inline]
-    pub fn get_time(&self) -> f64 {
-        (self.get_time_fn)()
+    pub fn real_time(&self) -> f64 {
+        self.time.real_time()
     }
 
     pub fn update(&mut self, time: Option<f64>) -> Result<()> {
-        let mut time = time
-            .unwrap_or_else(|| self.pause_time.unwrap_or_else(&self.get_time_fn) - self.start_time);
-        if self.res.config.adjust_time && self.pause_time.is_none() && self.pause_rewind.is_none() && self.get_time() - self.last_update_time > 0.1 {
-            let music_time = self.res.audio.position(&self.audio_handle)?;
-            let error = music_time - time;
-            if self.time_errors.is_full() {
-                self.time_errors_sum -= *self.time_errors.asc_iter().next().unwrap();
-            }
-            self.time_errors.push(error);
-            self.time_errors_sum += error;
-            if self.time_errors.is_full() {
-                let delta = self.time_errors_sum / ADJUST_TIME_SAMPLE_NUM as f64;
-                if delta.abs() > ADJUST_TIME_THRESHOLD {
-                    warn!(
-                        "Time misalignment detected. Syncing time by offset {}...",
-                        delta
-                    );
-                    self.start_time -= delta;
-                    time += delta;
-                    self.time_errors.clear();
-                    self.time_errors_sum = 0.;
-                }
-            }
-        }
-        let time = time as f32;
+        let time = if let Some(time) = time {
+            time
+        } else {
+            self.time
+                .update(self.res.audio.position(&self.audio_handle)?);
+            self.time.time
+        } as f32;
 
         let time = (time as f32 - self.chart.offset - self.res.config.offset).max(0.0);
         if time > self.res.track_length + 0.8 {
             self.should_exit = true;
         }
         self.res.time = time;
-        if self.pause_time.is_none() && self.pause_rewind.is_none() {
+        if !self.time.paused() && self.pause_rewind.is_none() {
             self.judge
                 .update(&mut self.res, &mut self.chart, &mut self.bad_notes);
         }
@@ -280,7 +249,7 @@ impl Prpr {
     }
 
     pub fn ui(&mut self, interactive: bool) -> Result<()> {
-        let t = self.get_time();
+        let t = self.time.time;
         let res = &mut self.res;
         let eps = 2e-2 / res.aspect_ratio;
         let top = -1. / res.aspect_ratio;
@@ -288,7 +257,7 @@ impl Prpr {
         let pause_h = pause_w * 3.2;
         let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
         if interactive
-            && self.pause_time.is_none()
+            && self.time.paused()
             && Judge::get_touches(res).into_iter().any(|touch| {
                 matches!(touch.phase, TouchPhase::Started) && {
                     let p = touch.position;
@@ -298,7 +267,7 @@ impl Prpr {
             })
         {
             res.audio.pause(&mut self.audio_handle)?;
-            self.pause_time = Some(t);
+            self.time.pause();
         }
         res.with_model(
             Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
@@ -366,7 +335,7 @@ impl Prpr {
                 });
             },
         );
-        if self.pause_time.is_some() {
+        if self.time.paused(){
             let h = 1. / res.aspect_ratio;
             draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., 0.6));
             let s = 0.06;
@@ -430,21 +399,16 @@ impl Prpr {
                         res.judge_line_color = JUDGE_LINE_PERFECT_COLOR;
                         res.audio.resume(&mut self.audio_handle)?;
                         res.audio.seek_to(&mut self.audio_handle, 0.)?;
-                        self.last_update_time = t;
-                        self.start_time = t;
-                        self.pause_time = None;
-                        self.time_errors.clear();
-                        self.time_errors_sum = 0.;
+                        self.time.resume();
+                        self.time.seek_to(0.);
                     }
                     Some(1) => {
-                        self.pause_time = None;
                         res.audio.resume(&mut self.audio_handle)?;
                         res.time -= 3.;
                         let dst = (res.audio.position(&self.audio_handle)? - 3.).max(0.);
                         res.audio.seek_to(&mut self.audio_handle, dst)?;
-                        self.last_update_time = t;
-                        self.start_time = t - dst;
-                        self.pause_rewind = Some(self.start_time + dst - 0.2);
+                        self.time.seek_to(dst);
+                        self.pause_rewind = Some(dst - 0.2);
                     }
                     _ => {}
                 }
@@ -473,31 +437,27 @@ impl Prpr {
     }
 
     pub fn process_keys(&mut self) -> Result<()> {
-        let t = self.get_time();
         let res = &mut self.res;
         if is_key_pressed(KeyCode::Space) {
             if res.audio.paused(&self.audio_handle)? {
                 res.audio.resume(&mut self.audio_handle)?;
-                self.start_time += t - self.pause_time.take().unwrap();
+                self.time.resume();
             } else {
                 res.audio.pause(&mut self.audio_handle)?;
-                self.pause_time = Some(t);
-                self.pause_rewind = None;
+                self.time.pause();
             }
         }
         if is_key_pressed(KeyCode::Left) {
             res.time -= 1.;
             let dst = (res.audio.position(&self.audio_handle)? - 1.).max(0.);
             res.audio.seek_to(&mut self.audio_handle, dst)?;
-            self.last_update_time = t;
-            self.start_time = t - dst;
+            self.time.seek_to(dst);
         }
         if is_key_pressed(KeyCode::Right) {
             res.time += 1.;
             let dst = res.audio.position(&self.audio_handle)? + 1.;
             res.audio.seek_to(&mut self.audio_handle, dst)?;
-            self.last_update_time = t;
-            self.start_time = t - dst;
+            self.time.seek_to(dst);
         }
         if is_key_pressed(KeyCode::Q) {
             self.should_exit = true;
@@ -506,10 +466,9 @@ impl Prpr {
     }
 
     pub fn pause(&mut self) -> Result<()> {
-        if self.pause_time.is_none() {
+        if !self.time.paused() {
             self.res.audio.pause(&mut self.audio_handle)?;
-            self.pause_time = Some(self.get_time());
-            self.pause_rewind = None;
+            self.time.pause();
         }
         Ok(())
     }

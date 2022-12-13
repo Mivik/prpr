@@ -21,7 +21,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            adjust_time: false,
+            adjust_time: true,
             aggressive: true,
             aspect_ratio: None,
             autoplay: true,

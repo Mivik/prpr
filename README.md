@@ -73,7 +73,7 @@ aspectRatio: (float, the aspect ratio of the screen (w / h)) (default: 16 / 9)
 The optional second parameter of `prpr-player` is the path to the configuration file. The specifications are as below.
 
 ```yml
-adjustTime: (bool, whether automatical time alignment adjustment should be enabled) (default: false)
+adjustTime: (bool, whether automatical time alignment adjustment should be enabled) (default: true)
 aggresive: (bool, enables aggresive optimization, may cause inconsistent render result) (default: true)
 aspectRatio: (float, overrides the aspect ratio of chart) (default: none)
 autoplay: (bool, enables the auto play mode) (default: true)

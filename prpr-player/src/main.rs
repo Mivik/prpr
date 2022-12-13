@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
 
     let mut prpr = Prpr::new(info, config, fs, None).await?;
     'app: loop {
-        let frame_start = prpr.get_time();
+        let frame_start = prpr.real_time();
         prpr.update(None)?;
         prpr.render(None)?;
         prpr.ui(true)?;
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
             break 'app;
         }
 
-        let t = prpr.get_time();
+        let t = prpr.real_time();
         let fps_now = t as i32;
         if fps_now != fps_time {
             fps_time = fps_now;
