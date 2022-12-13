@@ -1,13 +1,13 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use macroquad::prelude::*;
-use prpr::{build_conf, config::Config, fs, Prpr};
+use prpr::{build_conf, fs, Prpr};
 
 #[macroquad::main(build_conf)]
 async fn main() -> Result<()> {
     set_pc_assets_folder("assets");
 
     #[cfg(target_arch = "wasm32")]
-    let fs = {
+    let (fs, config) = {
         fn js_err(err: wasm_bindgen::JsValue) -> anyhow::Error {
             anyhow::Error::msg(format!("{err:?}"))
         }
@@ -20,26 +20,32 @@ async fn main() -> Result<()> {
         )
         .map_err(js_err)?;
         let name = params.get("chart").unwrap_or_else(|| "nc".to_string());
-        fs::fs_from_assets(&name)?
+        (fs::fs_from_assets(&name)?, None)
     };
     #[cfg(any(target_os = "android", target_os = "ios"))]
-    let fs = fs::fs_from_assets("moment")?;
+    let (fs, config) = (fs::fs_from_assets("moment")?, None);
     #[cfg(all(
         not(target_arch = "wasm32"),
         not(target_os = "android"),
         not(target_os = "ios")
     ))]
-    let fs = {
+    let (fs, config) = {
         let mut args = std::env::args();
         let program = args.next().unwrap();
         let Some(path) = args.next() else {
             anyhow::bail!("Usage: {program} <chart>");
         };
-        fs::fs_from_file(&path)?
+        let mut config = None;
+        if let Some(config_path) = args.next() {
+            config = Some(serde_yaml::from_str(
+                &std::fs::read_to_string(config_path).context("Cannot read from config file")?,
+            )?);
+        }
+        (fs::fs_from_file(&path)?, config)
     };
 
     let (info, fs) = fs::load_info(fs).await?;
-    let config = Config::default();
+    let config = config.unwrap_or_default();
 
     let mut fps_time = -1;
 

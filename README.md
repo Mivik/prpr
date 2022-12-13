@@ -14,7 +14,7 @@ For compactness's sake, `font.ttf` used to render the text is not included in th
 wget https://mivik.moe/prpr/font.ttf -O assets/font.ttf
 ```
 
-If your chart contains textures, place then in the `assets/texture` folder. Now the folder structure should be like this:
+If your chart contains textures, place them in the `assets/texture` folder. Now the folder structure should be like this:
 
 ```
 prpr
