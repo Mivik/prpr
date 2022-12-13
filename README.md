@@ -65,7 +65,7 @@ format: (string, the format of the chart) (default: 'rpe', available: 'rpe', 'pg
 music: (string, the path of the music file) (default: 'music.mp3')
 illustration: (string, the path of the illustration) (default: 'background.png')
 
-aspect-ratio: (float, the aspect ratio of the screen (w / h)) (default: 16 / 9)
+aspectRatio: (float, the aspect ratio of the screen (w / h)) (default: 16 / 9)
 ```
 
 ## Global configuration
@@ -73,16 +73,17 @@ aspect-ratio: (float, the aspect ratio of the screen (w / h)) (default: 16 / 9)
 The optional second parameter of `prpr-player` is the path to the configuration file. The specifications are as below.
 
 ```yml
-adjust-time: (bool, whether automatical time alignment adjustment should be enabled) (default: false)
+adjustTime: (bool, whether automatical time alignment adjustment should be enabled) (default: false)
 aggresive: (bool, enables aggresive optimization, may cause inconsistent render result) (default: true)
-aspect-ratio: (float, overrides the aspect ratio of chart) (default: none)
+aspectRatio: (float, overrides the aspect ratio of chart) (default: none)
 autoplay: (bool, enables the auto play mode) (default: true)
-line-length: (float, half the length of the judge line) (default: 6)
+fixAspectRatio: (bool, forces to keep the aspect ratio specified in chart) (default: false)
+lineLength: (float, half the length of the judge line) (default: 6)
 offset: (float, global chart offset) (default: 0)
 particle: (bool, should particle be enabled or not) (default: false)
 speed: (float, the speed of the chart) (default: 1)
-volume-music: (float, the volume of the music) (default: 1)
-volume-sfx: (float, the volume of sound effects) (default: 1)
+volumeMusic: (float, the volume of the music) (default: 1)
+volumeSfx: (float, the volume of sound effects) (default: 1)
 ```
 
 ## Acknowledgement

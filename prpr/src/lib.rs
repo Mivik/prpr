@@ -267,7 +267,8 @@ impl Prpr {
         pop_camera_state();
 
         self.gl.quad_gl.viewport(res.camera.viewport);
-        draw_rectangle(-1., -1., 2., 2., Color::new(0., 0., 0., 0.6));
+        let h = 1. / res.aspect_ratio;
+        draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., 0.6));
         self.chart.render(res);
         self.bad_notes.retain(|dummy| dummy.render(res));
         let dt = dt.unwrap_or_else(get_frame_time);
@@ -366,7 +367,8 @@ impl Prpr {
             },
         );
         if self.pause_time.is_some() {
-            draw_rectangle(-1., -1., 2., 2., Color::new(0., 0., 0., 0.6));
+            let h = 1. / res.aspect_ratio;
+            draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., 0.6));
             let s = 0.06;
             let w = 0.05;
             draw_texture_ex(
@@ -453,7 +455,8 @@ impl Prpr {
                 self.pause_rewind = None;
             } else {
                 let a = (1. - dt as f32 / 3.) * 0.6;
-                draw_rectangle(-1., -1., 2., 2., Color::new(0., 0., 0., a));
+                let h = 1. / res.aspect_ratio;
+                draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., a));
                 res.with_model(
                     Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
                     |res| {

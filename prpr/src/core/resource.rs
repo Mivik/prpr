@@ -228,10 +228,11 @@ impl Resource {
         let aspect_ratio = self.config.aspect_ratio.unwrap_or(self.info.aspect_ratio);
         if self.config.fix_aspect_ratio {
             self.aspect_ratio = aspect_ratio;
-            self.camera.viewport = Some((0, 0, dim.0 as _, dim.1 as _));
+            self.camera.viewport = Some(viewport(aspect_ratio, dim));
         } else {
             self.aspect_ratio = aspect_ratio.min(dim.0 as f32 / dim.1 as f32);
             self.camera.zoom = vec2(1., self.aspect_ratio);
+            self.camera_matrix = self.camera.matrix();
             self.camera.viewport = Some(viewport(self.aspect_ratio, dim));
         };
         true
