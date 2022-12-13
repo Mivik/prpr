@@ -3,6 +3,7 @@ use crate::{
     audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
     fs::FileSystem,
+    info::ChartInfo,
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
 };
 use anyhow::{Context, Result};
@@ -22,6 +23,9 @@ pub struct NoteStyle {
 
 pub struct Resource {
     pub config: Config,
+    pub info: ChartInfo,
+    pub aspect_ratio: f32,
+    pub last_screen_size: (u32, u32),
 
     pub time: f32,
 
@@ -52,7 +56,7 @@ pub struct Resource {
 }
 
 impl Resource {
-    pub async fn new(config: Config, mut fs: Box<dyn FileSystem>) -> Result<Self> {
+    pub async fn new(config: Config, info: ChartInfo, mut fs: Box<dyn FileSystem>) -> Result<Self> {
         macro_rules! load_tex {
             ($path:literal) => {
                 Texture2D::from_image(&load_image($path).await?)
@@ -69,7 +73,7 @@ impl Resource {
         };
         let camera = Camera2D {
             target: vec2(0., 0.),
-            zoom: vec2(1., config.aspect_ratio),
+            zoom: vec2(1., config.aspect_ratio.unwrap_or(info.aspect_ratio)),
             ..Default::default()
         };
         let colors_curve = {
@@ -92,16 +96,12 @@ impl Resource {
             }))
         }
 
-        let background = if let Some(bg) = config.illustration.as_ref() {
-            match load_background(&mut fs, bg).await {
-                Ok(bg) => Some(bg),
-                Err(err) => {
-                    warn!("Failed to load background: {:?}", err);
-                    None
-                }
+        let background = match load_background(&mut fs, &info.illustration).await {
+            Ok(bg) => Some(bg),
+            Err(err) => {
+                warn!("Failed to load background: {:?}", err);
+                None
             }
-        } else {
-            None
         };
         let background = background.unwrap_or_else(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 1]));
 
@@ -111,14 +111,18 @@ impl Resource {
                 audio.create_clip(load_file($path).await?)?.0
             };
         }
-        let (music, track_length) = audio.create_clip(fs.load_file(&config.music).await?)?;
+        let (music, track_length) = audio.create_clip(fs.load_file(&info.music).await?)?;
         let track_length = track_length as f32;
         let sfx_click = load_sfx!("click.ogg");
         let sfx_drag = load_sfx!("drag.ogg");
         let sfx_flick = load_sfx!("flick.ogg");
 
+        let aspect_ratio = config.aspect_ratio.unwrap_or(info.aspect_ratio);
         Ok(Self {
             config,
+            info,
+            aspect_ratio,
+            last_screen_size: (0, 0),
 
             time: 0.0,
 
@@ -199,6 +203,9 @@ impl Resource {
     }
 
     pub fn update_size(&mut self, dim: (u32, u32)) -> bool {
+        if self.last_screen_size == dim {
+            return false;
+        }
         fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {
             let w = w as f32;
             let h = h as f32;
@@ -218,13 +225,16 @@ impl Resource {
                 rh as i32,
             )
         }
-        let vp = viewport(self.config.aspect_ratio, dim);
-        if Some(vp) != self.camera.viewport {
-            self.camera.viewport = Some(vp);
-            true
+        let aspect_ratio = self.config.aspect_ratio.unwrap_or(self.info.aspect_ratio);
+        if self.config.fix_aspect_ratio {
+            self.aspect_ratio = aspect_ratio;
+            self.camera.viewport = Some((0, 0, dim.0 as _, dim.1 as _));
         } else {
-            false
-        }
+            self.aspect_ratio = aspect_ratio.min(dim.0 as f32 / dim.1 as f32);
+            self.camera.zoom = vec2(1., self.aspect_ratio);
+            self.camera.viewport = Some(viewport(self.aspect_ratio, dim));
+        };
+        true
     }
 
     pub fn play_sfx(&mut self, sfx: &AudioClip) {

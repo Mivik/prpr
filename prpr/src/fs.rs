@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::info::ChartInfo;
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use concat_string::concat_string;
@@ -45,8 +45,8 @@ impl FileSystem for ZipFileSystem {
     }
 }
 
-fn config_from_txt(text: &str) -> Result<Config> {
-    let mut config = Config::default();
+fn info_from_txt(text: &str) -> Result<ChartInfo> {
+    let mut info = ChartInfo::default();
     let mut it = text.lines();
     if it.next() != Some("#") {
         bail!("Expected the first line to be #");
@@ -56,31 +56,25 @@ fn config_from_txt(text: &str) -> Result<Config> {
             bail!("Expected \"Key: Value\"");
         };
         let value = value.to_string();
-        match key {
-            "Path" => {
-                continue;
-            }
-            "Picture" => {
-                config.illustration = Some(value);
-                continue;
-            }
-            _ => {}
+        if key == "Path" {
+            continue;
         }
         *match key {
-            "Name" => &mut config.name,
-            "Song" => &mut config.music,
-            "Chart" => &mut config.chart,
-            "Level" => &mut config.level,
-            "Composer" => &mut config.composer,
-            "Charter" => &mut config.charter,
+            "Name" => &mut info.name,
+            "Song" => &mut info.music,
+            "Picture" => &mut info.illustration,
+            "Chart" => &mut info.chart,
+            "Level" => &mut info.level,
+            "Composer" => &mut info.composer,
+            "Charter" => &mut info.charter,
             _ => bail!("Unknown key: {key}"),
         } = value;
     }
-    Ok(config)
+    Ok(info)
 }
 
-fn config_from_csv(bytes: Vec<u8>) -> Result<Config> {
-    let mut config = Config::default();
+fn info_from_csv(bytes: Vec<u8>) -> Result<ChartInfo> {
+    let mut info = ChartInfo::default();
 
     let mut reader = csv::Reader::from_reader(Cursor::new(bytes));
     // shitty design
@@ -96,34 +90,31 @@ fn config_from_csv(bytes: Vec<u8>) -> Result<Config> {
     let record = records.into_iter().next().unwrap()?;
     for (key, value) in headers.into_iter().zip(record.into_iter()) {
         let value = value.to_string();
-        if key == "Image" {
-            config.illustration = Some(value);
-            continue;
-        }
         *match key.as_str() {
-            "Name" => &mut config.name,
-            "Music" => &mut config.music,
-            "Chart" => &mut config.chart,
-            "Level" => &mut config.level,
-            "Composer" => &mut config.composer,
-            "Designer" => &mut config.charter,
+            "Name" => &mut info.name,
+            "Music" => &mut info.music,
+            "Chart" => &mut info.chart,
+            "Image" => &mut info.illustration,
+            "Level" => &mut info.level,
+            "Composer" => &mut info.composer,
+            "Designer" => &mut info.charter,
             _ => bail!("Unknown key: {key}"),
         } = value;
     }
-    Ok(config)
+    Ok(info)
 }
 
-pub async fn load_config(mut fs: Box<dyn FileSystem>) -> Result<(Config, Box<dyn FileSystem>)> {
-    let config = if let Ok(bytes) = fs.load_file("info.yml").await {
+pub async fn load_info(mut fs: Box<dyn FileSystem>) -> Result<(ChartInfo, Box<dyn FileSystem>)> {
+    let info = if let Ok(bytes) = fs.load_file("info.yml").await {
         serde_yaml::from_str(&String::from_utf8(bytes)?)?
     } else if let Ok(bytes) = fs.load_file("info.txt").await {
-        config_from_txt(&String::from_utf8(bytes)?)?
+        info_from_txt(&String::from_utf8(bytes)?)?
     } else if let Ok(bytes) = fs.load_file("info.csv").await {
-        config_from_csv(bytes)?
+        info_from_csv(bytes)?
     } else {
         bail!("None of info.yml, info.txt and info.csv is found");
     };
-    Ok((config, fs))
+    Ok((info, fs))
 }
 
 pub fn fs_from_file(path: &str) -> Result<Box<dyn FileSystem>> {

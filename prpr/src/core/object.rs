@@ -31,7 +31,7 @@ impl Object {
 
     pub fn now(&self, res: &Resource) -> Matrix {
         let mut tr = self.translation.now();
-        tr.y /= res.config.aspect_ratio;
+        tr.y /= res.aspect_ratio;
         Rotation2::new(self.rotation.now().to_radians())
             .to_homogeneous()
             .append_translation(&tr)

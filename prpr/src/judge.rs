@@ -386,10 +386,13 @@ impl Judge {
                     if dt > bad {
                         continue;
                     }
-                    if dist < closest.1 {
+                    if dist < NOTE_WIDTH_RATIO || dist < closest.1 {
                         closest.0 = Some((line_id, *id));
                         closest.1 = dist;
                         closest.2 = note.time - t + 0.01;
+                        if dist < NOTE_WIDTH_RATIO {
+                            break;
+                        }
                     }
                 }
             }
@@ -547,7 +550,7 @@ impl Judge {
                             matrix: line.object.now(res)
                                 * note.now_transform(
                                     res,
-                                    (note.height - line.height.now()) / res.config.aspect_ratio
+                                    (note.height - line.height.now()) / res.aspect_ratio
                                         * note.speed,
                                 ),
                             speed: Vector::default(),

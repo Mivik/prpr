@@ -4,17 +4,19 @@ pub mod audio;
 pub mod config;
 pub mod core;
 pub mod fs;
+pub mod info;
 pub mod judge;
 pub mod parse;
 pub mod particle;
 
 use crate::{
     audio::{Audio, PlayParams},
-    config::{ChartFormat, Config},
+    config::Config,
     core::{
         draw_text_aligned, BadNote, Chart, Matrix, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR,
         JUDGE_LINE_PERFECT_COLOR,
     },
+    info::ChartFormat,
     judge::Judge,
     parse::{parse_pec, parse_phigros, parse_rpe},
 };
@@ -23,6 +25,7 @@ use audio::AudioHandle;
 use circular_queue::CircularQueue;
 use concat_string::concat_string;
 use fs::FileSystem;
+use info::ChartInfo;
 use macroquad::prelude::*;
 
 const ADJUST_TIME_SAMPLE_NUM: usize = 64;
@@ -67,6 +70,7 @@ pub struct Prpr {
 
 impl Prpr {
     pub async fn new(
+        info: ChartInfo,
         config: Config,
         mut fs: Box<dyn FileSystem>,
         get_size_fn: Option<Box<dyn Fn() -> (u32, u32)>>,
@@ -75,12 +79,12 @@ impl Prpr {
 
         async fn load_chart_bytes(
             fs: &mut Box<dyn FileSystem>,
-            config: &Config,
+            info: &ChartInfo,
         ) -> Result<Vec<u8>> {
-            if let Ok(bytes) = fs.load_file(&config.chart).await {
+            if let Ok(bytes) = fs.load_file(&info.chart).await {
                 return Ok(bytes);
             }
-            if let Some(name) = config.chart.strip_suffix(".pec") {
+            if let Some(name) = info.chart.strip_suffix(".pec") {
                 if let Ok(bytes) = fs.load_file(&concat_string!(name, ".json")).await {
                     return Ok(bytes);
                 }
@@ -88,11 +92,11 @@ impl Prpr {
             bail!("Cannot find chart file")
         }
         let text = String::from_utf8(
-            load_chart_bytes(&mut fs, &config)
+            load_chart_bytes(&mut fs, &info)
                 .await
                 .context("Failed to load chart")?,
         )?;
-        let format = config.format.clone().unwrap_or_else(|| {
+        let format = info.format.clone().unwrap_or_else(|| {
             if text.starts_with('{') {
                 if text.contains("\"META\"") {
                     ChartFormat::Rpe
@@ -109,7 +113,7 @@ impl Prpr {
             ChartFormat::Pec => parse_pec(&text)?,
         };
 
-        let mut res = Resource::new(config, fs)
+        let mut res = Resource::new(config, info, fs)
             .await
             .context("Failed to load resources")?;
 
@@ -277,17 +281,17 @@ impl Prpr {
     pub fn ui(&mut self, interactive: bool) -> Result<()> {
         let t = self.get_time();
         let res = &mut self.res;
-        let eps = 2e-2 / res.config.aspect_ratio;
-        let top = -1. / res.config.aspect_ratio;
+        let eps = 2e-2 / res.aspect_ratio;
+        let top = -1. / res.aspect_ratio;
         let pause_w = 0.015;
-        let pause_h = pause_w * 3.;
+        let pause_h = pause_w * 3.2;
         let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
         if interactive
             && self.pause_time.is_none()
             && Judge::get_touches().into_iter().any(|touch| {
                 matches!(touch.phase, TouchPhase::Started) && {
                     let p = touch.position;
-                    let p = Point::new(p.x, p.y / res.config.aspect_ratio);
+                    let p = Point::new(p.x, p.y / res.aspect_ratio);
                     (pause_center - p).norm() < 0.05
                 }
             })
@@ -309,14 +313,14 @@ impl Prpr {
                         0.8,
                         WHITE,
                     );
-                    draw_rectangle(pause_w * 2.5 - 1., top + eps * 2.8, pause_w, pause_h, WHITE);
-                    draw_rectangle(pause_w * 4.5 - 1., top + eps * 2.8, pause_w, pause_h, WHITE);
+                    draw_rectangle(pause_w * 2.2 - 1., top + eps * 3.5, pause_w, pause_h, WHITE);
+                    draw_rectangle(pause_w * 4.2 - 1., top + eps * 3.5, pause_w, pause_h, WHITE);
                     if self.judge.combo >= 2 {
                         let rect = draw_text_aligned(
                             res,
                             &self.judge.combo.to_string(),
                             0.,
-                            top + eps * 2.,
+                            top + eps * 2.6,
                             (0.5, 0.),
                             1.,
                             WHITE,
@@ -329,7 +333,7 @@ impl Prpr {
                                 "COMBO"
                             },
                             0.,
-                            rect.y + eps * 1.5,
+                            rect.y + eps * 2.1,
                             (0.5, 0.),
                             0.4,
                             WHITE,
@@ -337,7 +341,7 @@ impl Prpr {
                     }
                     draw_text_aligned(
                         res,
-                        &res.config.name,
+                        &res.info.name,
                         -1. + margin,
                         -top - eps * 2.8,
                         (0., 1.),
@@ -346,7 +350,7 @@ impl Prpr {
                     );
                     draw_text_aligned(
                         res,
-                        &res.config.level,
+                        &res.info.level,
                         1. - margin,
                         -top - eps * 2.8,
                         (1., 1.),
@@ -403,7 +407,7 @@ impl Prpr {
                             return None;
                         }
                         let p = touch.position;
-                        let p = Point::new(p.x, p.y / res.config.aspect_ratio);
+                        let p = Point::new(p.x, p.y / res.aspect_ratio);
                         for i in -1..=1 {
                             let ct = Point::new((s * 2. + w) * i as f32, 0.);
                             let d = p - ct;

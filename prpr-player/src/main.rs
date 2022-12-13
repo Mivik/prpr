@@ -1,6 +1,6 @@
 use anyhow::Result;
 use macroquad::prelude::*;
-use prpr::{build_conf, Prpr, fs};
+use prpr::{build_conf, config::Config, fs, Prpr};
 
 #[macroquad::main(build_conf)]
 async fn main() -> Result<()> {
@@ -24,7 +24,11 @@ async fn main() -> Result<()> {
     };
     #[cfg(any(target_os = "android", target_os = "ios"))]
     let fs = fs::fs_from_assets("moment")?;
-    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))]
+    #[cfg(all(
+        not(target_arch = "wasm32"),
+        not(target_os = "android"),
+        not(target_os = "ios")
+    ))]
     let fs = {
         let mut args = std::env::args();
         let program = args.next().unwrap();
@@ -34,11 +38,12 @@ async fn main() -> Result<()> {
         fs::fs_from_file(&path)?
     };
 
-    let (config, fs) = fs::load_config(fs).await?;
+    let (info, fs) = fs::load_info(fs).await?;
+    let config = Config::default();
 
     let mut fps_time = -1;
 
-    let mut prpr = Prpr::new(config, fs, None).await?;
+    let mut prpr = Prpr::new(info, config, fs, None).await?;
 
     'app: loop {
         let frame_start = prpr.get_time();

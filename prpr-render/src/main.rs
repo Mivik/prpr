@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use macroquad::{miniquad::TextureFormat, prelude::*};
-use prpr::{audio::AudioClip, build_conf, core::NoteKind, fs, Prpr};
+use prpr::{audio::AudioClip, build_conf, config::Config, core::NoteKind, fs, Prpr};
 use std::{
     io::{BufWriter, Write},
     process::{Command, Stdio},
@@ -28,11 +28,14 @@ async fn main() -> Result<()> {
         path
     };
 
-    let (mut config, fs) = fs::load_config(fs::fs_from_file(&path)?).await?;
-    config.adjust_time = false;
-    config.autoplay = true;
-    config.volume_music = 0.;
-    config.volume_sfx = 0.;
+    let (info, fs) = fs::load_info(fs::fs_from_file(&path)?).await?;
+
+    let config = Config {
+        autoplay: true,
+        volume_music: 0.,
+        volume_sfx: 0.,
+        ..Default::default()
+    };
 
     let mut proc = Command::new("ffmpeg")
         .args(format!("-y -f rawvideo -vcodec rawvideo -s {VIDEO_WIDTH}x{VIDEO_HEIGHT} -r {FPS} -pix_fmt rgb24 -i - -threads 8 -c:v libx264 -preset ultrafast -qp 0 -vf vflip t_video.mp4").split_whitespace())
@@ -41,7 +44,13 @@ async fn main() -> Result<()> {
         .spawn()?;
     let input = proc.stdin.as_mut().unwrap();
 
-    let mut prpr = Prpr::new(config, fs, Some(Box::new(|| (VIDEO_WIDTH, VIDEO_HEIGHT)))).await?;
+    let mut prpr = Prpr::new(
+        info,
+        config,
+        fs,
+        Some(Box::new(|| (VIDEO_WIDTH, VIDEO_HEIGHT))),
+    )
+    .await?;
 
     let texture = miniquad::Texture::new_render_texture(
         prpr.gl.quad_context,

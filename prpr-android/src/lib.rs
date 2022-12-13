@@ -1,15 +1,14 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use macroquad::prelude::*;
-use once_cell::sync::Lazy;
-use prpr::{build_conf, fs, Prpr};
-use std::{sync::{mpsc, Mutex}, collections::HashMap};
+use prpr::{build_conf, config::Config, fs, Prpr};
+use std::sync::{mpsc, Mutex};
 
 #[cfg(not(target_os = "android"))]
 compile_error!("Only supports android build");
 
 static MESSAGES_TX: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 static CHART_PATH: Mutex<Option<String>> = Mutex::new(None);
-static OVERRIDES: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static CONFIG: Mutex<Option<Config>> = Mutex::new(None);
 
 async fn the_main() -> Result<()> {
     set_pc_assets_folder("assets");
@@ -22,42 +21,9 @@ async fn the_main() -> Result<()> {
         fs::fs_from_file(&path)?
     };
 
-    let (mut config, fs) = fs::load_config(fs).await?;
+    let (info, fs) = fs::load_info(fs).await?;
 
-    for (key, value) in OVERRIDES.lock().unwrap().iter() {
-        // TODO simplify
-        match key.as_str() {
-            "adjustTime" => {
-                config.adjust_time = value.parse()?;
-            }
-            "autoplay" => {
-                config.autoplay = value.parse()?;
-            }
-            "multipleHint" => {
-                config.multiple_hint = value.parse()?;
-            }
-            "speed" => {
-                config.speed = value.parse()?;
-            }
-
-            "aggressive" => {
-                config.aggressive = value.parse()?;
-            }
-            "particle" => {
-                config.particle = value.parse()?;
-            }
-
-            "volumeMusic" => {
-                config.volume_music = value.parse()?;
-            }
-            "volumeSfx" => {
-                config.volume_sfx = value.parse()?;
-            }
-            _ => {
-                bail!("Unknown config key: {key}");
-            }
-        }
-    }
+    let config = CONFIG.lock().unwrap().take().unwrap_or_default();
 
     let rx = {
         let (tx, rx) = mpsc::channel();
@@ -67,7 +33,7 @@ async fn the_main() -> Result<()> {
 
     let mut fps_time = -1;
 
-    let mut prpr = Prpr::new(config, fs, None).await?;
+    let mut prpr = Prpr::new(info, config, fs, None).await?;
     'app: loop {
         let frame_start = prpr.get_time();
         prpr.update(None)?;
@@ -133,23 +99,12 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setChartPath(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn Java_quad_1native_QuadNative_clearOverrides(
+pub unsafe extern "C" fn Java_quad_1native_QuadNative_setConfig(
     _: *mut std::ffi::c_void,
     _: *const std::ffi::c_void,
-) {
-    OVERRIDES.lock().unwrap().clear();
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn Java_quad_1native_QuadNative_addOverride(
-    _: *mut std::ffi::c_void,
-    _: *const std::ffi::c_void,
-    key: ndk_sys::jstring,
-    value: ndk_sys::jstring,
+    json: ndk_sys::jstring,
 ) {
     let env = crate::miniquad::native::attach_jni_env();
-    let key = string_from_java(env, key);
-    let value = string_from_java(env, value);
-
-    OVERRIDES.lock().unwrap().insert(key, value);
+    let json = string_from_java(env, json);
+    *CONFIG.lock().unwrap() = Some(serde_json::from_str(&json).unwrap());
 }

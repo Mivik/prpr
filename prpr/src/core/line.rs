@@ -179,10 +179,8 @@ impl JudgeLine {
                     res.screen_to_world(Point::new(vw, -vh)),
                     res.screen_to_world(Point::new(vw, vh)),
                 ];
-                let height_above =
-                    p[0].y.max(p[1].y.max(p[2].y.max(p[3].y))) * res.config.aspect_ratio;
-                let height_below =
-                    -p[0].y.min(p[1].y.min(p[2].y.min(p[3].y))) * res.config.aspect_ratio;
+                let height_above = p[0].y.max(p[1].y.max(p[2].y.max(p[3].y))) * res.aspect_ratio;
+                let height_below = -p[0].y.min(p[1].y.min(p[2].y.min(p[3].y))) * res.aspect_ratio;
                 let agg = res.config.aggressive;
                 for note in self
                     .notes

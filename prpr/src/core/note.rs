@@ -189,8 +189,8 @@ impl Note {
         let scale = (if self.multiple_hint { 1.1 } else { 1.0 }) * NOTE_WIDTH_RATIO;
         let mut color = WHITE;
 
-        let line_height = line_height / res.config.aspect_ratio * self.speed;
-        let height = self.height / res.config.aspect_ratio * self.speed;
+        let line_height = line_height / res.aspect_ratio * self.speed;
+        let height = self.height / res.aspect_ratio * self.speed;
 
         let base = height - line_height;
         if !config.draw_below
@@ -227,7 +227,7 @@ impl Note {
                     if res.time >= end_time {
                         return;
                     }
-                    let end_height = end_height / res.config.aspect_ratio * self.speed;
+                    let end_height = end_height / res.aspect_ratio * self.speed;
                     let base = height - line_height;
                     // head
                     if res.time < self.time {
