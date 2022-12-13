@@ -1,5 +1,10 @@
 use anyhow::{Context, Result};
-use macroquad::prelude::*;
+use egui::{FontDefinitions, FontData, FontFamily};
+use egui_miniquad::EguiMq;
+use macroquad::{
+    miniquad::EventHandler,
+    prelude::{utils::{register_input_subscriber, repeat_all_miniquad_input}, *},
+};
 use prpr::{build_conf, fs, Prpr};
 
 #[macroquad::main(build_conf)]
@@ -51,6 +56,14 @@ async fn main() -> Result<()> {
 
     let mut prpr = Prpr::new(info, config, fs, None).await?;
 
+    let mut mq = EguiMq::new(prpr.gl.quad_context);
+
+    let subscriber = register_input_subscriber();
+    let mut fonts = FontDefinitions::default();
+    fonts.font_data.insert("Noto Sans CJK".to_owned(), FontData::from_owned(load_file("font.ttf").await?));
+    fonts.families.get_mut(&FontFamily::Proportional).unwrap().insert(0, "Noto Sans CJK".to_owned());
+    fonts.families.get_mut(&FontFamily::Monospace).unwrap().insert(0, "Noto Sans CJK".to_owned());
+    mq.egui_ctx().set_fonts(fonts);
     'app: loop {
         let frame_start = prpr.get_time();
         prpr.update(None)?;
@@ -60,6 +73,18 @@ async fn main() -> Result<()> {
         if prpr.should_exit {
             break 'app;
         }
+        prpr.gl.flush();
+
+        repeat_all_miniquad_input(&mut EventReceiver(&mut mq), subscriber);
+        /*mq.run(prpr.gl.quad_context, |_, cx| {
+            egui::CentralPanel::default().frame(egui::Frame {
+                fill: egui::Color32::TRANSPARENT,
+                ..Default::default()
+            }).show(cx, |ui| {
+                ui.label("测测你的！");
+            });
+        });*/
+        // mq.draw(prpr.gl.quad_context);
 
         let t = prpr.get_time();
         let fps_now = t as i32;
@@ -71,4 +96,62 @@ async fn main() -> Result<()> {
         next_frame().await;
     }
     Ok(())
+}
+
+struct EventReceiver<'a>(&'a mut EguiMq);
+impl<'a> EventHandler for EventReceiver<'a> {
+    fn draw(&mut self, _ctx: &mut miniquad::Context) {}
+    fn update(&mut self, _ctx: &mut miniquad::Context) {}
+
+    fn mouse_motion_event(&mut self, _: &mut miniquad::Context, x: f32, y: f32) {
+        self.0.mouse_motion_event(x, y);
+    }
+
+    fn mouse_wheel_event(&mut self, _: &mut miniquad::Context, dx: f32, dy: f32) {
+        self.0.mouse_wheel_event(dx, dy);
+    }
+
+    fn mouse_button_down_event(
+        &mut self,
+        ctx: &mut miniquad::Context,
+        mb: miniquad::MouseButton,
+        x: f32,
+        y: f32,
+    ) {
+        self.0.mouse_button_down_event(ctx, mb, x, y);
+    }
+
+    fn mouse_button_up_event(
+        &mut self,
+        ctx: &mut miniquad::Context,
+        mb: miniquad::MouseButton,
+        x: f32,
+        y: f32,
+    ) {
+        self.0.mouse_button_up_event(ctx, mb, x, y);
+    }
+
+    fn char_event(
+        &mut self,
+        _ctx: &mut miniquad::Context,
+        character: char,
+        _keymods: miniquad::KeyMods,
+        _repeat: bool,
+    ) {
+        self.0.char_event(character);
+    }
+
+    fn key_down_event(
+        &mut self,
+        ctx: &mut miniquad::Context,
+        keycode: miniquad::KeyCode,
+        keymods: miniquad::KeyMods,
+        _repeat: bool,
+    ) {
+        self.0.key_down_event(ctx, keycode, keymods);
+    }
+
+    fn key_up_event(&mut self, _ctx: &mut miniquad::Context, keycode: miniquad::KeyCode, keymods: miniquad::KeyMods) {
+        self.0.key_up_event(keycode, keymods);
+    }
 }

@@ -148,6 +148,7 @@ pub struct Judge {
     trackers: HashMap<u64, VelocityTracker>,
     subscriber_id: usize,
     last_time: f32,
+    key_down_count: u32,
 
     pub combo: u32,
     pub max_combo: u32,
@@ -173,6 +174,7 @@ impl Judge {
             trackers: HashMap::new(),
             subscriber_id: register_input_subscriber(),
             last_time: 0.,
+            key_down_count: 0,
 
             combo: 0,
             max_combo: 0,
@@ -269,10 +271,10 @@ impl Judge {
         let touches = Self::get_touches();
         // TODO optimize
         let mut touches: HashMap<u64, Touch> = touches.into_iter().map(|it| (it.id, it)).collect();
-        let events = {
-            let mut handler = Handler(Vec::new());
+        let (events, keys_down) = {
+            let mut handler = Handler(Vec::new(), &mut self.key_down_count, 0);
             repeat_all_miniquad_input(&mut handler, self.subscriber_id);
-            handler.0
+            (handler.0, handler.2)
         };
         {
             fn to_local((x, y): (f32, f32)) -> Point {
@@ -431,6 +433,54 @@ impl Judge {
                 }
             }
         }
+        for _ in 0..keys_down {
+            // find the earliest not judged click / hold note
+            if let Some((line_id, id)) = chart
+                .lines
+                .iter()
+                .zip(self.notes.iter())
+                .enumerate()
+                .filter_map(|(line_id, (line, (idx, st)))| {
+                    idx[*st as usize..]
+                        .iter()
+                        .cloned()
+                        .filter(|id| {
+                            let note = &line.notes[*id as usize];
+                            matches!(note.judge, JudgeStatus::NotJudged)
+                                && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. })
+                        })
+                        .next()
+                        .map(|id| (line_id, id))
+                })
+                .min_by_key(|(line_id, id)| {
+                    chart.lines[*line_id].notes[*id as usize].time.not_nan()
+                })
+            {
+                let note = &mut chart.lines[line_id].notes[id as usize];
+                let dt = (t - note.time).abs();
+                if dt <= LIMIT_BAD {
+                    match note.kind {
+                        NoteKind::Click => {
+                            note.judge = JudgeStatus::Judged;
+                            judgements.push((
+                                if dt <= LIMIT_PERFECT {
+                                    Judgement::Perfect
+                                } else {
+                                    Judgement::Good
+                                },
+                                line_id,
+                                id,
+                            ));
+                        }
+                        NoteKind::Hold { .. } => {
+                            res.play_sfx(&res.sfx_click.clone());
+                            note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, false);
+                        }
+                        _ => unreachable!(),
+                    };
+                }
+            }
+        }
         for (line_id, ((line, pos), (idx, st))) in chart
             .lines
             .iter_mut()
@@ -450,9 +500,10 @@ impl Judge {
                         let x = &mut note.object.translation.0;
                         x.set_time(t);
                         let x = x.now();
-                        if !pos
-                            .iter()
-                            .any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX))
+                        if self.key_down_count == 0
+                            && !pos
+                                .iter()
+                                .any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX))
                         {
                             note.judge = JudgeStatus::Judged;
                             judgements.push((Judgement::Miss, line_id, *id));
@@ -472,19 +523,24 @@ impl Judge {
                 if note.time > t + LIMIT_BAD {
                     break;
                 }
-                if !matches!(note.kind, NoteKind::Drag) {
+                if !matches!(note.kind, NoteKind::Drag)
+                    && (self.key_down_count == 0 || !matches!(note.kind, NoteKind::Flick))
+                {
                     continue;
                 }
                 let dt = (t - note.time).abs();
                 let x = &mut note.object.translation.0;
                 x.set_time(t);
                 let x = x.now();
-                if pos.iter().any(|it| {
-                    it.map_or(false, |it| {
-                        let dx = (it.x - x).abs();
-                        dx <= X_DIFF_MAX && dt <= (LIMIT_BAD - LIMIT_PERFECT * (dx - 0.9).max(0.))
+                if self.key_down_count != 0
+                    || pos.iter().any(|it| {
+                        it.map_or(false, |it| {
+                            let dx = (it.x - x).abs();
+                            dx <= X_DIFF_MAX
+                                && dt <= (LIMIT_BAD - LIMIT_PERFECT * (dx - 0.9).max(0.))
+                        })
                     })
-                }) {
+                {
                     note.judge = JudgeStatus::PreJudge;
                 }
             }
@@ -639,9 +695,13 @@ impl Judge {
     }
 }
 
-struct Handler(Vec<(u64, miniquad::TouchPhase, (f32, f32))>);
+struct Handler<'a>(
+    Vec<(u64, miniquad::TouchPhase, (f32, f32))>,
+    &'a mut u32,
+    u32,
+);
 
-impl EventHandler for Handler {
+impl<'a> EventHandler for Handler<'a> {
     fn update(&mut self, _: &mut miniquad::Context) {}
     fn draw(&mut self, _: &mut miniquad::Context) {}
     fn touch_event(
@@ -653,5 +713,27 @@ impl EventHandler for Handler {
         y: f32,
     ) {
         self.0.push((id, phase, (x, y)));
+    }
+
+    fn key_down_event(
+        &mut self,
+        _ctx: &mut miniquad::Context,
+        _keycode: KeyCode,
+        _keymods: miniquad::KeyMods,
+        repeat: bool,
+    ) {
+        if !repeat {
+            *self.1 += 1;
+            self.2 += 1;
+        }
+    }
+
+    fn key_up_event(
+        &mut self,
+        _ctx: &mut miniquad::Context,
+        _keycode: KeyCode,
+        _keymods: miniquad::KeyMods,
+    ) {
+        *self.1 -= 1;
     }
 }
