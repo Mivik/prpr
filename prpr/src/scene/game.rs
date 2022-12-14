@@ -356,6 +356,7 @@ impl Scene for GameScene {
                     self.next_scene = Some(Box::new(EndingScene::new(
                         self.res.background,
                         self.res.illustration,
+                        self.res.player,
                         self.res.font,
                         self.res.icons,
                         self.res.icon_retry,

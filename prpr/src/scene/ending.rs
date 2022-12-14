@@ -11,6 +11,7 @@ use macroquad::prelude::*;
 pub struct EndingScene {
     background: Texture2D,
     illustration: Texture2D,
+    player: Texture2D,
     font: Font,
     icons: [Texture2D; 8],
     icon_retry: Texture2D,
@@ -28,6 +29,7 @@ impl EndingScene {
     pub fn new(
         background: Texture2D,
         illustration: Texture2D,
+        player: Texture2D,
         font: Font,
         icons: [Texture2D; 8],
         icon_retry: Texture2D,
@@ -39,6 +41,7 @@ impl EndingScene {
         Self {
             background,
             illustration,
+            player,
             font,
             icons,
             icon_retry,
@@ -245,7 +248,7 @@ impl Scene for EndingScene {
             Color::new(0., 0., 0., alpha),
         );
         let r =
-            draw_illustration(self.illustration, 1. - 0.17, main.center().y, 0.1 / (0.076 * 7.), 0.1 / (0.076 * 7.), Color::new(1., 1., 1., alpha));
+            draw_illustration(self.player, 1. - 0.17, main.center().y, 0.1 / (0.076 * 7.), 0.1 / (0.076 * 7.), Color::new(1., 1., 1., alpha));
         let text = draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, Color::new(1., 1., 1., alpha));
         draw_parallelogram(
             Rect::new(text.x - main.h * slope - 0.01, main.y, main.x - text.x + main.h * slope * 2. + 0.01, main.h),
