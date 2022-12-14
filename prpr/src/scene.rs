@@ -106,9 +106,9 @@ fn draw_background(tex: Texture2D) {
     draw_rectangle(-1., -top, 2., top * 2., Color::new(0., 0., 0., 0.3));
 }
 
-fn draw_illustration(tex: Texture2D, x: f32, y: f32, h: f32) -> Rect {
+fn draw_illustration(tex: Texture2D, x: f32, y: f32, w: f32, h: f32, color: Color) -> Rect {
     let scale = 0.076;
-    let w = scale * 13.;
+    let w = scale * 13. * w;
     let h = scale * 7. * h;
     let r = Rect::new(x - w / 2., y - h / 2., w, h);
     let tr = {
@@ -122,6 +122,6 @@ fn draw_illustration(tex: Texture2D, x: f32, y: f32, h: f32) -> Rect {
             Rect::new(0.5 - w / 2., 0., w, 1.)
         }
     };
-    crate::ext::draw_parallelogram(r, Some((tex, tr)), WHITE);
+    crate::ext::draw_parallelogram(r, Some((tex, tr)), color);
     r
 }

@@ -157,7 +157,7 @@ impl Scene for LoadingScene {
             gl.push_model_matrix(Mat4::from_translation(vec3(dx, 0., 0.)));
         }
         let vo = -top / 10.;
-        let r = draw_illustration(self.illustration, 0.38, vo, 1.);
+        let r = draw_illustration(self.illustration, 0.38, vo, 1., 1., WHITE);
         let h = r.h / 3.6;
         let main = Rect::new(-0.88, vo - h / 2. - top / 10., 0.78, h);
         draw_parallelogram(main, None, Color::new(0., 0., 0., 0.7));

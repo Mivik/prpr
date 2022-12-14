@@ -1,5 +1,6 @@
 use super::{draw_background, draw_illustration, NextScene, Scene};
 use crate::{
+    config::Config,
     ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, PARALLELOGRAM_SLOPE},
     info::ChartInfo,
     judge::{Judge, PlayResult},
@@ -18,6 +19,8 @@ pub struct EndingScene {
 
     info: ChartInfo,
     result: PlayResult,
+    player_name: String,
+    player_rks: f32,
     next: u8, // 0 -> none, 1 -> pop, 2 -> exit
 }
 
@@ -31,6 +34,7 @@ impl EndingScene {
         icon_proceed: Texture2D,
         info: ChartInfo,
         result: PlayResult,
+        config: &Config,
     ) -> Self {
         Self {
             background,
@@ -43,6 +47,8 @@ impl EndingScene {
 
             info,
             result,
+            player_name: config.player_name.clone(),
+            player_rks: config.player_rks,
             next: 0,
         }
     }
@@ -80,7 +86,7 @@ impl Scene for EndingScene {
         }
 
         tran(gl, (1. - ran(now, 0.1, 1.3)).powi(3));
-        let r = draw_illustration(self.illustration, -0.38, 0., 1.2);
+        let r = draw_illustration(self.illustration, -0.38, 0., 1., 1.2, WHITE);
         draw_parallelogram_ex(r, None, Color::new(0., 0., 0., 0.), Color::new(0., 0., 0., 0.5));
         draw_text_aligned(
             self.font,
@@ -223,6 +229,30 @@ impl Scene for EndingScene {
         if p <= 0. && touched(r) {
             self.next = 2;
         }
+
+        let alpha = ran(now, 1.5, 1.9);
+        let main = Rect::new(1. - 0.28, -top + dy * 2., 0.35, 0.09);
+        draw_parallelogram(main, None, Color::new(0., 0., 0., c.a * alpha));
+        let sub = Rect::new(1. - 0.17, main.center().y + 0.005, 0.16, 0.028);
+        draw_parallelogram(sub, None, Color::new(1., 1., 1., alpha));
+        draw_text_aligned(
+            self.font,
+            &format!("{:.2}", self.player_rks),
+            sub.center().x + 0.034,
+            sub.center().y,
+            (0.5, 0.5),
+            0.3,
+            Color::new(0., 0., 0., alpha),
+        );
+        let r =
+            draw_illustration(self.illustration, 1. - 0.17, main.center().y, 0.1 / (0.076 * 7.), 0.1 / (0.076 * 7.), Color::new(1., 1., 1., alpha));
+        let text = draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, Color::new(1., 1., 1., alpha));
+        draw_parallelogram(
+            Rect::new(text.x - main.h * slope - 0.01, main.y, main.x - text.x + main.h * slope * 2. + 0.01, main.h),
+            None,
+            Color::new(0., 0., 0., c.a * alpha),
+        );
+        draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, Color::new(1., 1., 1., alpha));
 
         Ok(())
     }
