@@ -1,7 +1,7 @@
 use super::{draw_background, draw_illustration, GameScene, NextScene, Scene};
 use crate::{
     config::Config,
-    ext::{draw_parallelogram, draw_text_aligned, make_pipeline},
+    ext::{draw_parallelogram, draw_text_aligned},
     fs::FileSystem,
     info::ChartInfo,
     time::TimeManager,
@@ -9,7 +9,6 @@ use crate::{
 use anyhow::{Context, Result};
 use image::ImageBuffer;
 use macroquad::prelude::*;
-use miniquad::{CompareFunc, PassAction, StencilOp};
 use std::{
     future::Future,
     pin::Pin,
@@ -45,9 +44,6 @@ pub struct LoadingScene {
     next_scene: Option<Box<dyn Scene>>,
     finish_time: f32,
     target: Option<RenderTarget>,
-
-    pipeline_add: GlPipeline,
-    pipeline_draw: GlPipeline,
 }
 
 impl LoadingScene {
@@ -106,9 +102,6 @@ impl LoadingScene {
             next_scene: None,
             finish_time: f32::INFINITY,
             target: None,
-
-            pipeline_add: make_pipeline(false, StencilOp::IncrementClamp, CompareFunc::Always, 0)?,
-            pipeline_draw: make_pipeline(true, StencilOp::Keep, CompareFunc::Equal, 1)?,
         })
     }
 }
@@ -154,9 +147,14 @@ impl Scene for LoadingScene {
             ..Default::default()
         });
         draw_background(self.background);
-        if now > self.finish_time {
+        let dx = if now > self.finish_time {
             let p = ((now - self.finish_time) / TRANSITION_TIME).min(1.);
-            gl.push_model_matrix(Mat4::from_translation(vec3(p.powi(3) * 2., 0., 0.)));
+            p.powi(3) * 2.
+        } else {
+            0.
+        };
+        if dx != 0. {
+            gl.push_model_matrix(Mat4::from_translation(vec3(dx, 0., 0.)));
         }
         let vo = -top / 10.;
         let r = draw_illustration(self.illustration, 0.38, vo, 1.);
@@ -204,22 +202,17 @@ impl Scene for LoadingScene {
         let p = 0.6;
         let s = 0.2;
         let t = ((now - 0.3).max(0.) % (p * 2. + s)) / p;
-        let st = 1. - (1. - t.min(1.)).powi(3);
-        let en = (t - 1.).max(0.).min(1.).powi(3);
+        let st = (t - 1.).max(0.).min(1.).powi(3);
+        let en = 1. - (1. - t.min(1.)).powi(3);
 
         draw_rectangle(r.x + r.w * st, r.y, r.w * (en - st), r.h, WHITE);
-        intern.quad_context.begin_default_pass(PassAction::Clear {
-            depth: None,
-            stencil: Some(0),
-            color: None,
-        });
-        gl.pipeline(Some(self.pipeline_add));
-        draw_rectangle(r.x + r.w * st, r.y, r.w * (en - st), r.h, WHITE);
-        gl.pipeline(Some(self.pipeline_draw));
+        let lt = (r.x + r.w * st, r.y);
+        let lt = ((lt.0 + 1. + dx) / 2. * screen_width(), lt.1 / 2. * screen_width() + screen_height() / 2.);
+        gl.scissor(Some((lt.0 as _, lt.1 as _, (r.w * (en - st) * screen_width() / 2.).ceil() as _, (r.h * screen_width() / 2.).ceil() as _)));
         draw_text_aligned(self.font, "Loading...", 0.87, top * 0.92, (1., 1.), 0.44, BLACK);
-        gl.pipeline(None);
+        gl.scissor(None);
 
-        if now > self.finish_time {
+        if dx != 0. {
             gl.pop_model_matrix();
         }
         Ok(())
@@ -232,13 +225,5 @@ impl Scene for LoadingScene {
             }
         }
         NextScene::None
-    }
-}
-
-impl Drop for LoadingScene {
-    fn drop(&mut self) {
-        let gl = unsafe { get_internal_gl() }.quad_gl;
-        gl.delete_pipeline(self.pipeline_add);
-        gl.delete_pipeline(self.pipeline_draw);
     }
 }
