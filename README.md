@@ -54,7 +54,10 @@ cargo run --release --bin prpr-player ./mychart/ conf.yml
 The specifications of `info.yml` are as below.
 
 ```yml
+id: (string) (default: none)
+
 name: (string) (default: 'UK')
+difficulty: (number) (default: 10)
 level: (string) (default: 'UK Lv.?')
 charter: (string) (default: 'UK')
 composer: (string) (default: 'UK')
@@ -66,6 +69,10 @@ music: (string, the path of the music file) (default: 'music.mp3')
 illustration: (string, the path of the illustration) (default: 'background.png')
 
 aspectRatio: (float, the aspect ratio of the screen (w / h)) (default: 16 / 9)
+tip: (string) (default: 'Tip: 欢迎来到 prpr！')
+
+intro: (string, introduction to this chart) (default: empty)
+tags: ([string], tags of this chart) (default: [])
 ```
 
 ## Global configuration
@@ -80,6 +87,7 @@ autoplay: (bool, enables the auto play mode) (default: true)
 fixAspectRatio: (bool, forces to keep the aspect ratio specified in chart) (default: false)
 interactive: (bool, whether the GUI is interactive) (default: true)
 lineLength: (float, half the length of the judge line) (default: 6)
+multipleHint: (bool, whether to highlight notes with the same time) (default: true)
 offset: (float, global chart offset) (default: 0)
 particle: (bool, should particle be enabled or not) (default: false)
 speed: (float, the speed of the chart) (default: 1)
