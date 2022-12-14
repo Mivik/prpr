@@ -78,6 +78,7 @@ aggresive: (bool, enables aggresive optimization, may cause inconsistent render 
 aspectRatio: (float, overrides the aspect ratio of chart) (default: none)
 autoplay: (bool, enables the auto play mode) (default: true)
 fixAspectRatio: (bool, forces to keep the aspect ratio specified in chart) (default: false)
+interactive: (bool, whether the GUI is interactive) (default: true)
 lineLength: (float, half the length of the judge line) (default: 6)
 offset: (float, global chart offset) (default: 0)
 particle: (bool, should particle be enabled or not) (default: false)

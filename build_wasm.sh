@@ -107,6 +107,7 @@ HTML=$(cat <<- END
                 name: "wbg",
             });
             load("./${PROJECT_NAME}_bg.wasm");
+            gl.clearColorStencil = gl.clearStencil;
         }
         window.run = function() {
             document.getElementById('container').removeAttribute('hidden');

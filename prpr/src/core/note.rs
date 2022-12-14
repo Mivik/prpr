@@ -144,7 +144,7 @@ impl Note {
     }
 
     pub fn update(&mut self, res: &mut Resource, object: &mut Object) {
-        if let Some(color) = if let JudgeStatus::Hold(perfect, at, _) = &mut self.judge {
+        if let Some(color) = if let JudgeStatus::Hold(perfect, at, ..) = &mut self.judge {
             if res.time > *at {
                 *at += HOLD_PARTICLE_INTERVAL;
                 Some(if *perfect {
@@ -188,6 +188,7 @@ impl Note {
         }
         let scale = (if self.multiple_hint { 1.1 } else { 1.0 }) * NOTE_WIDTH_RATIO;
         let mut color = WHITE;
+        color.a = res.alpha;
 
         let line_height = line_height / res.aspect_ratio * self.speed;
         let height = self.height / res.aspect_ratio * self.speed;

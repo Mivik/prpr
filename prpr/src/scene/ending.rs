@@ -1,0 +1,238 @@
+use super::{draw_background, draw_illustration, NextScene, Scene};
+use crate::{
+    ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, PARALLELOGRAM_SLOPE},
+    info::ChartInfo,
+    judge::{Judge, PlayResult},
+};
+use anyhow::Result;
+use macroquad::prelude::*;
+
+pub struct EndingScene {
+    background: Texture2D,
+    illustration: Texture2D,
+    font: Font,
+    icons: [Texture2D; 8],
+    icon_retry: Texture2D,
+    icon_proceed: Texture2D,
+    target: Option<RenderTarget>,
+
+    info: ChartInfo,
+    result: PlayResult,
+    next: u8, // 0 -> none, 1 -> pop, 2 -> exit
+}
+
+impl EndingScene {
+    pub fn new(
+        background: Texture2D,
+        illustration: Texture2D,
+        font: Font,
+        icons: [Texture2D; 8],
+        icon_retry: Texture2D,
+        icon_proceed: Texture2D,
+        info: ChartInfo,
+        result: PlayResult,
+    ) -> Self {
+        Self {
+            background,
+            illustration,
+            font,
+            icons,
+            icon_retry,
+            icon_proceed,
+            target: None,
+
+            info,
+            result,
+            next: 0,
+        }
+    }
+}
+
+impl Scene for EndingScene {
+    fn enter(&mut self, tm: &mut crate::time::TimeManager, target: Option<RenderTarget>) -> Result<()> {
+        tm.reset();
+        tm.seek_to(-0.4);
+        self.target = target;
+        Ok(())
+    }
+    fn update(&mut self, _tm: &mut crate::time::TimeManager) -> Result<()> {
+        Ok(())
+    }
+
+    fn render(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
+        let asp = screen_width() / screen_height();
+        let top = 1. / asp;
+        let now = tm.now() as f32;
+        let gl = unsafe { get_internal_gl() }.quad_gl;
+        let res = &self.result;
+        set_camera(&Camera2D {
+            zoom: vec2(1., -asp),
+            render_target: self.target,
+            ..Default::default()
+        });
+        draw_background(self.background);
+
+        fn ran(t: f32, l: f32, r: f32) -> f32 {
+            ((t - l) / (r - l)).max(0.).min(1.)
+        }
+        fn tran(gl: &mut QuadGl, x: f32) {
+            gl.push_model_matrix(Mat4::from_translation(vec3(x * 2., 0., 0.)));
+        }
+
+        tran(gl, (1. - ran(now, 0.1, 1.3)).powi(3));
+        let r = draw_illustration(self.illustration, -0.38, 0., 1.2);
+        draw_parallelogram_ex(r, None, Color::new(0., 0., 0., 0.), Color::new(0., 0., 0., 0.5));
+        draw_text_aligned(
+            self.font,
+            &self.info.name,
+            r.x + 0.04,
+            r.bottom() - top / 20.,
+            (0., 1.),
+            if self.info.name.len() > 9 { 0.6 } else { 0.84 },
+            WHITE,
+        );
+        draw_text_aligned(self.font, &self.info.level, r.right() - r.h / 7. * 13. * 0.13 - 0.01, r.bottom() - top / 20., (1., 1.), 0.46, WHITE);
+        gl.pop_model_matrix();
+
+        let dx = 0.06;
+        let slope = PARALLELOGRAM_SLOPE;
+        let c = Color::new(0., 0., 0., 0.6);
+
+        tran(gl, (1. - ran(now, 0.2, 1.3)).powi(3));
+        let main = Rect::new(r.right() - 0.05, r.y, r.w * 0.84, r.h / 2.);
+        draw_parallelogram(main, None, c);
+        {
+            let r = draw_text_aligned(
+                self.font,
+                &format!("NEW BEST   {:07}  +{:07}", res.score, res.score),
+                main.x + dx,
+                main.bottom() - 0.035,
+                (0., 1.),
+                0.34,
+                WHITE,
+            );
+            let r = draw_text_aligned(self.font, &format!("{:07}", res.score), r.x, r.y - 0.023, (0., 1.), 1., WHITE);
+            let icon = match (res.score, res.num_of_notes == res.max_combo) {
+                (x, _) if x < 700000 => 0,
+                (x, _) if x < 820000 => 1,
+                (x, _) if x < 880000 => 2,
+                (x, _) if x < 920000 => 3,
+                (x, _) if x < 960000 => 4,
+                (1000000, _) => 7,
+                (_, false) => 5,
+                (_, true) => 6,
+            };
+            let p = ran(now, 1.4, 1.9).powi(2);
+            let s = main.h * 0.67;
+            let ct = (main.right() - main.h * slope - s / 2., r.bottom() + 0.02 - s / 2.);
+            let s = s + s * (1. - p) * 0.3;
+            draw_texture_ex(
+                self.icons[icon],
+                ct.0 - s / 2.,
+                ct.1 - s / 2.,
+                Color::new(1., 1., 1., p),
+                DrawTextureParams {
+                    dest_size: Some(vec2(s, s)),
+                    ..Default::default()
+                },
+            );
+        }
+        gl.pop_model_matrix();
+
+        tran(gl, (1. - ran(now, 0.4, 1.5)).powi(3));
+        let d = r.h / 16.;
+        let s1 = Rect::new(main.x - d * 4. * slope, main.bottom() + d, main.w - d * 5. * slope, d * 3.);
+        draw_parallelogram(s1, None, c);
+        {
+            let dy = 0.025;
+            let r = draw_text_aligned(self.font, "Max Combo", s1.x + dx, s1.bottom() - dy, (0., 1.), 0.34, WHITE);
+            draw_text_aligned(self.font, &res.max_combo.to_string(), r.x, r.y - 0.01, (0., 1.), 0.7, WHITE);
+            let r = draw_text_aligned(self.font, "Accuracy", s1.right() - dx, s1.bottom() - dy, (1., 1.), 0.34, WHITE);
+            draw_text_aligned(self.font, &format!("{:.2}%", res.accuracy * 100.), r.right(), r.y - 0.01, (1., 1.), 0.7, WHITE);
+        }
+        gl.pop_model_matrix();
+
+        tran(gl, (1. - ran(now, 0.5, 1.7)).powi(3));
+        let s2 = Rect::new(s1.x - d * 4. * slope, s1.bottom() + d, s1.w, s1.h);
+        draw_parallelogram(s2, None, c);
+        {
+            let dy = 0.025;
+            let dy2 = 0.015;
+            let bg = 0.7;
+            let sm = 0.26;
+            let draw_count = |ratio: f32, name: &str, count: u32| {
+                let r = draw_text_aligned(self.font, name, s2.x + s2.w * ratio, s2.bottom() - dy, (0.5, 1.), sm, WHITE);
+                draw_text_aligned(self.font, &count.to_string(), r.center().x, r.y - dy2, (0.5, 1.), bg, WHITE);
+            };
+            draw_count(0.14, "Perfect", res.counts[0]);
+            draw_count(0.33, "Good", res.counts[1]);
+            draw_count(0.46, "Bad", res.counts[2]);
+            draw_count(0.59, "Miss", res.counts[3]);
+
+            let sm = 0.3;
+            let l = s2.x + s2.w * 0.72;
+            let rt = s2.x + s2.w * 0.94;
+            let cy = s2.center().y;
+            let r = draw_text_aligned(self.font, "Early", l, cy - dy2 / 2., (0., 1.), sm, WHITE);
+            draw_text_aligned(self.font, &res.early.to_string(), rt, r.bottom(), (1., 1.), sm, WHITE);
+            let r = draw_text_aligned(self.font, "Late", l, cy + dy2 / 2., (0., 0.), 0.3, WHITE);
+            draw_text_aligned(self.font, &res.late.to_string(), rt, r.y, (1., 0.), sm, WHITE);
+        }
+        gl.pop_model_matrix();
+
+        fn touched(rect: Rect) -> bool {
+            Judge::touches_raw().into_iter().any(|touch| {
+                if !matches!(touch.phase, TouchPhase::Ended) {
+                    return false;
+                }
+                let w = screen_width();
+                let p = touch.position;
+                let p = (p.x / w * 2. - 1., (p.y - screen_height() / 2.) / w * 2.);
+                rect.x <= p.0 && p.0 <= rect.right() && rect.y <= p.1 && p.1 <= rect.bottom()
+            })
+        }
+
+        let dy = 0.006;
+        let w = 0.17;
+        let p = (1. - ran(now, 2., 2.7)).powi(2);
+        let h = 0.1;
+        let s = 0.05;
+        let hs = h * 0.3;
+        let params = DrawTextureParams {
+            dest_size: Some(vec2(hs * 2., hs * 2.)),
+            ..Default::default()
+        };
+        tran(gl, -p * 0.085);
+        let r = Rect::new(-1. - h * slope, -top + dy, w, h);
+        draw_parallelogram(r, None, c);
+        draw_parallelogram(Rect::new(r.x + r.w * (1. - s), r.y, r.w * s, r.h), None, WHITE);
+        let ct = r.center();
+        draw_texture_ex(self.icon_retry, ct.x - hs, ct.y - hs, WHITE, params.clone());
+        gl.pop_model_matrix();
+        if p <= 0. && touched(r) {
+            self.next = 1;
+        }
+
+        tran(gl, p * 0.085);
+        let r = Rect::new(1. + h * slope - w, top - dy - h, w, h);
+        draw_parallelogram(r, None, c);
+        draw_parallelogram(Rect::new(r.x + r.w * s, r.y, r.w * s, r.h), None, WHITE);
+        let ct = r.center();
+        draw_texture_ex(self.icon_proceed, ct.x - hs, ct.y - hs, WHITE, params);
+        gl.pop_model_matrix();
+        if p <= 0. && touched(r) {
+            self.next = 2;
+        }
+
+        Ok(())
+    }
+
+    fn next_scene(&mut self, _tm: &mut crate::time::TimeManager) -> NextScene {
+        match self.next {
+            0 => NextScene::None,
+            1 => NextScene::Pop,
+            2 => NextScene::Exit,
+            _ => unreachable!(),
+        }
+    }
+}

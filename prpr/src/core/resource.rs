@@ -6,11 +6,8 @@ use crate::{
     info::ChartInfo,
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
 };
-use anyhow::{Context, Result};
-use image::imageops::blur;
+use anyhow::Result;
 use macroquad::prelude::*;
-
-const FONT_PATH: &str = "font.ttf";
 
 pub struct NoteStyle {
     pub click: Texture2D,
@@ -29,6 +26,7 @@ pub struct Resource {
 
     pub time: f32,
 
+    pub alpha: f32,
     pub judge_line_color: Color,
 
     pub camera: Camera2D,
@@ -36,11 +34,14 @@ pub struct Resource {
 
     pub font: Font,
     pub background: Texture2D,
+    pub illustration:Texture2D,
+    pub icons: [Texture2D; 8],
     pub note_style: NoteStyle,
     pub note_style_mh: NoteStyle,
     pub icon_back: Texture2D,
     pub icon_retry: Texture2D,
     pub icon_resume: Texture2D,
+    pub icon_proceed: Texture2D,
 
     pub emitter: Emitter,
     pub emitter_square: Emitter,
@@ -56,7 +57,27 @@ pub struct Resource {
 }
 
 impl Resource {
-    pub async fn new(config: Config, info: ChartInfo, mut fs: Box<dyn FileSystem>) -> Result<Self> {
+    pub async fn load_icons() -> Result<[Texture2D; 8]> {
+        macro_rules! loads {
+            ($($path:literal),*) => {
+                [$(loads!(@detail $path)),*]
+            };
+
+            (@detail $path:literal) => {
+                Texture2D::from_image(&load_image($path).await?)
+            };
+        }
+        Ok(loads!["rank/F.png", "rank/C.png", "rank/B.png", "rank/A.png", "rank/S.png", "rank/V.png", "rank/FC.png", "rank/phi.png"])
+    }
+
+    pub async fn new(
+        config: Config,
+        info: ChartInfo,
+        mut fs: Box<dyn FileSystem>,
+        background: Texture2D,
+        illustration: Texture2D,
+        font: Font,
+    ) -> Result<Self> {
         macro_rules! load_tex {
             ($path:literal) => {
                 Texture2D::from_image(&load_image($path).await?)
@@ -85,26 +106,6 @@ impl Resource {
             ColorCurve { start, mid, end }
         };
 
-        async fn load_background(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<Texture2D> {
-            let image = image::load_from_memory(&fs.load_file(path).await?)
-                .context("Failed to decode image")?;
-            let image = blur(&image, 15.);
-            Ok(Texture2D::from_image(&Image {
-                width: image.width() as u16,
-                height: image.height() as u16,
-                bytes: image.into_raw(),
-            }))
-        }
-
-        let background = match load_background(&mut fs, &info.illustration).await {
-            Ok(bg) => Some(bg),
-            Err(err) => {
-                warn!("Failed to load background: {:?}", err);
-                None
-            }
-        };
-        let background = background.unwrap_or_else(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 1]));
-
         let audio = DefaultAudio::new()?;
         macro_rules! load_sfx {
             ($path:literal) => {
@@ -124,21 +125,18 @@ impl Resource {
             aspect_ratio,
             last_screen_size: (0, 0),
 
-            time: 0.0,
+            time: 0.,
 
+            alpha: 1.,
             judge_line_color: JUDGE_LINE_PERFECT_COLOR,
 
             camera,
             camera_matrix: camera.matrix(),
 
+            font,
             background,
-            font: match load_ttf_font(FONT_PATH).await {
-                Err(err) => {
-                    warn!("Failed to load font from {FONT_PATH}, falling back to default\n{err:?}");
-                    Font::default()
-                }
-                Ok(font) => font,
-            },
+            illustration,
+            icons: Self::load_icons().await?,
             note_style,
             note_style_mh: NoteStyle {
                 click: load_tex!("click_mh.png"),
@@ -151,6 +149,7 @@ impl Resource {
             icon_back: load_tex!("back.png"),
             icon_retry: load_tex!("retry.png"),
             icon_resume: load_tex!("resume.png"),
+            icon_proceed: load_tex!("proceed.png"),
 
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,

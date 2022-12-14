@@ -98,7 +98,7 @@ impl JudgeLine {
     }
 
     pub fn render(&self, res: &mut Resource, lines: &[JudgeLine]) {
-        let alpha = self.object.alpha.now_opt().unwrap_or(1.0);
+        let alpha = self.object.alpha.now_opt().unwrap_or(1.0) * res.alpha;
         let color = self.color.now_opt();
         res.with_model(
             if let Some(parent) = self.parent {
@@ -141,7 +141,7 @@ impl JudgeLine {
                                 &Matrix::identity()
                                     .append_nonuniform_scaling(&Vector::new(1., -1.)),
                                 || {
-                                    draw_text_aligned(res, &now, 0., 0., (0.5, 0.5), 1., color);
+                                    draw_text_aligned(res.font, &now, 0., 0., (0.5, 0.5), 1., color);
                                 },
                             );
                         }

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use macroquad::prelude::*;
-use prpr::{build_conf, config::Config, fs, Prpr};
+use prpr::{build_conf, config::Config, fs, Main, scene::LoadingScene, time::TimeManager};
 use std::sync::{mpsc, Mutex};
 
 #[cfg(not(target_os = "android"))]
@@ -33,21 +33,21 @@ async fn the_main() -> Result<()> {
 
     let mut fps_time = -1;
 
-    let mut prpr = Prpr::new(info, config, fs, None).await?;
+    let tm = TimeManager::default();
+    let ctm = TimeManager::from_config(&config); // strange variable name...
+    let mut main = Main::new(Box::new(LoadingScene::new(info, config, fs, None).await?), ctm, None)?;
     'app: loop {
-        let frame_start = prpr.get_time();
-        prpr.update(None)?;
-        prpr.render(None)?;
-        prpr.ui(true)?;
-        prpr.process_keys()?;
+        let frame_start = tm.real_time();
+        main.update()?;
+        main.render()?;
         if rx.try_recv().is_ok() {
-            prpr.pause()?;
+            main.pause();
         }
-        if prpr.should_exit {
+        if main.should_exit() {
             break 'app;
         }
 
-        let t = prpr.get_time();
+        let t = tm.real_time();
         let fps_now = t as i32;
         if fps_now != fps_time {
             fps_time = fps_now;

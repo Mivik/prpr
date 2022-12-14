@@ -8,4 +8,5 @@ anyhow = "1.0"
 macroquad = { version = "*", default-features = false }
 # macroquad = { path = "../../macroquad", default-features = false }
 prpr = { path = "../prpr" }
+kira = "*"
 serde_yaml = "0.9"
