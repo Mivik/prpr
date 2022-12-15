@@ -4,6 +4,7 @@ use kira::{
     manager::{backend::cpal::CpalBackend, AudioManager, AudioManagerSettings, Capacities},
     sound::static_sound::{PlaybackState, StaticSoundData, StaticSoundHandle, StaticSoundSettings},
     tween::Tween,
+    LoopBehavior,
 };
 use std::io::Cursor;
 
@@ -33,6 +34,7 @@ impl Audio for KiraAudio {
     fn play(&mut self, clip: &Self::Clip, params: PlayParams) -> Result<Self::Handle> {
         Ok(self.0.play(clip.with_modified_settings(|it| {
             it.volume(params.volume)
+                .loop_behavior(if params.loop_ { Some(LoopBehavior { start_position: 0. }) } else { None })
                 .playback_rate(params.playback_rate)
                 .start_position(params.offset)
         }))?)

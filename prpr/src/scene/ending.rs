@@ -1,5 +1,7 @@
 use super::{draw_background, draw_illustration, NextScene, Scene};
 use crate::{
+    audio::Audio,
+    audio::{AudioClip, AudioHandle, DefaultAudio, PlayParams},
     config::Config,
     ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, PARALLELOGRAM_SLOPE},
     info::ChartInfo,
@@ -17,6 +19,9 @@ pub struct EndingScene {
     icon_retry: Texture2D,
     icon_proceed: Texture2D,
     target: Option<RenderTarget>,
+    audio: DefaultAudio,
+    bgm: AudioClip,
+    bgm_handle: Option<AudioHandle>,
 
     info: ChartInfo,
     result: PlayResult,
@@ -37,8 +42,11 @@ impl EndingScene {
         info: ChartInfo,
         result: PlayResult,
         config: &Config,
-    ) -> Self {
-        Self {
+        bgm_bytes: Vec<u8>,
+    ) -> Result<Self> {
+        let audio = DefaultAudio::new()?;
+        let bgm = audio.create_clip(bgm_bytes)?.0;
+        Ok(Self {
             background,
             illustration,
             player,
@@ -47,13 +55,16 @@ impl EndingScene {
             icon_retry,
             icon_proceed,
             target: None,
+            audio,
+            bgm,
+            bgm_handle: None,
 
             info,
             result,
             player_name: config.player_name.clone(),
             player_rks: config.player_rks,
             next: 0,
-        }
+        })
     }
 }
 
@@ -64,7 +75,16 @@ impl Scene for EndingScene {
         self.target = target;
         Ok(())
     }
-    fn update(&mut self, _tm: &mut crate::time::TimeManager) -> Result<()> {
+    fn update(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
+        if tm.now() >= 0. && self.bgm_handle.is_none() {
+            self.bgm_handle = Some(self.audio.play(
+                &self.bgm,
+                PlayParams {
+                    loop_: true,
+                    ..Default::default()
+                },
+            )?);
+        }
         Ok(())
     }
 
@@ -167,7 +187,7 @@ impl Scene for EndingScene {
         {
             let dy = 0.025;
             let dy2 = 0.015;
-            let bg = 0.7;
+            let bg = 0.64;
             let sm = 0.26;
             let draw_count = |ratio: f32, name: &str, count: u32| {
                 let r = draw_text_aligned(self.font, name, s2.x + s2.w * ratio, s2.bottom() - dy, (0.5, 1.), sm, WHITE);
@@ -247,8 +267,7 @@ impl Scene for EndingScene {
             0.3,
             Color::new(0., 0., 0., alpha),
         );
-        let r =
-            draw_illustration(self.player, 1. - 0.17, main.center().y, 0.1 / (0.076 * 7.), 0.1 / (0.076 * 7.), Color::new(1., 1., 1., alpha));
+        let r = draw_illustration(self.player, 1. - 0.17, main.center().y, 0.1 / (0.076 * 7.), 0.1 / (0.076 * 7.), Color::new(1., 1., 1., alpha));
         let text = draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, Color::new(1., 1., 1., alpha));
         draw_parallelogram(
             Rect::new(text.x - main.h * slope - 0.01, main.y, main.x - text.x + main.h * slope * 2. + 0.01, main.h),
@@ -261,6 +280,11 @@ impl Scene for EndingScene {
     }
 
     fn next_scene(&mut self, _tm: &mut crate::time::TimeManager) -> NextScene {
+        if self.next != 0 {
+            if let Some(mut handle) = self.bgm_handle.take() {
+                self.audio.pause(&mut handle).unwrap();
+            }
+        }
         match self.next {
             0 => NextScene::None,
             1 => NextScene::Pop,

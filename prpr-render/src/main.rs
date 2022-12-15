@@ -49,6 +49,7 @@ async fn main() -> Result<()> {
         };
     }
     let music = StaticSoundData::from_cursor(Cursor::new(fs.load_file(&info.music).await?), StaticSoundSettings::default())?;
+    let ending = StaticSoundData::from_cursor(Cursor::new(load_file("ending.mp3").await?), StaticSoundSettings::default())?;
     let track_length = music.frames.len() as f64 / music.sample_rate as f64;
     let sfx_click = ld!("click.ogg");
     let sfx_drag = ld!("drag.ogg");
@@ -98,6 +99,7 @@ async fn main() -> Result<()> {
     let mut bytes = vec![0; VIDEO_WIDTH as usize * VIDEO_HEIGHT as usize * 3];
 
     const O: f64 = LoadingScene::TOTAL_TIME as f64 + GameScene::BEFORE_TIME as f64;
+    const A: f64 = 0.7 + 0.3 + 0.4;
 
     let length = track_length - chart.offset.min(0.) as f64 + 1.;
     let offset = chart.offset.max(0.);
@@ -120,10 +122,11 @@ async fn main() -> Result<()> {
     info!("[2] Mixing audio...");
     let sample_rate = 44100;
     assert_eq!(sample_rate, music.sample_rate);
+    assert_eq!(sample_rate, ending.sample_rate);
     assert_eq!(sample_rate, sfx_click.sample_rate);
     assert_eq!(sample_rate, sfx_drag.sample_rate);
     assert_eq!(sample_rate, sfx_flick.sample_rate);
-    let mut output = vec![0.; ((O + length) * sample_rate as f64).ceil() as usize * 2];
+    let mut output = vec![0.; ((O + length + A + ending.frames.len() as f64 / sample_rate as f64) * sample_rate as f64).ceil() as usize * 2];
     let mut place = |pos: f64, clip: &AudioClip| {
         let position = (pos * sample_rate as f64).round() as usize * 2;
         let mut it = output[position..].iter_mut();
@@ -146,6 +149,7 @@ async fn main() -> Result<()> {
             },
         )
     }
+    place(O + length + A, &ending);
 
     info!("[3] Merging...");
     let mut proc = Command::new("ffmpeg")

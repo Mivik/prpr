@@ -4,6 +4,7 @@ pub struct PlayParams {
     pub volume: f64,
     pub playback_rate: f64,
     pub offset: f64,
+    pub loop_: bool,
 }
 
 impl Default for PlayParams {
@@ -12,6 +13,7 @@ impl Default for PlayParams {
             volume: 1.,
             playback_rate: 1.,
             offset: 0.,
+            loop_: false,
         }
     }
 }

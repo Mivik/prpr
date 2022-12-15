@@ -366,7 +366,8 @@ impl Scene for GameScene {
                         self.res.info.clone(),
                         self.judge.result(),
                         &self.res.config,
-                    )));
+                        self.res.ending_bgm_bytes.clone(),
+                    )?));
                 }
                 self.res.alpha = 1. - (t / AFTER_TIME).min(1.).powi(2);
                 self.res.track_length

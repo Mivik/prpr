@@ -34,7 +34,7 @@ pub struct Resource {
 
     pub font: Font,
     pub background: Texture2D,
-    pub illustration:Texture2D,
+    pub illustration: Texture2D,
     pub icons: [Texture2D; 8],
     pub note_style: NoteStyle,
     pub note_style_mh: NoteStyle,
@@ -49,6 +49,7 @@ pub struct Resource {
 
     pub audio: DefaultAudio,
     pub music: AudioClip,
+    pub ending_bgm_bytes: Vec<u8>,
     pub track_length: f32,
     pub sfx_click: AudioClip,
     pub sfx_drag: AudioClip,
@@ -68,7 +69,16 @@ impl Resource {
                 Texture2D::from_image(&load_image($path).await?)
             };
         }
-        Ok(loads!["rank/F.png", "rank/C.png", "rank/B.png", "rank/A.png", "rank/S.png", "rank/V.png", "rank/FC.png", "rank/phi.png"])
+        Ok(loads![
+            "rank/F.png",
+            "rank/C.png",
+            "rank/B.png",
+            "rank/A.png",
+            "rank/S.png",
+            "rank/V.png",
+            "rank/FC.png",
+            "rank/phi.png"
+        ])
     }
 
     pub async fn new(
@@ -182,6 +192,7 @@ impl Resource {
 
             audio,
             music,
+            ending_bgm_bytes: load_file("ending.mp3").await?,
             track_length,
             sfx_click,
             sfx_drag,
@@ -219,12 +230,7 @@ impl Resource {
                     (ew, h)
                 }
             };
-            (
-                ((w - rw) / 2.).round() as i32,
-                ((h - rh) / 2.).round() as i32,
-                rw as i32,
-                rh as i32,
-            )
+            (((w - rw) / 2.).round() as i32, ((h - rh) / 2.).round() as i32, rw as i32, rh as i32)
         }
         let aspect_ratio = self.config.aspect_ratio.unwrap_or(self.info.aspect_ratio);
         if self.config.fix_aspect_ratio {
@@ -257,12 +263,7 @@ impl Resource {
     }
 
     pub fn screen_to_world(&self, pt: Point) -> Point {
-        self.model_stack
-            .last()
-            .unwrap()
-            .try_inverse()
-            .unwrap()
-            .transform_point(&pt)
+        self.model_stack.last().unwrap().try_inverse().unwrap().transform_point(&pt)
     }
 
     #[inline]
@@ -288,8 +289,7 @@ impl Resource {
                 [31] [32]  0  [33]
             */
             Mat4::from_cols_array(&[
-                mat.m11, mat.m21, 0., mat.m31, mat.m12, mat.m22, 0., mat.m32, 0., 0., 1., 0.,
-                mat.m13, mat.m23, 0., mat.m33,
+                mat.m11, mat.m21, 0., mat.m31, mat.m12, mat.m22, 0., mat.m32, 0., 0., 1., 0., mat.m13, mat.m23, 0., mat.m33,
             ])
         });
         f();

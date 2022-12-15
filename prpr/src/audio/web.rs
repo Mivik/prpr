@@ -21,25 +21,16 @@ enum AudioState {
 
 pub struct AudioHandle(AudioBufferSourceNode, AudioState, AudioBuffer, PlayParams);
 
-fn load_frames_from_buffer(
-    channels: &mut [Vec<f32>; 2],
-    buffer: &symphonia::core::audio::AudioBuffer<f32>,
-) {
+fn load_frames_from_buffer(channels: &mut [Vec<f32>; 2], buffer: &symphonia::core::audio::AudioBuffer<f32>) {
     for i in 0..buffer.spec().channels.count().min(2) {
         channels[i].extend_from_slice(buffer.chan(i));
     }
 }
 
-fn load_frames_from_buffer_ref(
-    channels: &mut [Vec<f32>; 2],
-    buffer: &AudioBufferRef,
-) -> Result<()> {
+fn load_frames_from_buffer_ref(channels: &mut [Vec<f32>; 2], buffer: &AudioBufferRef) -> Result<()> {
     macro_rules! conv {
         ($buffer:ident) => {{
-            let mut dest = symphonia::core::audio::AudioBuffer::new(
-                buffer.capacity() as u64,
-                buffer.spec().clone(),
-            );
+            let mut dest = symphonia::core::audio::AudioBuffer::new(buffer.capacity() as u64, buffer.spec().clone());
             $buffer.convert(&mut dest);
             load_frames_from_buffer(channels, &dest);
         }};
@@ -72,21 +63,12 @@ impl Audio for WebAudio {
         let codecs = symphonia::default::get_codecs();
         let probe = symphonia::default::get_probe();
         let mss = MediaSourceStream::new(Box::new(Cursor::new(data)), Default::default());
-        let mut format_reader = probe
-            .format(
-                &Default::default(),
-                mss,
-                &Default::default(),
-                &Default::default(),
-            )?
-            .format;
+        let mut format_reader = probe.format(&Default::default(), mss, &Default::default(), &Default::default())?.format;
         let codec_params = &format_reader
             .default_track()
             .ok_or_else(|| anyhow!("Default track not found"))?
             .codec_params;
-        let sample_rate = codec_params
-            .sample_rate
-            .ok_or_else(|| anyhow!("Unknown sample rate"))?;
+        let sample_rate = codec_params.sample_rate.ok_or_else(|| anyhow!("Unknown sample rate"))?;
         let mut decoder = codecs.make(codec_params, &Default::default())?;
         let mut channels = [vec![], vec![]];
         loop {
@@ -96,9 +78,7 @@ impl Audio for WebAudio {
                     load_frames_from_buffer_ref(&mut channels, &buffer)?;
                 }
                 Err(error) => match error {
-                    symphonia::core::errors::Error::IoError(error)
-                        if error.kind() == std::io::ErrorKind::UnexpectedEof =>
-                    {
+                    symphonia::core::errors::Error::IoError(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
                         break;
                     }
                     _ => bail!(error),
@@ -112,11 +92,7 @@ impl Audio for WebAudio {
         let stereo = !channels[1].is_empty();
         let clip = self
             .0
-            .create_buffer(
-                if stereo { 2 } else { 1 },
-                channels[0].len() as u32,
-                sample_rate as f32,
-            )
+            .create_buffer(if stereo { 2 } else { 1 }, channels[0].len() as u32, sample_rate as f32)
             .map_err(js_err)?;
         clip.copy_to_channel(&channels[0], 0).map_err(js_err)?;
         if stereo {
@@ -143,16 +119,12 @@ impl Audio for WebAudio {
         node.set_buffer(Some(clip));
         node.playback_rate().set_value(params.playback_rate as f32);
         node.connect_with_audio_node(&gain).map_err(js_err)?;
-        gain.connect_with_audio_node(&self.0.destination())
-            .map_err(js_err)?;
-        node.start_with_when_and_grain_offset(0., params.offset)
-            .map_err(js_err)?;
-        Ok(AudioHandle(
-            node,
-            AudioState::Playing(self.0.current_time() - params.offset),
-            clip.clone(),
-            params,
-        ))
+        gain.connect_with_audio_node(&self.0.destination()).map_err(js_err)?;
+        node.start_with_when_and_grain_offset(0., params.offset).map_err(js_err)?;
+        if params.loop_ {
+            node.set_loop(true)?;
+        }
+        Ok(AudioHandle(node, AudioState::Playing(self.0.current_time() - params.offset), clip.clone(), params))
     }
 
     fn pause(&mut self, handle: &mut Self::Handle) -> Result<()> {
@@ -168,13 +140,7 @@ impl Audio for WebAudio {
         let AudioState::Paused(time) = handle.1 else {
             bail!("Resuming an playing clip");
         };
-        *handle = self.play(
-            &handle.2,
-            PlayParams {
-                offset: time,
-                ..handle.3
-            },
-        )?;
+        *handle = self.play(&handle.2, PlayParams { offset: time, ..handle.3 })?;
         Ok(())
     }
 
