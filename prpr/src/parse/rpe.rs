@@ -2,8 +2,8 @@
 use super::{process_lines, BpmList, Triple, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, Chart, ClampedTween, JudgeLine, JudgeLineCache, JudgeLineKind,
-        Keyframe, Note, NoteKind, Object, StaticTween, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
+        Anim, AnimFloat, AnimVector, Chart, ClampedTween, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, StaticTween,
+        EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -170,10 +170,7 @@ fn parse_events(r: &mut BpmList, rpe: &[RPEEvent]) -> Result<AnimFloat> {
 }
 
 fn parse_speed_events(r: &mut BpmList, rpe: &[RPEEventLayer], max_time: f32) -> Result<AnimFloat> {
-    let rpe: Vec<_> = rpe
-        .iter()
-        .filter_map(|it| it.speed_events.as_ref())
-        .collect();
+    let rpe: Vec<_> = rpe.iter().filter_map(|it| it.speed_events.as_ref()).collect();
     if rpe.is_empty() {
         // TODO or is it?
         return Ok(AnimFloat::default());
@@ -189,10 +186,7 @@ fn parse_speed_events(r: &mut BpmList, rpe: &[RPEEventLayer], max_time: f32) -> 
             AnimFloat::new(kfs)
         })
         .collect();
-    let mut pts: Vec<_> = anis
-        .iter()
-        .flat_map(|it| it.keyframes.iter().map(|it| it.time.not_nan()))
-        .collect();
+    let mut pts: Vec<_> = anis.iter().flat_map(|it| it.keyframes.iter().map(|it| it.time.not_nan())).collect();
     pts.push(max_time.not_nan());
     pts.sort();
     pts.dedup();
@@ -215,19 +209,13 @@ fn parse_speed_events(r: &mut BpmList, rpe: &[RPEEventLayer], max_time: f32) -> 
             Keyframe {
                 time: now_time,
                 value: height,
-                tween: Rc::new(ClampedTween::new(
-                    7, /*quadOut*/
-                    0.0..(1. - end_speed / speed),
-                )),
+                tween: Rc::new(ClampedTween::new(7 /*quadOut*/, 0.0..(1. - end_speed / speed))),
             }
         } else {
             Keyframe {
                 time: now_time,
                 value: height,
-                tween: Rc::new(ClampedTween::new(
-                    6, /*quadIn*/
-                    (speed / end_speed)..1.,
-                )),
+                tween: Rc::new(ClampedTween::new(6 /*quadIn*/, (speed / end_speed)..1.)),
             }
         });
         height += (speed + end_speed) * (end_time - now_time) / 2.;
@@ -253,15 +241,9 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
                         }
                     } else {
                         let alpha = note.alpha.min(255) as f32 / 255.;
-                        AnimFloat::new(vec![
-                            Keyframe::new(0.0, 0.0, 0),
-                            Keyframe::new(time - note.visible_time, alpha, 0),
-                        ])
+                        AnimFloat::new(vec![Keyframe::new(0.0, 0.0, 0), Keyframe::new(time - note.visible_time, alpha, 0)])
                     },
-                    translation: AnimVector(
-                        AnimFloat::fixed(note.position_x / (RPE_WIDTH / 2.)),
-                        AnimFloat::default(),
-                    ),
+                    translation: AnimVector(AnimFloat::fixed(note.position_x / (RPE_WIDTH / 2.)), AnimFloat::default()),
                     scale: AnimVector(
                         if note.size == 1.0 {
                             AnimFloat::default()
@@ -305,11 +287,7 @@ fn parse_color_events(r: &mut BpmList, rpe: &[RPEColorEvent]) -> Result<Anim<Col
         kfs.push(Keyframe::new(0.0, JUDGE_LINE_PERFECT_COLOR, 0));
     }
     for e in rpe {
-        kfs.push(Keyframe::new(
-            r.time(&e.start_time),
-            Color::from_rgba(e.color.0, e.color.1, e.color.2, 0),
-            0,
-        ));
+        kfs.push(Keyframe::new(r.time(&e.start_time), Color::from_rgba(e.color.0, e.color.1, e.color.2, 0), 0));
     }
     Ok(Anim::new(kfs))
 }
@@ -348,63 +326,22 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
     let cache = JudgeLineCache::new(&mut notes);
     Ok(JudgeLine {
         object: Object {
-            alpha: events_with_factor(
-                r,
-                &event_layers,
-                |it| &it.alpha_events,
-                |v| if v >= 0.0 { v / 255. } else { v },
-                "alpha",
-            )?,
-            rotation: events_with_factor(
-                r,
-                &event_layers,
-                |it| &it.rotate_events,
-                |v| -v,
-                "rotate",
-            )?,
+            alpha: events_with_factor(r, &event_layers, |it| &it.alpha_events, |v| if v >= 0.0 { v / 255. } else { v }, "alpha")?,
+            rotation: events_with_factor(r, &event_layers, |it| &it.rotate_events, |v| -v, "rotate")?,
             translation: AnimVector(
-                events_with_factor(
-                    r,
-                    &event_layers,
-                    |it| &it.move_x_events,
-                    |v| v * 2. / RPE_WIDTH,
-                    "move X",
-                )?,
-                events_with_factor(
-                    r,
-                    &event_layers,
-                    |it| &it.move_y_events,
-                    |v| v * 2. / RPE_HEIGHT,
-                    "move Y",
-                )?,
+                events_with_factor(r, &event_layers, |it| &it.move_x_events, |v| v * 2. / RPE_WIDTH, "move X")?,
+                events_with_factor(r, &event_layers, |it| &it.move_y_events, |v| v * 2. / RPE_HEIGHT, "move Y")?,
             ),
             scale: {
-                fn parse(
-                    r: &mut BpmList,
-                    opt: &Option<Vec<RPEEvent>>,
-                    factor: f32,
-                ) -> Result<AnimFloat> {
-                    let mut res = opt
-                        .as_ref()
-                        .map(|it| parse_events(r, it))
-                        .transpose()?
-                        .unwrap_or_default();
+                fn parse(r: &mut BpmList, opt: &Option<Vec<RPEEvent>>, factor: f32) -> Result<AnimFloat> {
+                    let mut res = opt.as_ref().map(|it| parse_events(r, it)).transpose()?.unwrap_or_default();
                     res.map_value(|v| v * factor);
                     Ok(res)
                 }
-                let factor = if rpe.texture == "line.png" {
-                    1.
-                } else {
-                    2. / RPE_WIDTH
-                };
+                let factor = if rpe.texture == "line.png" { 1. } else { 2. / RPE_WIDTH };
                 rpe.extended
                     .as_ref()
-                    .map(|e| -> Result<_> {
-                        Ok(AnimVector(
-                            parse(r, &e.scale_x_events, factor)?,
-                            parse(r, &e.scale_y_events, factor)?,
-                        ))
-                    })
+                    .map(|e| -> Result<_> { Ok(AnimVector(parse(r, &e.scale_x_events, factor)?, parse(r, &e.scale_y_events, factor)?)) })
                     .transpose()?
                     .unwrap_or_default()
             },
@@ -413,9 +350,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
         notes,
         kind: if rpe.texture == "line.png" {
             if let Some(events) = rpe.extended.as_ref().and_then(|e| e.text_events.as_ref()) {
-                JudgeLineKind::Text(
-                    parse_text_events(r, events).context("Failed to parse text events")?,
-                )
+                JudgeLineKind::Text(parse_text_events(r, events).context("Failed to parse text events")?)
             } else {
                 JudgeLineKind::Normal
             }
@@ -447,12 +382,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
 
 pub async fn parse_rpe(source: &str) -> Result<Chart> {
     let rpe: RPEChart = serde_json::from_str(source).context("Failed to parse JSON")?;
-    let mut r = BpmList::new(
-        rpe.bpm_list
-            .into_iter()
-            .map(|it| (it.start_time.beats(), it.bpm))
-            .collect(),
-    );
+    let mut r = BpmList::new(rpe.bpm_list.into_iter().map(|it| (it.start_time.beats(), it.bpm)).collect());
     fn vec<T>(v: &Option<Vec<T>>) -> impl Iterator<Item = &T> {
         v.iter().flat_map(|it| it.iter())
     }

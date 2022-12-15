@@ -1,8 +1,8 @@
 use super::process_lines;
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe,
-        Note, NoteKind, Object, HEIGHT_RATIO, NOTE_WIDTH_RATIO,
+        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, HEIGHT_RATIO,
+        NOTE_WIDTH_RATIO,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -76,43 +76,22 @@ macro_rules! validate_events {
             }
         }
         if $pgr.last().unwrap().end_time <= 900000000.0 {
-            bail!(
-                "End time is not great enough ({})",
-                $pgr.last().unwrap().end_time
-            );
+            bail!("End time is not great enough ({})", $pgr.last().unwrap().end_time);
         }
     };
 }
 
-fn parse_speed_events(
-    r: f32,
-    pgr: Vec<PgrSpeedEvent>,
-    max_time: f32,
-) -> Result<(AnimFloat, AnimFloat)> {
+fn parse_speed_events(r: f32, pgr: Vec<PgrSpeedEvent>, max_time: f32) -> Result<(AnimFloat, AnimFloat)> {
     validate_events!(pgr);
     assert_eq!(pgr[0].start_time, 0.0);
     let mut kfs = Vec::new();
-    kfs.extend(
-        pgr.iter()
-            .map(|it| Keyframe::new(it.start_time * r, it.floor_position, 2)),
-    );
+    kfs.extend(pgr.iter().map(|it| Keyframe::new(it.start_time * r, it.floor_position, 2)));
     let last = pgr.last().unwrap();
-    kfs.push(Keyframe::new(
-        max_time,
-        last.floor_position + (max_time - last.start_time * r) * last.value,
-        0,
-    ));
+    kfs.push(Keyframe::new(max_time, last.floor_position + (max_time - last.start_time * r) * last.value, 0));
     for kf in &mut kfs {
         kf.value /= HEIGHT_RATIO;
     }
-    Ok((
-        AnimFloat::new(
-            pgr.iter()
-                .map(|it| Keyframe::new(it.start_time * r, it.value, 0))
-                .collect(),
-        ),
-        AnimFloat::new(kfs),
-    ))
+    Ok((AnimFloat::new(pgr.iter().map(|it| Keyframe::new(it.start_time * r, it.value, 0)).collect()), AnimFloat::new(kfs)))
 }
 
 fn parse_float_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimFloat> {
@@ -155,13 +134,7 @@ fn parse_move_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimVector> {
     Ok(AnimVector(AnimFloat::new(kf1), AnimFloat::new(kf2)))
 }
 
-fn parse_notes(
-    r: f32,
-    pgr: Vec<PgrNote>,
-    speed: &mut AnimFloat,
-    height: &mut AnimFloat,
-    above: bool,
-) -> Result<Vec<Note>> {
+fn parse_notes(r: f32, pgr: Vec<PgrNote>, speed: &mut AnimFloat, height: &mut AnimFloat, above: bool) -> Result<Vec<Note>> {
     // is_sorted is unstable...
     if pgr.is_empty() {
         return Ok(Vec::new());
@@ -176,10 +149,7 @@ fn parse_notes(
             let time = pgr.time * r;
             Ok(Note {
                 object: Object {
-                    translation: AnimVector(
-                        AnimFloat::fixed(pgr.position_x * NOTE_WIDTH_RATIO),
-                        AnimFloat::default(),
-                    ),
+                    translation: AnimVector(AnimFloat::fixed(pgr.position_x * NOTE_WIDTH_RATIO), AnimFloat::default()),
                     ..Default::default()
                 },
                 kind: match pgr.kind {
@@ -189,10 +159,7 @@ fn parse_notes(
                         let end_time = (pgr.time + pgr.hold_time) * r;
                         height.set_time(end_time);
                         let end_height = height.now();
-                        NoteKind::Hold {
-                            end_time,
-                            end_height,
-                        }
+                        NoteKind::Hold { end_time, end_height }
                     }
                     4 => NoteKind::Flick,
                     _ => bail!("Unknown note type: {}", pgr.kind),
@@ -217,23 +184,17 @@ fn parse_notes(
 
 fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
     let r = 60. / pgr.bpm / 32.;
-    let (mut speed, mut height) = parse_speed_events(r, pgr.speed_events, max_time)
-        .context("Failed to parse speed events")?;
-    let notes_above = parse_notes(r, pgr.notes_above, &mut speed, &mut height, true)
-        .context("Failed to parse notes above")?;
-    let mut notes_below = parse_notes(r, pgr.notes_below, &mut speed, &mut height, false)
-        .context("Failed to parse notes below")?;
+    let (mut speed, mut height) = parse_speed_events(r, pgr.speed_events, max_time).context("Failed to parse speed events")?;
+    let notes_above = parse_notes(r, pgr.notes_above, &mut speed, &mut height, true).context("Failed to parse notes above")?;
+    let mut notes_below = parse_notes(r, pgr.notes_below, &mut speed, &mut height, false).context("Failed to parse notes below")?;
     let mut notes = notes_above;
     notes.append(&mut notes_below);
     let cache = JudgeLineCache::new(&mut notes);
     Ok(JudgeLine {
         object: Object {
-            alpha: parse_float_events(r, pgr.alpha_events)
-                .context("Failed to parse alpha events")?,
-            rotation: parse_float_events(r, pgr.rotate_events)
-                .context("Failed to parse rotate events")?,
-            translation: parse_move_events(r, pgr.move_events)
-                .context("Failed to parse move events")?,
+            alpha: parse_float_events(r, pgr.alpha_events).context("Failed to parse alpha events")?,
+            rotation: parse_float_events(r, pgr.rotate_events).context("Failed to parse rotate events")?,
+            translation: parse_move_events(r, pgr.move_events).context("Failed to parse move events")?,
             ..Default::default()
         },
         kind: JudgeLineKind::Normal,
@@ -268,13 +229,8 @@ pub fn parse_phigros(source: &str) -> Result<Chart> {
         .judge_line_list
         .into_iter()
         .enumerate()
-        .map(|(id, pgr)| {
-            parse_judge_line(pgr, max_time).with_context(|| format!("In judge line #{id}"))
-        })
+        .map(|(id, pgr)| parse_judge_line(pgr, max_time).with_context(|| format!("In judge line #{id}")))
         .collect::<Result<Vec<_>>>()?;
     process_lines(&mut lines);
-    Ok(Chart {
-        offset: pgr.offset,
-        lines,
-    })
+    Ok(Chart { offset: pgr.offset, lines })
 }

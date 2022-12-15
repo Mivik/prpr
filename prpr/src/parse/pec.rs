@@ -1,9 +1,6 @@
 use super::{process_lines, BpmList, TWEEN_MAP};
 use crate::{
-    core::{
-        Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe,
-        Note, NoteKind, Object, TweenId, EPS,
-    },
+    core::{Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, TweenId, EPS},
     ext::NotNanExt,
     judge::JudgeStatus,
 };
@@ -37,9 +34,7 @@ impl<'a, T: Iterator<Item = &'a str>> Take for T {
             .ok_or_else(|| anyhow!("Unexpected end of line"))
             .and_then(|it| -> Result<u8> {
                 let t = it.parse::<u8>()?;
-                Ok(*TWEEN_MAP
-                    .get(t as usize)
-                    .ok_or_else(|| anyhow!("Unknown tween id {t}"))?)
+                Ok(*TWEEN_MAP.get(t as usize).ok_or_else(|| anyhow!("Unknown tween id {t}"))?)
             })
             .context("Expected tween")
     }
@@ -109,11 +104,7 @@ fn parse_events(mut events: Vec<PECEvent>, id: usize, desc: &str) -> Result<Anim
                 bail!("Failed to parse {desc} events: interpolating event found before a concrete value appears");
             }
             assert!(!kfs.is_empty());
-            kfs.push(Keyframe::new(
-                e.start_time,
-                kfs.last().unwrap().value,
-                e.easing,
-            ));
+            kfs.push(Keyframe::new(e.start_time, kfs.last().unwrap().value, e.easing));
             kfs.push(Keyframe::new(e.end_time, e.end, 0));
         }
     }
@@ -134,11 +125,7 @@ fn parse_speed_events(mut pec: Vec<(f32, f32)>, max_time: f32) -> AnimFloat {
         last_time = time;
         last_speed = speed;
     }
-    kfs.push(Keyframe::new(
-        max_time,
-        height + (max_time - last_time) * last_speed,
-        0,
-    ));
+    kfs.push(Keyframe::new(max_time, height + (max_time - last_time) * last_speed, 0));
     AnimFloat::new(kfs)
 }
 
@@ -148,24 +135,14 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
         for note in notes {
             height.set_time(note.time);
             note.height = height.now();
-            if let NoteKind::Hold {
-                end_time,
-                end_height,
-            } = &mut note.kind
-            {
+            if let NoteKind::Hold { end_time, end_height } = &mut note.kind {
                 height.set_time(*end_time);
                 *end_height = height.now();
             }
         }
     };
-    pec.move_events
-        .0
-        .iter_mut()
-        .for_each(|it| it.end = it.end / 2048. * 2. - 1.);
-    pec.move_events
-        .1
-        .iter_mut()
-        .for_each(|it| it.end = it.end / 1400. * 2. - 1.);
+    pec.move_events.0.iter_mut().for_each(|it| it.end = it.end / 2048. * 2. - 1.);
+    pec.move_events.1.iter_mut().for_each(|it| it.end = it.end / 1400. * 2. - 1.);
     pec.alpha_events.iter_mut().for_each(|it| {
         if it.end >= 0.0 {
             it.end /= 255.;
@@ -176,10 +153,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
     Ok(JudgeLine {
         object: Object {
             alpha: parse_events(pec.alpha_events, id, "alpha")?,
-            translation: AnimVector(
-                parse_events(pec.move_events.0, id, "move X")?,
-                parse_events(pec.move_events.1, id, "move Y")?,
-            ),
+            translation: AnimVector(parse_events(pec.move_events.0, id, "move X")?, parse_events(pec.move_events.1, id, "move Y")?),
             rotation: parse_events(pec.rotate_events, id, "rotate")?,
             scale: AnimVector(AnimFloat::fixed(3.91 / 6.), AnimFloat::default()),
         },
@@ -209,10 +183,7 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
         }
         &mut lines[id]
     }
-    fn ensure_bpm<'a>(
-        r: &'a mut Option<BpmList>,
-        bpm_list: &mut Vec<(f32, f32)>,
-    ) -> &'a mut BpmList {
+    fn ensure_bpm<'a>(r: &'a mut Option<BpmList>, bpm_list: &mut Vec<(f32, f32)>) -> &'a mut BpmList {
         if r.is_none() {
             *r = Some(BpmList::new(std::mem::take(bpm_list)));
         }
@@ -226,8 +197,8 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                                                        bail!("No note has been inserted yet");
-                                                    };
+                                                                bail!("No note has been inserted yet");
+                                                            };
             lines[last_line].notes.last_mut().unwrap()
         }};
     }
@@ -276,10 +247,7 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
                     };
                     line.notes.push(Note {
                         object: Object {
-                            translation: AnimVector(
-                                AnimFloat::fixed(position_x),
-                                AnimFloat::default(),
-                            ),
+                            translation: AnimVector(AnimFloat::fixed(position_x), AnimFloat::default()),
                             ..Default::default()
                         },
                         kind,
@@ -318,12 +286,10 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
                             line.move_events.1.push(PECEvent::single(time, y));
                         }
                         'd' => {
-                            line.rotate_events
-                                .push(PECEvent::single(time, -it.take_f32()?));
+                            line.rotate_events.push(PECEvent::single(time, -it.take_f32()?));
                         }
                         'a' => {
-                            line.alpha_events
-                                .push(PECEvent::single(time, it.take_f32()?));
+                            line.alpha_events.push(PECEvent::single(time, it.take_f32()?));
                         }
                         'm' => {
                             let end_time = it.take_time(r)?;
@@ -334,20 +300,11 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
                             line.move_events.1.push(PECEvent::new(time, end_time, y, t));
                         }
                         'r' => {
-                            line.rotate_events.push(PECEvent::new(
-                                time,
-                                it.take_time(r)?,
-                                -it.take_f32()?,
-                                it.take_tween()?,
-                            ));
+                            line.rotate_events
+                                .push(PECEvent::new(time, it.take_time(r)?, -it.take_f32()?, it.take_tween()?));
                         }
                         'f' => {
-                            line.alpha_events.push(PECEvent::new(
-                                time,
-                                it.take_time(r)?,
-                                it.take_f32()?,
-                                2,
-                            ));
+                            line.alpha_events.push(PECEvent::new(time, it.take_time(r)?, it.take_f32()?, 2));
                         }
                         _ => bail!("Unknown command {cmd}"),
                     }
@@ -383,9 +340,7 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     let mut lines = lines
         .into_iter()
         .enumerate()
-        .map(|(id, line)| {
-            parse_judge_line(line, id, max_time).with_context(|| format!("In judge line #{id}"))
-        })
+        .map(|(id, line)| parse_judge_line(line, id, max_time).with_context(|| format!("In judge line #{id}")))
         .collect::<Result<Vec<_>>>()?;
     process_lines(&mut lines);
     Ok(Chart {
