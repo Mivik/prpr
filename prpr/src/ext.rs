@@ -47,7 +47,7 @@ pub fn draw_parallelogram_ex(rect: Rect, texture: Option<(Texture2D, Rect)>, top
     let l = rect.h * PARALLELOGRAM_SLOPE;
     let gl = unsafe { get_internal_gl() }.quad_gl;
     let p = if let Some((tex, tex_rect)) = texture {
-        let lt = tex_rect.h * PARALLELOGRAM_SLOPE;
+        let lt = tex_rect.h * tex.height() * PARALLELOGRAM_SLOPE / tex.width();
         gl.texture(Some(tex));
         [
             Vertex::new(rect.x + l, rect.y, 0., tex_rect.x + lt, tex_rect.y, top),
