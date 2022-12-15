@@ -102,6 +102,7 @@ fn info_from_kv<'a>(it: impl Iterator<Item = (&'a str, String)>) -> Result<Chart
             "Chart" => &mut info.chart,
             "Image" | "Picture" => &mut info.illustration,
             "Level" => &mut info.level,
+            "Illustrator" => &mut info.illustrator,
             "Artist" | "Composer" | "Musician" => &mut info.composer,
             "Charter" | "Designer" => &mut info.charter,
             _ => bail!("Unknown key: {key}"),
@@ -111,8 +112,9 @@ fn info_from_kv<'a>(it: impl Iterator<Item = (&'a str, String)>) -> Result<Chart
 }
 
 fn info_from_txt(text: &str) -> Result<ChartInfo> {
-    let mut it = text.lines();
-    if it.next() != Some("#") {
+    let mut it = text.lines().peekable();
+    let first = it.next();
+    if first != Some("#") && first != Some("\u{feff}#") {
         bail!("Expected the first line to be #");
     }
     let kvs = it

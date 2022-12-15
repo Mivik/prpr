@@ -12,7 +12,7 @@ use macroquad::prelude::*;
 use std::{
     future::Future,
     pin::Pin,
-    task::{Poll, RawWaker, RawWakerVTable, Waker},
+    task::{Poll, RawWaker, RawWakerVTable, Waker}, rc::Rc,
 };
 
 const BEFORE_TIME: f32 = 1.;
@@ -44,12 +44,13 @@ pub struct LoadingScene {
     next_scene: Option<Box<dyn Scene>>,
     finish_time: f32,
     target: Option<RenderTarget>,
+    get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
 }
 
 impl LoadingScene {
     pub const TOTAL_TIME: f32 = BEFORE_TIME + TRANSITION_TIME + WAIT_TIME;
 
-    pub async fn new(info: ChartInfo, config: Config, mut fs: Box<dyn FileSystem>, get_size_fn: Option<Box<dyn Fn() -> (u32, u32)>>) -> Result<Self> {
+    pub async fn new(info: ChartInfo, config: Config, mut fs: Box<dyn FileSystem>, get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>) -> Result<Self> {
         async fn load(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<(Texture2D, Texture2D)> {
             let image = image::load_from_memory(&fs.load_file(path).await?).context("Failed to decode image")?;
             let mut blurred_rgb = image.to_rgb8();
@@ -92,7 +93,8 @@ impl LoadingScene {
             }
             Ok(font) => font,
         };
-        let future = Box::pin(GameScene::new(info.clone(), config, fs, background, illustration, font, get_size_fn));
+        let get_size_fn = get_size_fn.unwrap_or_else(|| Rc::new(|| (screen_width() as u32, screen_height() as u32)));
+        let future = Box::pin(GameScene::new(info.clone(), config, fs, background, illustration, font, Rc::clone(&get_size_fn)));
         Ok(Self {
             info,
             illustration,
@@ -102,6 +104,7 @@ impl LoadingScene {
             next_scene: None,
             finish_time: f32::INFINITY,
             target: None,
+            get_size_fn,
         })
     }
 }
@@ -207,8 +210,10 @@ impl Scene for LoadingScene {
 
         draw_rectangle(r.x + r.w * st, r.y, r.w * (en - st), r.h, WHITE);
         let lt = (r.x + r.w * st, r.y);
-        let lt = ((lt.0 + 1. + dx) / 2. * screen_width(), lt.1 / 2. * screen_width() + screen_height() / 2.);
-        gl.scissor(Some((lt.0 as _, lt.1 as _, (r.w * (en - st) * screen_width() / 2.).ceil() as _, (r.h * screen_width() / 2.).ceil() as _)));
+        let (sw, sh) = (self.get_size_fn)();
+        let (sw, sh) = (sw as f32, sh as f32);
+        let lt = ((lt.0 + 1. + dx) / 2. * sw, lt.1 / 2. * sw + sh / 2.);
+        gl.scissor(Some((lt.0 as _, lt.1 as _, (r.w * (en - st) * sw / 2.).ceil() as _, (r.h * sw / 2.).ceil() as _)));
         draw_text_aligned(self.font, "Loading...", 0.87, top * 0.92, (1., 1.), 0.44, BLACK);
         gl.scissor(None);
 

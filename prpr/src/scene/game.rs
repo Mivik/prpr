@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use super::{draw_background, EndingScene, NextScene, Scene};
 use crate::{
     audio::{Audio, AudioHandle, PlayParams},
@@ -41,7 +43,7 @@ pub struct GameScene {
 
     pub audio_handle: AudioHandle,
 
-    get_size_fn: Box<dyn Fn() -> (u32, u32)>,
+    get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
 
     state: State,
     last_update_time: f64,
@@ -106,7 +108,7 @@ impl GameScene {
         background: Texture2D,
         illustration: Texture2D,
         font: Font,
-        get_size_fn: Option<Box<dyn Fn() -> (u32, u32)>>,
+        get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
     ) -> Result<Self> {
         simulate_mouse_with_touch(false);
 
@@ -130,7 +132,7 @@ impl GameScene {
 
             audio_handle,
 
-            get_size_fn: get_size_fn.unwrap_or_else(|| Box::new(|| (screen_width() as u32, screen_height() as u32))),
+            get_size_fn,
 
             state: State::Starting,
             last_update_time: 0.,
