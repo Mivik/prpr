@@ -440,7 +440,18 @@ impl Judge {
                     match note.kind {
                         NoteKind::Click => {
                             note.judge = JudgeStatus::Judged;
-                            judgements.push((if dt <= LIMIT_PERFECT { Judgement::Perfect } else { Judgement::Good }, line_id, id, None));
+                            judgements.push((
+                                if dt <= LIMIT_PERFECT {
+                                    Judgement::Perfect
+                                } else if dt <= LIMIT_GOOD {
+                                    Judgement::Good
+                                } else {
+                                    Judgement::Bad
+                                },
+                                line_id,
+                                id,
+                                None,
+                            ));
                         }
                         NoteKind::Hold { .. } => {
                             res.play_sfx(&res.sfx_click.clone());
@@ -449,6 +460,8 @@ impl Judge {
                         _ => unreachable!(),
                     };
                 }
+            } else {
+                break;
             }
         }
         for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter()).enumerate() {
@@ -558,8 +571,14 @@ impl Judge {
                         bad_notes.push(BadNote {
                             time: t,
                             kind: note.kind.clone(),
-                            matrix: line.object.now(res) * note.now_transform(res, (note.height - line.height.now()) / res.aspect_ratio * note.speed),
-                            speed: Vector::default(),
+                            matrix: {
+                                let mut mat = line.object.now(res);
+                                if !note.above {
+                                    mat.append_nonuniform_scaling_mut(&Vector::new(1., -1.));
+                                }
+                                mat *= note.now_transform(res, (note.height - line.height.now()) / res.aspect_ratio * note.speed);
+                                mat
+                            },
                         });
                     }
                     false

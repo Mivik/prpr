@@ -262,7 +262,6 @@ pub struct BadNote {
     pub time: f32,
     pub kind: NoteKind,
     pub matrix: Matrix,
-    pub speed: Vector,
 }
 
 impl BadNote {
@@ -271,19 +270,17 @@ impl BadNote {
             return false;
         }
         res.with_model(self.matrix, |res| {
-            res.apply_model(|| {
-                draw_center(
-                    res,
-                    match &self.kind {
-                        NoteKind::Click => res.note_style.click,
-                        NoteKind::Drag => res.note_style.drag,
-                        NoteKind::Flick => res.note_style.flick,
-                        _ => unreachable!(),
-                    },
-                    NOTE_WIDTH_RATIO,
-                    Color::new(0.423529, 0.262745, 0.262745, (self.time - res.time).min(0.) / BAD_TIME + 1.),
-                )
-            });
+            draw_center(
+                res,
+                match &self.kind {
+                    NoteKind::Click => res.note_style.click,
+                    NoteKind::Drag => res.note_style.drag,
+                    NoteKind::Flick => res.note_style.flick,
+                    _ => unreachable!(),
+                },
+                NOTE_WIDTH_RATIO,
+                Color::new(0.423529, 0.262745, 0.262745, (self.time - res.time).min(0.) / BAD_TIME + 1.),
+            )
         });
         true
     }
