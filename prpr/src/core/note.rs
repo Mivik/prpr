@@ -1,4 +1,4 @@
-use super::{Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO};
+use super::{Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
 use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
 
@@ -150,7 +150,7 @@ impl Note {
         if self.time - config.appear_before > res.time || (matches!(self.judge, JudgeStatus::Judged) && !matches!(self.kind, NoteKind::Hold { .. })) {
             return;
         }
-        let scale = (if self.multiple_hint { 1.1 } else { 1.0 }) * NOTE_WIDTH_RATIO;
+        let scale = (if self.multiple_hint { 1.1 } else { 1.0 }) * res.note_width;
         let mut color = WHITE;
         color.a = res.alpha;
 
@@ -233,7 +233,7 @@ impl Note {
                     );
                     // tail
                     let tex = style.hold_tail;
-                    let hf = vec2(NOTE_WIDTH_RATIO, tex.height() / tex.width() * NOTE_WIDTH_RATIO);
+                    let hf = vec2(res.note_width, tex.height() / tex.width() * res.note_width);
                     draw_tex(
                         res,
                         tex,
@@ -278,7 +278,7 @@ impl BadNote {
                     NoteKind::Flick => res.note_style.flick,
                     _ => unreachable!(),
                 },
-                NOTE_WIDTH_RATIO,
+                res.note_width,
                 Color::new(0.423529, 0.262745, 0.262745, (self.time - res.time).min(0.) / BAD_TIME + 1.),
             )
         });

@@ -1,6 +1,6 @@
 pub use macroquad::color::Color;
 
-pub const NOTE_WIDTH_RATIO: f32 = 0.13175016;
+pub const NOTE_WIDTH_RATIO_BASE: f32 = 0.13175016;
 pub const HEIGHT_RATIO: f32 = 0.83175;
 
 pub const EPS: f32 = 1e-5;

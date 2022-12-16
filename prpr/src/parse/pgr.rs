@@ -2,7 +2,7 @@ use super::process_lines;
 use crate::{
     core::{
         Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, HEIGHT_RATIO,
-        NOTE_WIDTH_RATIO,
+        NOTE_WIDTH_RATIO_BASE,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -149,7 +149,7 @@ fn parse_notes(r: f32, pgr: Vec<PgrNote>, speed: &mut AnimFloat, height: &mut An
             let time = pgr.time * r;
             Ok(Note {
                 object: Object {
-                    translation: AnimVector(AnimFloat::fixed(pgr.position_x * NOTE_WIDTH_RATIO), AnimFloat::default()),
+                    translation: AnimVector(AnimFloat::fixed(pgr.position_x * NOTE_WIDTH_RATIO_BASE), AnimFloat::default()),
                     ..Default::default()
                 },
                 kind: match pgr.kind {

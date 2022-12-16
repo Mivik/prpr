@@ -75,6 +75,23 @@ impl Scene for EndingScene {
         self.target = target;
         Ok(())
     }
+
+    fn pause(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
+        if let Some(handle) = self.bgm_handle.as_mut() {
+            self.audio.pause(handle)?;
+        }
+        tm.pause();
+        Ok(())
+    }
+
+    fn resume(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
+        if let Some(handle) = self.bgm_handle.as_mut() {
+            self.audio.resume(handle)?;
+        }
+        tm.resume();
+        Ok(())
+    }
+
     fn update(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
         if tm.now() >= 0. && self.bgm_handle.is_none() {
             self.bgm_handle = Some(self.audio.play(

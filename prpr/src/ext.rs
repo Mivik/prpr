@@ -1,12 +1,12 @@
+use crate::core::{Point, Vector};
 use macroquad::prelude::*;
 use ordered_float::{Float, NotNan};
 use std::{
     future::Future,
+    pin::Pin,
     sync::{Arc, Mutex},
-    task::Poll,
+    task::{Poll, RawWaker, RawWakerVTable, Waker},
 };
-
-use crate::core::{Point, Vector};
 
 pub trait NotNanExt: Sized {
     fn not_nan(self) -> NotNan<Self>;
@@ -124,4 +124,28 @@ pub fn thread_as_future<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'stati
         }
     });
     DummyFuture(arc)
+}
+
+pub fn poll_future<R>(future: Pin<&mut (impl Future<Output = R> + ?Sized)>) -> Option<R> {
+    fn waker() -> Waker {
+        unsafe fn clone(data: *const ()) -> RawWaker {
+            RawWaker::new(data, &VTABLE)
+        }
+        unsafe fn wake(_data: *const ()) {
+            panic!()
+        }
+        unsafe fn wake_by_ref(data: *const ()) {
+            wake(data)
+        }
+        unsafe fn drop(_data: *const ()) {}
+        const VTABLE: RawWakerVTable = RawWakerVTable::new(clone, wake, wake_by_ref, drop);
+        let raw_waker = RawWaker::new(std::ptr::null(), &VTABLE);
+        unsafe { Waker::from_raw(raw_waker) }
+    }
+    let waker = waker();
+    let mut futures_context = std::task::Context::from_waker(&waker);
+    match future.poll(&mut futures_context) {
+        Poll::Ready(val) => Some(val),
+        Poll::Pending => None,
+    }
 }

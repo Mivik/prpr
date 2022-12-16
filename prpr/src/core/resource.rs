@@ -2,6 +2,7 @@ use super::{Matrix, Point, JUDGE_LINE_PERFECT_COLOR};
 use crate::{
     audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
+    core::NOTE_WIDTH_RATIO_BASE,
     fs::FileSystem,
     info::ChartInfo,
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
@@ -27,6 +28,7 @@ pub struct Resource {
     pub aspect_ratio: f32,
     pub dpi: u32,
     pub last_screen_size: (u32, u32),
+    pub note_width: f32,
 
     pub time: f32,
 
@@ -134,12 +136,14 @@ impl Resource {
         let sfx_flick = load_sfx!("flick.ogg");
 
         let aspect_ratio = config.aspect_ratio.unwrap_or(info.aspect_ratio);
+        let note_width = config.note_scale * NOTE_WIDTH_RATIO_BASE;
         Ok(Self {
             config,
             info,
             aspect_ratio,
             dpi: DPI_VALUE.load(std::sync::atomic::Ordering::SeqCst),
             last_screen_size: (0, 0),
+            note_width,
 
             time: 0.,
 

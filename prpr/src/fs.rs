@@ -17,7 +17,7 @@ pub trait FileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>>;
 }
 
-struct AssetsFileSystem(String);
+pub struct AssetsFileSystem(String);
 
 #[async_trait]
 impl FileSystem for AssetsFileSystem {
@@ -26,7 +26,7 @@ impl FileSystem for AssetsFileSystem {
     }
 }
 
-struct ExternalFileSystem(PathBuf);
+pub struct ExternalFileSystem(PathBuf);
 
 #[async_trait]
 impl FileSystem for ExternalFileSystem {
@@ -36,10 +36,11 @@ impl FileSystem for ExternalFileSystem {
     }
 }
 
-struct ZipFileSystem(Arc<Mutex<ZipArchive<Cursor<Vec<u8>>>>>, String);
+pub struct ZipFileSystem(Arc<Mutex<ZipArchive<Cursor<Vec<u8>>>>>, String);
 
 impl ZipFileSystem {
-    pub fn new(zip: ZipArchive<Cursor<Vec<u8>>>) -> Result<Self> {
+    pub fn new(bytes: Vec<u8>) -> Result<Self> {
+        let zip = ZipArchive::new(Cursor::new(bytes))?;
         let root_dirs = zip
             .file_names()
             .filter(|it| it.ends_with('/') && it.find('/') == Some(it.len() - 1))
@@ -169,8 +170,7 @@ pub fn fs_from_file(path: &str) -> Result<Box<dyn FileSystem>> {
     let meta = fs::metadata(path)?;
     Ok(if meta.is_file() {
         let bytes = fs::read(path).with_context(|| format!("Failed to read from {path}"))?;
-        let zip = ZipArchive::new(Cursor::new(bytes)).with_context(|| format!("Cannot open {path} as zip archive"))?;
-        Box::new(ZipFileSystem::new(zip)?)
+        Box::new(ZipFileSystem::new(bytes).with_context(|| format!("Cannot open {path} as zip archive"))?)
     } else {
         Box::new(ExternalFileSystem(fs::canonicalize(path)?))
     })

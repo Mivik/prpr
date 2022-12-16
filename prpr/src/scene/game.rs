@@ -307,6 +307,7 @@ impl Scene for GameScene {
         on_game_start();
         self.audio_handle = Self::new_handle(&mut self.res)?;
         self.res.camera.render_target = target;
+        tm.speed = self.res.config.speed;
         reset!(self, self.res, tm);
         Ok(())
     }
@@ -447,10 +448,11 @@ impl Scene for GameScene {
         self.ui(tm)
     }
 
-    fn next_scene(&mut self, _tm: &mut TimeManager) -> NextScene {
+    fn next_scene(&mut self, tm: &mut TimeManager) -> NextScene {
         if self.should_exit {
             NextScene::Exit
         } else if let Some(scene) = self.next_scene.take() {
+            tm.speed = 1.0;
             NextScene::Overlay(scene)
         } else {
             NextScene::None

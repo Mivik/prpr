@@ -23,8 +23,10 @@ pub trait Scene {
     fn enter(&mut self, _tm: &mut TimeManager, _target: Option<RenderTarget>) -> Result<()> {
         Ok(())
     }
-    fn pause(&mut self, tm: &mut TimeManager) -> Result<()> {
-        tm.pause();
+    fn pause(&mut self, _tm: &mut TimeManager) -> Result<()> {
+        Ok(())
+    }
+        fn resume(&mut self, _tm: &mut TimeManager) -> Result<()> {
         Ok(())
     }
     fn update(&mut self, tm: &mut TimeManager) -> Result<()>;
@@ -78,8 +80,12 @@ impl Main {
         self.scenes.last_mut().unwrap().render(&mut self.tm)
     }
 
-    pub fn pause(&mut self) {
-        self.tm.pause();
+    pub fn pause(&mut self) -> Result<()> {
+        self.scenes.last_mut().unwrap().pause(&mut self.tm)
+    }
+
+    pub fn resume(&mut self) -> Result<()> {
+        self.scenes.last_mut().unwrap().resume(&mut self.tm)
     }
 
     pub fn should_exit(&self) -> bool {

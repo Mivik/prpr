@@ -1,4 +1,5 @@
 mod ext;
+pub use ext::poll_future;
 
 pub mod audio;
 pub mod config;

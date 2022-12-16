@@ -1,39 +1,18 @@
 use super::{draw_background, draw_illustration, GameScene, NextScene, Scene};
 use crate::{
     config::Config,
-    ext::{draw_parallelogram, draw_text_aligned},
+    ext::{draw_parallelogram, draw_text_aligned, poll_future},
     fs::FileSystem,
     info::ChartInfo,
     time::TimeManager,
 };
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
-use std::{
-    future::Future,
-    pin::Pin,
-    rc::Rc,
-    task::{Poll, RawWaker, RawWakerVTable, Waker},
-};
+use std::{future::Future, pin::Pin, rc::Rc};
 
 const BEFORE_TIME: f32 = 1.;
 const TRANSITION_TIME: f32 = 1.4;
 const WAIT_TIME: f32 = 0.4;
-
-fn waker() -> Waker {
-    unsafe fn clone(data: *const ()) -> RawWaker {
-        RawWaker::new(data, &VTABLE)
-    }
-    unsafe fn wake(_data: *const ()) {
-        panic!()
-    }
-    unsafe fn wake_by_ref(data: *const ()) {
-        wake(data)
-    }
-    unsafe fn drop(_data: *const ()) {}
-    const VTABLE: RawWakerVTable = RawWakerVTable::new(clone, wake, wake_by_ref, drop);
-    let raw_waker = RawWaker::new(std::ptr::null(), &VTABLE);
-    unsafe { Waker::from_raw(raw_waker) }
-}
 
 pub struct LoadingScene {
     info: ChartInfo,
@@ -119,16 +98,15 @@ impl Scene for LoadingScene {
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
         if let Some(future) = self.future.as_mut() {
-            let waker = waker();
-            let mut futures_context = std::task::Context::from_waker(&waker);
             loop {
-                match future.as_mut().poll(&mut futures_context) {
-                    Poll::Pending => {
+                match poll_future(future.as_mut()) {
+                    None => {
                         if self.target.is_none() {
                             break;
                         }
+                        std::thread::yield_now();
                     }
-                    Poll::Ready(game_scene) => {
+                    Some(game_scene) => {
                         self.future = None;
                         self.next_scene = Some(Box::new(game_scene?));
                         self.finish_time = tm.now() as f32 + BEFORE_TIME;

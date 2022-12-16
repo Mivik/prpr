@@ -1,5 +1,5 @@
 use crate::{
-    core::{BadNote, Chart, NoteKind, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO},
+    core::{BadNote, Chart, NoteKind, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
     ext::NotNanExt,
 };
 use macroquad::prelude::{
@@ -11,8 +11,6 @@ use std::{
     collections::{HashMap, VecDeque},
     num::FpCategory,
 };
-
-const X_DIFF_MAX: f32 = 1.9 * NOTE_WIDTH_RATIO;
 
 pub const FLICK_SPEED_THRESHOLD: f32 = 1.8;
 pub const LIMIT_PERFECT: f32 = 0.08;
@@ -253,6 +251,8 @@ impl Judge {
             self.auto_play_update(res, chart);
             return;
         }
+        let x_diff_max = res.note_width * 1.9;
+
         let t = res.time;
         let touches = Self::get_touches(res);
         // TODO optimize
@@ -340,7 +340,7 @@ impl Judge {
                     continue; // to next touch
                 }
             };
-            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD);
+            let mut closest = (None, x_diff_max, LIMIT_BAD);
             for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter_mut()).enumerate() {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
@@ -362,11 +362,11 @@ impl Judge {
                     if dt > bad {
                         continue;
                     }
-                    if dist < NOTE_WIDTH_RATIO || dist < closest.1 {
+                    if dist < res.note_width || dist < closest.1 {
                         closest.0 = Some((line_id, *id));
                         closest.1 = dist;
                         closest.2 = note.time - t + 0.01;
-                        if dist < NOTE_WIDTH_RATIO {
+                        if dist < res.note_width {
                             break;
                         }
                     }
@@ -378,7 +378,7 @@ impl Judge {
                     // click & hold
                     let note = &mut line.notes[id as usize];
                     let dt = dt.abs();
-                    if dt <= LIMIT_GOOD {
+                    if dt <= LIMIT_GOOD || matches!(note.kind, NoteKind::Hold { .. }) {
                         match note.kind {
                             NoteKind::Click => {
                                 note.judge = JudgeStatus::Judged;
@@ -465,7 +465,7 @@ impl Judge {
                         let x = &mut note.object.translation.0;
                         x.set_time(t);
                         let x = x.now();
-                        if self.key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX)) {
+                        if self.key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= x_diff_max)) {
                             note.judge = JudgeStatus::Judged;
                             judgements.push((Judgement::Miss, line_id, *id, None));
                             continue;
@@ -495,7 +495,7 @@ impl Judge {
                     || pos.iter().any(|it| {
                         it.map_or(false, |it| {
                             let dx = (it.x - x).abs();
-                            dx <= X_DIFF_MAX && dt <= (LIMIT_BAD - LIMIT_PERFECT * (dx - 0.9).max(0.))
+                            dx <= x_diff_max && dt <= (LIMIT_BAD - LIMIT_PERFECT * (dx - 0.9).max(0.))
                         })
                     })
                 {
