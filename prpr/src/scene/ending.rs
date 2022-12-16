@@ -110,7 +110,7 @@ impl Scene for EndingScene {
 
         tran(gl, (1. - ran(now, 0.1, 1.3)).powi(3));
         let r = draw_illustration(self.illustration, -0.38, 0., 1., 1.2, WHITE);
-        draw_parallelogram_ex(r, None, Color::new(0., 0., 0., 0.), Color::new(0., 0., 0., 0.5));
+        draw_parallelogram_ex(r, None, Color::default(), Color::new(0., 0., 0., 0.5));
         draw_text_aligned(
             self.font,
             &self.info.name,
