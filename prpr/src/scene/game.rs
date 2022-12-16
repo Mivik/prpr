@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use super::{draw_background, EndingScene, NextScene, Scene};
 use crate::{
     audio::{Audio, AudioHandle, PlayParams},
@@ -15,6 +13,7 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
 use macroquad::{prelude::*, window::InternalGlContext};
+use std::rc::Rc;
 
 const WAIT_TIME: f32 = 0.5;
 const AFTER_TIME: f32 = 0.7;

@@ -12,7 +12,8 @@ use macroquad::prelude::*;
 use std::{
     future::Future,
     pin::Pin,
-    task::{Poll, RawWaker, RawWakerVTable, Waker}, rc::Rc,
+    rc::Rc,
+    task::{Poll, RawWaker, RawWakerVTable, Waker},
 };
 
 const BEFORE_TIME: f32 = 1.;

@@ -22,14 +22,7 @@ pub struct JudgeLineCache {
 
 impl JudgeLineCache {
     pub fn new(notes: &mut Vec<Note>) -> Self {
-        notes.sort_by_key(|it| {
-            (
-                it.plain(),
-                !it.above,
-                (it.height + it.object.translation.1.now()).not_nan(),
-                it.kind.order(),
-            )
-        });
+        notes.sort_by_key(|it| (it.plain(), !it.above, (it.height + it.object.translation.1.now()).not_nan(), it.kind.order()));
         let mut res = Self {
             update_order: Vec::new(),
             start_index_above: 0,
@@ -41,10 +34,7 @@ impl JudgeLineCache {
 
     pub(crate) fn reset(&mut self, notes: &mut Vec<Note>) {
         self.update_order = (0..notes.len() as u32).collect();
-        self.start_index_above = notes
-            .iter()
-            .position(|it| it.plain())
-            .unwrap_or(notes.len());
+        self.start_index_above = notes.iter().position(|it| it.plain()).unwrap_or(notes.len());
         self.start_index_below = notes[self.start_index_above..]
             .iter()
             .position(|it| !it.above)
@@ -78,21 +68,10 @@ impl JudgeLine {
         }
         self.color.set_time(res.time);
         self.height.set_time(res.time);
-        while matches!(
-            self.notes
-                .get(self.cache.start_index_above)
-                .filter(|it| it.above)
-                .map(|note| &note.judge),
-            Some(JudgeStatus::Judged)
-        ) {
+        while matches!(self.notes.get(self.cache.start_index_above).filter(|it| it.above).map(|note| &note.judge), Some(JudgeStatus::Judged)) {
             self.cache.start_index_above += 1;
         }
-        while matches!(
-            self.notes
-                .get(self.cache.start_index_below)
-                .map(|note| &note.judge),
-            Some(JudgeStatus::Judged)
-        ) {
+        while matches!(self.notes.get(self.cache.start_index_below).map(|note| &note.judge), Some(JudgeStatus::Judged)) {
             self.cache.start_index_below += 1;
         }
     }
@@ -137,13 +116,9 @@ impl JudgeLine {
                             let mut color = color.unwrap_or(WHITE);
                             color.a = alpha.max(0.0);
                             let now = anim.now();
-                            res.apply_model_of(
-                                &Matrix::identity()
-                                    .append_nonuniform_scaling(&Vector::new(1., -1.)),
-                                || {
-                                    draw_text_aligned(res.font, &now, 0., 0., (0.5, 0.5), 1., color);
-                                },
-                            );
+                            res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1., -1.)), || {
+                                draw_text_aligned(res.font, &now, 0., 0., (0.5, 0.5), 1., color);
+                            });
                         }
                     })
                 });
@@ -184,46 +159,29 @@ impl JudgeLine {
                 let height_above = p[0].y.max(p[1].y.max(p[2].y.max(p[3].y))) * res.aspect_ratio;
                 let height_below = -p[0].y.min(p[1].y.min(p[2].y.min(p[3].y))) * res.aspect_ratio;
                 let agg = res.config.aggressive;
-                for note in self
-                    .notes
-                    .iter()
-                    .take_while(|it| !it.plain())
-                    .filter(|it| it.above)
-                {
+                for note in self.notes.iter().take_while(|it| !it.plain()).filter(|it| it.above) {
                     note.render(res, height, &config);
                 }
                 for note in self.notes[self.cache.start_index_above..].iter() {
                     if !note.above {
                         break;
                     }
-                    if agg && note.height - height + note.object.translation.1.now() > height_above
-                    {
+                    if agg && note.height - height + note.object.translation.1.now() > height_above {
                         break;
                     }
                     note.render(res, height, &config);
                 }
-                res.with_model(
-                    Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)),
-                    |res| {
-                        for note in self
-                            .notes
-                            .iter()
-                            .take_while(|it| !it.plain())
-                            .filter(|it| !it.above)
-                        {
-                            note.render(res, height, &config);
+                res.with_model(Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
+                    for note in self.notes.iter().take_while(|it| !it.plain()).filter(|it| !it.above) {
+                        note.render(res, height, &config);
+                    }
+                    for note in self.notes[self.cache.start_index_below..].iter() {
+                        if agg && note.height - height + note.object.translation.1.now() > height_below {
+                            break;
                         }
-                        for note in self.notes[self.cache.start_index_below..].iter() {
-                            if agg
-                                && note.height - height + note.object.translation.1.now()
-                                    > height_below
-                            {
-                                break;
-                            }
-                            note.render(res, height, &config);
-                        }
-                    },
-                );
+                        note.render(res, height, &config);
+                    }
+                });
             },
         );
     }

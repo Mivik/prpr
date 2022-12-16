@@ -1,6 +1,6 @@
 use anyhow::Result;
 use macroquad::prelude::*;
-use prpr::{build_conf, config::Config, fs, Main, scene::LoadingScene, time::TimeManager};
+use prpr::{build_conf, config::Config, fs, scene::LoadingScene, time::TimeManager, Main};
 use std::sync::{mpsc, Mutex};
 
 #[cfg(not(target_os = "android"))]
@@ -81,29 +81,18 @@ unsafe fn string_from_java(env: *mut ndk_sys::JNIEnv, s: ndk_sys::jstring) -> St
 }
 
 #[no_mangle]
-pub extern "C" fn Java_quad_1native_QuadNative_prprActivityOnPause(
-    _: *mut std::ffi::c_void,
-    _: *const std::ffi::c_void,
-) {
+pub extern "C" fn Java_quad_1native_QuadNative_prprActivityOnPause(_: *mut std::ffi::c_void, _: *const std::ffi::c_void) {
     let _ = MESSAGES_TX.lock().unwrap().as_mut().unwrap().send(());
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn Java_quad_1native_QuadNative_setChartPath(
-    _: *mut std::ffi::c_void,
-    _: *const std::ffi::c_void,
-    path: ndk_sys::jstring,
-) {
+pub unsafe extern "C" fn Java_quad_1native_QuadNative_setChartPath(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, path: ndk_sys::jstring) {
     let env = crate::miniquad::native::attach_jni_env();
     *CHART_PATH.lock().unwrap() = Some(string_from_java(env, path));
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn Java_quad_1native_QuadNative_setConfig(
-    _: *mut std::ffi::c_void,
-    _: *const std::ffi::c_void,
-    json: ndk_sys::jstring,
-) {
+pub unsafe extern "C" fn Java_quad_1native_QuadNative_setConfig(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, json: ndk_sys::jstring) {
     let env = crate::miniquad::native::attach_jni_env();
     let json = string_from_java(env, json);
     *CONFIG.lock().unwrap() = Some(serde_json::from_str(&json).unwrap());

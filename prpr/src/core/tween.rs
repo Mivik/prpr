@@ -140,8 +140,7 @@ impl StaticTween {
 pub struct ClampedTween(TweenId, Range<f32>, Range<f32>);
 impl TweenFunction for ClampedTween {
     fn y(&self, x: f32) -> f32 {
-        (TWEEN_FUNCTIONS[self.0 as usize](f32::tween(&self.1.start, &self.1.end, x)) - self.2.start)
-            / (self.2.end - self.2.start)
+        (TWEEN_FUNCTIONS[self.0 as usize](f32::tween(&self.1.start, &self.1.end, x)) - self.2.start) / (self.2.end - self.2.start)
     }
 }
 
@@ -198,12 +197,7 @@ impl Tweenable for f32 {
 
 impl Tweenable for Color {
     fn tween(x: &Self, y: &Self, t: f32) -> Self {
-        Self::new(
-            f32::tween(&x.r, &y.r, t),
-            f32::tween(&x.g, &y.g, t),
-            f32::tween(&x.b, &y.b, t),
-            f32::tween(&x.a, &y.a, t),
-        )
+        Self::new(f32::tween(&x.r, &y.r, t), f32::tween(&x.g, &y.g, t), f32::tween(&x.b, &y.b, t), f32::tween(&x.a, &y.a, t))
     }
 }
 

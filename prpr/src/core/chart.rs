@@ -10,8 +10,7 @@ pub struct Chart {
 
 impl Chart {
     pub fn reset(&mut self) {
-        self
-            .lines
+        self.lines
             .iter_mut()
             .flat_map(|it| it.notes.iter_mut())
             .for_each(|note| note.judge = JudgeStatus::NotJudged);

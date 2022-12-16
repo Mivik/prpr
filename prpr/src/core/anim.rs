@@ -123,9 +123,7 @@ impl<T: Tweenable> Anim<T> {
     }
 
     pub fn map_value(&mut self, mut f: impl FnMut(T) -> T) {
-        self.keyframes
-            .iter_mut()
-            .for_each(|it| it.value = f(it.value.clone()));
+        self.keyframes.iter_mut().for_each(|it| it.value = f(it.value.clone()));
         if let Some(next) = &mut self.next {
             next.map_value(f);
         }

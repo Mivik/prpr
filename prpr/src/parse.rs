@@ -11,11 +11,14 @@ fn process_lines(v: &mut [crate::core::JudgeLine]) {
     use crate::ext::NotNanExt;
     let mut times = Vec::new();
     // TODO optimize using k-merge sort
-    let sorts = v.iter().map(|line| {
-        let mut idx: Vec<usize> = (0..line.notes.len()).collect();
-        idx.sort_by_key(|id| line.notes[*id].time.not_nan());
-        idx
-    }).collect::<Vec<_>>();
+    let sorts = v
+        .iter()
+        .map(|line| {
+            let mut idx: Vec<usize> = (0..line.notes.len()).collect();
+            idx.sort_by_key(|id| line.notes[*id].time.not_nan());
+            idx
+        })
+        .collect::<Vec<_>>();
     for (line, idx) in v.iter_mut().zip(sorts.iter()) {
         let v = &mut line.notes;
         let mut i = 0;
@@ -104,10 +107,7 @@ impl BpmList {
             last_bpm = Some(bpm);
             elements.push((now_beats, time, bpm));
         }
-        BpmList {
-            elements,
-            cursor: 0,
-        }
+        BpmList { elements, cursor: 0 }
     }
 
     pub fn time_beats(&mut self, beats: f32) -> f32 {

@@ -19,7 +19,7 @@ mod chart;
 pub use chart::Chart;
 
 mod line;
-pub use line::{JudgeLine, JudgeLineKind, JudgeLineCache};
+pub use line::{JudgeLine, JudgeLineCache, JudgeLineKind};
 
 mod note;
 pub use note::{BadNote, Note, NoteKind, RenderConfig};
@@ -31,7 +31,4 @@ mod resource;
 pub use resource::Resource;
 
 mod tween;
-pub use tween::{
-    easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor,
-    Tweenable, TWEEN_FUNCTIONS,
-};
+pub use tween::{easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor, Tweenable, TWEEN_FUNCTIONS};

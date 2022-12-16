@@ -197,10 +197,7 @@ impl EmissionShape {
     fn gen_random_point(&self) -> Vec2 {
         match self {
             EmissionShape::Point => vec2(0., 0.),
-            EmissionShape::Rect { width, height } => vec2(
-                rand::gen_range(-width / 2., width / 2.0),
-                rand::gen_range(-height / 2., height / 2.0),
-            ),
+            EmissionShape::Rect { width, height } => vec2(rand::gen_range(-width / 2., width / 2.0), rand::gen_range(-height / 2., height / 2.0)),
             EmissionShape::Sphere { radius } => {
                 let ro = rand::gen_range(0., radius * radius).sqrt();
                 let phi = rand::gen_range(0., std::f32::consts::PI * 2.);
@@ -216,25 +213,13 @@ pub struct PostProcessing;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParticleShape {
-    Rectangle {
-        aspect_ratio: f32,
-    },
-    Circle {
-        subdivisions: u32,
-    },
-    CustomMesh {
-        vertices: Vec<f32>,
-        indices: Vec<u16>,
-    },
+    Rectangle { aspect_ratio: f32 },
+    Circle { subdivisions: u32 },
+    CustomMesh { vertices: Vec<f32>, indices: Vec<u16> },
 }
 
 impl ParticleShape {
-    fn build_bindings(
-        &self,
-        ctx: &mut miniquad::Context,
-        positions_vertex_buffer: Buffer,
-        texture: Option<Texture2D>,
-    ) -> Bindings {
+    fn build_bindings(&self, ctx: &mut miniquad::Context, positions_vertex_buffer: Buffer, texture: Option<Texture2D>) -> Bindings {
         let (geometry_vertex_buffer, index_buffer) = match self {
             ParticleShape::Rectangle { aspect_ratio } => {
                 #[rustfmt::skip]
@@ -263,10 +248,8 @@ impl ParticleShape {
                 let rot = 0.0;
                 vertices.extend_from_slice(&[0., 0., 0., 0., 0., 1.0, 1.0, 1.0, 1.0]);
                 for i in 0..subdivisions + 1 {
-                    let rx =
-                        (i as f32 / *subdivisions as f32 * std::f32::consts::PI * 2. + rot).cos();
-                    let ry =
-                        (i as f32 / *subdivisions as f32 * std::f32::consts::PI * 2. + rot).sin();
+                    let rx = (i as f32 / *subdivisions as f32 * std::f32::consts::PI * 2. + rot).cos();
+                    let ry = (i as f32 / *subdivisions as f32 * std::f32::consts::PI * 2. + rot).sin();
                     vertices.extend_from_slice(&[rx, ry, 0., rx, ry, 1., 1., 1., 1.]);
 
                     if i != *subdivisions {
@@ -288,10 +271,9 @@ impl ParticleShape {
         Bindings {
             vertex_buffers: vec![geometry_vertex_buffer, positions_vertex_buffer],
             index_buffer,
-            images: vec![texture.map_or_else(
-                || Texture::from_rgba8(ctx, 1, 1, &[255, 255, 255, 255]),
-                |texture| texture.raw_miniquad_texture_handle(),
-            )],
+            images: vec![
+                texture.map_or_else(|| Texture::from_rgba8(ctx, 1, 1, &[255, 255, 255, 255]), |texture| texture.raw_miniquad_texture_handle())
+            ],
         }
     }
 }
@@ -322,16 +304,10 @@ pub enum BlendMode {
 impl BlendMode {
     fn blend_state(&self) -> BlendState {
         match self {
-            BlendMode::Alpha => BlendState::new(
-                Equation::Add,
-                BlendFactor::Value(BlendValue::SourceAlpha),
-                BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
-            ),
-            BlendMode::Additive => BlendState::new(
-                Equation::Add,
-                BlendFactor::Value(BlendValue::SourceAlpha),
-                BlendFactor::One,
-            ),
+            BlendMode::Alpha => {
+                BlendState::new(Equation::Add, BlendFactor::Value(BlendValue::SourceAlpha), BlendFactor::OneMinusValue(BlendValue::SourceAlpha))
+            }
+            BlendMode::Additive => BlendState::new(Equation::Add, BlendFactor::Value(BlendValue::SourceAlpha), BlendFactor::One),
         }
     }
 }
@@ -450,34 +426,23 @@ impl Emitter {
     const MAX_PARTICLES: usize = 12000;
 
     pub fn new(config: EmitterConfig) -> Emitter {
-        let InternalGlContext {
-            quad_context: ctx, ..
-        } = unsafe { get_internal_gl() };
+        let InternalGlContext { quad_context: ctx, .. } = unsafe { get_internal_gl() };
 
         // empty, dynamic instance-data vertex buffer
-        let positions_vertex_buffer = Buffer::stream(
-            ctx,
-            BufferType::VertexBuffer,
-            Self::MAX_PARTICLES * std::mem::size_of::<GpuParticle>(),
-        );
+        let positions_vertex_buffer = Buffer::stream(ctx, BufferType::VertexBuffer, Self::MAX_PARTICLES * std::mem::size_of::<GpuParticle>());
 
-        let bindings = config
-            .shape
-            .build_bindings(ctx, positions_vertex_buffer, config.texture);
+        let bindings = config.shape.build_bindings(ctx, positions_vertex_buffer, config.texture);
 
-        let (vertex, fragment) = config.material.as_ref().map_or_else(
-            || (shader::VERTEX, shader::FRAGMENT),
-            |material| (&material.vertex, &material.fragment),
-        );
+        let (vertex, fragment) = config
+            .material
+            .as_ref()
+            .map_or_else(|| (shader::VERTEX, shader::FRAGMENT), |material| (&material.vertex, &material.fragment));
 
         let shader = {
             use macroquad::material::shaders::{preprocess_shader, PreprocessorConfig};
 
             let config = PreprocessorConfig {
-                includes: vec![(
-                    "particles.glsl".to_string(),
-                    include_str!("particles.glsl").to_owned(),
-                )],
+                includes: vec![("particles.glsl".to_string(), include_str!("particles.glsl").to_owned())],
             };
 
             let vertex = preprocess_shader(vertex, &config);
@@ -508,22 +473,13 @@ impl Emitter {
             shader,
             PipelineParams {
                 color_blend: Some(blend_mode),
-                alpha_blend: Some(BlendState::new(
-                    Equation::Add,
-                    BlendFactor::Zero,
-                    BlendFactor::One,
-                )),
+                alpha_blend: Some(BlendState::new(Equation::Add, BlendFactor::Zero, BlendFactor::One)),
                 ..Default::default()
             },
         );
 
-        let post_processing_shader = Shader::new(
-            ctx,
-            post_processing_shader::VERTEX,
-            post_processing_shader::FRAGMENT,
-            post_processing_shader::meta(),
-        )
-        .unwrap();
+        let post_processing_shader =
+            Shader::new(ctx, post_processing_shader::VERTEX, post_processing_shader::FRAGMENT, post_processing_shader::meta()).unwrap();
 
         let post_processing_pipeline = Pipeline::with_params(
             ctx,
@@ -624,12 +580,9 @@ impl Emitter {
             vec2(res.x, res.y)
         }
 
-        let r =
-            self.config.size - self.config.size * rand::gen_range(0.0, self.config.size_randomness);
+        let r = self.config.size - self.config.size * rand::gen_range(0.0, self.config.size_randomness);
 
-        let rotation = self.config.initial_rotation
-            - self.config.initial_rotation
-                * rand::gen_range(0.0, self.config.initial_rotation_randomness);
+        let rotation = self.config.initial_rotation - self.config.initial_rotation * rand::gen_range(0.0, self.config.initial_rotation_randomness);
 
         let particle = if self.config.local_coords {
             GpuParticle {
@@ -640,12 +593,7 @@ impl Emitter {
             }
         } else {
             GpuParticle {
-                pos: vec4(
-                    self.position.x + offset.x,
-                    self.position.y + offset.y,
-                    rotation,
-                    r,
-                ),
+                pos: vec4(self.position.x + offset.x, self.position.y + offset.y, rotation, r),
                 uv: vec4(1.0, 1.0, 0.0, 0.0),
                 data: vec4(self.particles_spawned as f32, 0.0, 0.0, 0.0),
                 color: self.config.colors_curve.start.to_vec(),
@@ -656,21 +604,14 @@ impl Emitter {
         self.gpu_particles.push(particle);
         self.cpu_counterpart.push(CpuParticle {
             velocity: random_initial_vector(
-                vec2(
-                    self.config.initial_direction.x,
-                    self.config.initial_direction.y,
-                ),
+                vec2(self.config.initial_direction.x, self.config.initial_direction.y),
                 self.config.initial_direction_spread,
-                self.config.initial_velocity
-                    - self.config.initial_velocity
-                        * rand::gen_range(0.0, self.config.initial_velocity_randomness),
+                self.config.initial_velocity - self.config.initial_velocity * rand::gen_range(0.0, self.config.initial_velocity_randomness),
             ),
             angular_velocity: self.config.initial_angular_velocity
-                - self.config.initial_angular_velocity
-                    * rand::gen_range(0.0, self.config.initial_angular_velocity_randomness),
+                - self.config.initial_angular_velocity * rand::gen_range(0.0, self.config.initial_angular_velocity_randomness),
             lived: 0.0,
-            lifetime: self.config.lifetime
-                - self.config.lifetime * rand::gen_range(0.0, self.config.lifetime_randomness),
+            lifetime: self.config.lifetime - self.config.lifetime * rand::gen_range(0.0, self.config.lifetime_randomness),
             frame: 0,
             initial_size: r,
             color: self.config.base_color,
@@ -679,18 +620,16 @@ impl Emitter {
 
     fn update(&mut self, ctx: &mut Context, dt: f32) {
         if self.mesh_dirty {
-            self.bindings = self.config.shape.build_bindings(
-                ctx,
-                self.bindings.vertex_buffers[1],
-                self.config.texture,
-            );
+            self.bindings = self
+                .config
+                .shape
+                .build_bindings(ctx, self.bindings.vertex_buffers[1], self.config.texture);
             self.mesh_dirty = false;
         }
         if self.config.emitting {
             self.time_passed += dt;
 
-            let gap = (self.config.lifetime / self.config.amount as f32)
-                * (1.0 - self.config.explosiveness);
+            let gap = (self.config.lifetime / self.config.amount as f32) * (1.0 - self.config.explosiveness);
 
             let spawn_amount = if gap < 0.001 {
                 // to prevent division by 0 problems
@@ -730,22 +669,16 @@ impl Emitter {
                 let t = cpu.lived / cpu.lifetime;
                 if t < 0.5 {
                     let t = t * 2.;
-                    self.config.colors_curve.start.to_vec() * (1.0 - t)
-                        + self.config.colors_curve.mid.to_vec() * t
+                    self.config.colors_curve.start.to_vec() * (1.0 - t) + self.config.colors_curve.mid.to_vec() * t
                 } else {
                     let t = (t - 0.5) * 2.;
-                    self.config.colors_curve.mid.to_vec() * (1.0 - t)
-                        + self.config.colors_curve.end.to_vec() * t
+                    self.config.colors_curve.mid.to_vec() * (1.0 - t) + self.config.colors_curve.end.to_vec() * t
                 }
             };
             gpu.color *= cpu.color.to_vec();
             gpu.pos += vec4(cpu.velocity.x, cpu.velocity.y, cpu.angular_velocity, 0.0) * dt;
 
-            gpu.pos.w = cpu.initial_size
-                * self
-                    .batched_size_curve
-                    .as_ref()
-                    .map_or(1.0, |curve| curve.get(cpu.lived / cpu.lifetime));
+            gpu.pos.w = cpu.initial_size * self.batched_size_curve.as_ref().map_or(1.0, |curve| curve.get(cpu.lived / cpu.lifetime));
 
             if cpu.lifetime != 0.0 {
                 gpu.data.y = cpu.lived / cpu.lifetime;
@@ -757,21 +690,13 @@ impl Emitter {
 
             if let Some(atlas) = &self.config.atlas {
                 if cpu.lifetime != 0.0 {
-                    cpu.frame = (cpu.lived / cpu.lifetime
-                        * (atlas.end_index - atlas.start_index) as f32)
-                        as u16
-                        + atlas.start_index;
+                    cpu.frame = (cpu.lived / cpu.lifetime * (atlas.end_index - atlas.start_index) as f32) as u16 + atlas.start_index;
                 }
 
                 let x = cpu.frame % atlas.n;
                 let y = cpu.frame / atlas.n;
 
-                gpu.uv = vec4(
-                    x as f32 / atlas.n as f32,
-                    y as f32 / atlas.m as f32,
-                    1.0 / atlas.n as f32,
-                    1.0 / atlas.m as f32,
-                );
+                gpu.uv = vec4(x as f32 / atlas.n as f32, y as f32 / atlas.m as f32, 1.0 / atlas.n as f32, 1.0 / atlas.m as f32);
             } else {
                 gpu.uv = vec4(0.0, 0.0, 1.0, 1.0);
             }
@@ -780,9 +705,7 @@ impl Emitter {
         for i in (0..self.gpu_particles.len()).rev() {
             // second if clause is just for the case when lifetime was changed in the editor
             // normally particle lifetime is always less or equal config lifetime
-            if self.cpu_counterpart[i].lived >= self.cpu_counterpart[i].lifetime
-                || self.cpu_counterpart[i].lived > self.config.lifetime
-            {
+            if self.cpu_counterpart[i].lived >= self.cpu_counterpart[i].lifetime || self.cpu_counterpart[i].lived > self.config.lifetime {
                 if self.cpu_counterpart[i].lived != self.cpu_counterpart[i].lifetime {
                     self.particles_spawned -= 1;
                 }
@@ -810,17 +733,12 @@ impl Emitter {
             local_coords: if self.config.local_coords { 1.0 } else { 0.0 },
         });
 
-        ctx.draw(
-            0,
-            self.bindings.index_buffer.size() as i32 / std::mem::size_of::<u16>() as i32,
-            self.gpu_particles.len() as i32,
-        );
+        ctx.draw(0, self.bindings.index_buffer.size() as i32 / std::mem::size_of::<u16>() as i32, self.gpu_particles.len() as i32);
     }
 
     pub fn setup_render_pass(&mut self, quad_gl: &QuadGl, ctx: &mut Context) {
         if self.config.blend_mode != self.blend_mode {
-            self.pipeline
-                .set_blend(ctx, Some(self.config.blend_mode.blend_state()));
+            self.pipeline.set_blend(ctx, Some(self.config.blend_mode.blend_state()));
             self.blend_mode = self.config.blend_mode;
         }
 
@@ -832,10 +750,7 @@ impl Emitter {
                 ctx.begin_default_pass(PassAction::Nothing);
             }
         } else {
-            ctx.begin_pass(
-                self.post_processing_pass,
-                PassAction::clear_color(0.0, 0.0, 0.0, 0.0),
-            );
+            ctx.begin_pass(self.post_processing_pass, PassAction::clear_color(0.0, 0.0, 0.0, 0.0));
         };
 
         ctx.apply_pipeline(&self.pipeline);
@@ -872,10 +787,7 @@ impl Emitter {
 
         gl.flush();
 
-        let InternalGlContext {
-            quad_context: ctx,
-            quad_gl,
-        } = gl;
+        let InternalGlContext { quad_context: ctx, quad_gl } = gl;
 
         self.position = pos;
 

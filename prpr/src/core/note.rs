@@ -1,7 +1,4 @@
-use super::{
-    Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR,
-    NOTE_WIDTH_RATIO,
-};
+use super::{Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO};
 use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
 
@@ -55,14 +52,7 @@ impl Default for RenderConfig {
     }
 }
 
-fn draw_tex(
-    res: &Resource,
-    texture: Texture2D,
-    x: f32,
-    y: f32,
-    color: Color,
-    params: DrawTextureParams,
-) {
+fn draw_tex(res: &Resource, texture: Texture2D, x: f32, y: f32, color: Color, params: DrawTextureParams) {
     let Vec2 { x: w, y: h } = params.dest_size.unwrap_or_else(|| {
         params
             .source
@@ -84,17 +74,7 @@ fn draw_tex(
     }
     let gl = unsafe { get_internal_gl() }.quad_gl;
 
-    let Rect {
-        x: sx,
-        y: sy,
-        w: sw,
-        h: sh,
-    } = params.source.unwrap_or(Rect {
-        x: 0.,
-        y: 0.,
-        w: 1.,
-        h: 1.,
-    });
+    let Rect { x: sx, y: sy, w: sw, h: sh } = params.source.unwrap_or(Rect { x: 0., y: 0., w: 1., h: 1. });
 
     if params.flip_x {
         p.swap(0, 1);
@@ -137,21 +117,14 @@ fn draw_center(res: &Resource, tex: Texture2D, scale: f32, color: Color) {
 
 impl Note {
     pub fn plain(&self) -> bool {
-        !self.fake
-            && !matches!(self.kind, NoteKind::Hold { .. })
-            && self.speed == 1.0
-            && self.object.translation.1.keyframes.len() <= 1
+        !self.fake && !matches!(self.kind, NoteKind::Hold { .. }) && self.speed == 1.0 && self.object.translation.1.keyframes.len() <= 1
     }
 
     pub fn update(&mut self, res: &mut Resource, object: &mut Object) {
         if let Some(color) = if let JudgeStatus::Hold(perfect, at, ..) = &mut self.judge {
             if res.time > *at {
                 *at += HOLD_PARTICLE_INTERVAL;
-                Some(if *perfect {
-                    JUDGE_LINE_PERFECT_COLOR
-                } else {
-                    JUDGE_LINE_GOOD_COLOR
-                })
+                Some(if *perfect { JUDGE_LINE_PERFECT_COLOR } else { JUDGE_LINE_GOOD_COLOR })
             } else {
                 None
             }
@@ -160,30 +133,21 @@ impl Note {
         } {
             self.object.set_time(res.time);
             object.set_time(res.time);
-            res.with_model(object.now(res) * self.now_transform(res, 0.), |res| {
-                res.emit_at_origin(color)
-            });
+            res.with_model(object.now(res) * self.now_transform(res, 0.), |res| res.emit_at_origin(color));
         }
         self.object.set_time(res.time);
     }
 
     pub fn dead(&self) -> bool {
-        (!matches!(self.kind, NoteKind::Hold { .. }) || matches!(self.judge, JudgeStatus::Judged))
-            && self.object.dead()
+        (!matches!(self.kind, NoteKind::Hold { .. }) || matches!(self.judge, JudgeStatus::Judged)) && self.object.dead()
     }
 
     pub fn now_transform(&self, res: &Resource, base: f32) -> Matrix {
-        self.object
-            .now(res)
-            .append_translation(&Vector::new(0., base))
-            * self.object.now_scale()
+        self.object.now(res).append_translation(&Vector::new(0., base)) * self.object.now_scale()
     }
 
     pub fn render(&self, res: &mut Resource, line_height: f32, config: &RenderConfig) {
-        if self.time - config.appear_before > res.time
-            || (matches!(self.judge, JudgeStatus::Judged)
-                && !matches!(self.kind, NoteKind::Hold { .. }))
-        {
+        if self.time - config.appear_before > res.time || (matches!(self.judge, JudgeStatus::Judged) && !matches!(self.kind, NoteKind::Hold { .. })) {
             return;
         }
         let scale = (if self.multiple_hint { 1.1 } else { 1.0 }) * NOTE_WIDTH_RATIO;
@@ -217,10 +181,7 @@ impl Note {
                 NoteKind::Click => {
                     draw(style.click);
                 }
-                NoteKind::Hold {
-                    end_time,
-                    end_height,
-                } => {
+                NoteKind::Hold { end_time, end_height } => {
                     if matches!(self.judge, JudgeStatus::Judged) {
                         // miss
                         color.a *= 0.5;
@@ -250,11 +211,7 @@ impl Note {
                     // body
                     let tex = style.hold;
                     let w = scale;
-                    let h = if self.time <= res.time {
-                        line_height
-                    } else {
-                        height
-                    };
+                    let h = if self.time <= res.time { line_height } else { height };
                     // TODO (end_height - height) is not always total height
                     draw_tex(
                         res,
@@ -276,10 +233,7 @@ impl Note {
                     );
                     // tail
                     let tex = style.hold_tail;
-                    let hf = vec2(
-                        NOTE_WIDTH_RATIO,
-                        tex.height() / tex.width() * NOTE_WIDTH_RATIO,
-                    );
+                    let hf = vec2(NOTE_WIDTH_RATIO, tex.height() / tex.width() * NOTE_WIDTH_RATIO);
                     draw_tex(
                         res,
                         tex,
@@ -327,12 +281,7 @@ impl BadNote {
                         _ => unreachable!(),
                     },
                     NOTE_WIDTH_RATIO,
-                    Color::new(
-                        0.423529,
-                        0.262745,
-                        0.262745,
-                        (self.time - res.time).min(0.) / BAD_TIME + 1.,
-                    ),
+                    Color::new(0.423529, 0.262745, 0.262745, (self.time - res.time).min(0.) / BAD_TIME + 1.),
                 )
             });
         });
