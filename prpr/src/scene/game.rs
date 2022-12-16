@@ -330,7 +330,6 @@ impl Scene for GameScene {
                     self.state = State::BeforeMusic;
                     tm.reset();
                     tm.seek_to(offset.min(0.) as f64);
-                    tm.seek_to(50.);
                     self.last_update_time = tm.real_time();
                     tm.now() as f32
                 } else {
