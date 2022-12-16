@@ -7,7 +7,6 @@ use crate::{
     time::TimeManager,
 };
 use anyhow::{Context, Result};
-use image::ImageBuffer;
 use macroquad::prelude::*;
 use std::{
     future::Future,
@@ -54,26 +53,28 @@ impl LoadingScene {
     pub async fn new(info: ChartInfo, config: Config, mut fs: Box<dyn FileSystem>, get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>) -> Result<Self> {
         async fn load(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<(Texture2D, Texture2D)> {
             let image = image::load_from_memory(&fs.load_file(path).await?).context("Failed to decode image")?;
+            let (w, h) = (image.width(), image.height());
+            let size = w as usize * h as usize;
+
             let mut blurred_rgb = image.to_rgb8();
-            let size = blurred_rgb.width() as usize * blurred_rgb.height() as usize;
             let mut vec = unsafe { Vec::from_raw_parts(std::mem::transmute(blurred_rgb.as_mut_ptr()), size, size) };
-            fastblur::gaussian_blur(&mut vec, image.width() as _, image.height() as _, 50.);
+            fastblur::gaussian_blur(&mut vec, w as _, h as _, 50.);
             std::mem::forget(vec);
-            let mut blurred = ImageBuffer::<image::Rgba<u8>, _>::new(image.width(), image.height());
-            for (input, output) in blurred_rgb.chunks_exact(3).zip(blurred.chunks_exact_mut(4)) {
-                output[..3].copy_from_slice(input);
-                output[3] = 255;
+            let mut blurred = Vec::with_capacity(size * 4);
+            for input in blurred_rgb.chunks_exact(3) {
+                blurred.extend_from_slice(input);
+                blurred.push(255);
             }
             Ok((
                 Texture2D::from_image(&Image {
-                    width: image.width() as u16,
-                    height: image.height() as u16,
+                    width: w as _,
+                    height: h as _,
                     bytes: image.into_rgba8().into_raw(),
                 }),
                 Texture2D::from_image(&Image {
-                    width: blurred.width() as u16,
-                    height: blurred.height() as u16,
-                    bytes: blurred.into_raw(),
+                    width: w as _,
+                    height: h as _,
+                    bytes: blurred,
                 }),
             ))
         }
@@ -164,7 +165,7 @@ impl Scene for LoadingScene {
         let r = draw_illustration(self.illustration, 0.38, vo, 1., 1., WHITE);
         let h = r.h / 3.6;
         let main = Rect::new(-0.88, vo - h / 2. - top / 10., 0.78, h);
-        draw_parallelogram(main, None, Color::new(0., 0., 0., 0.7));
+        draw_parallelogram(main, None, Color::new(0., 0., 0., 0.7), true);
         draw_text_aligned(
             self.font,
             &self.info.name,
@@ -180,7 +181,7 @@ impl Scene for LoadingScene {
         let sub = Rect::new(main.x + main.w * 0.71, main.y - main.h * ext, main.w * 0.26, main.h * (1. + ext * 2.));
         let mut ct = sub.center();
         ct.x += sub.w * 0.02;
-        draw_parallelogram(sub, None, WHITE);
+        draw_parallelogram(sub, None, WHITE, true);
         draw_text_aligned(self.font, &(self.info.difficulty.round() as u32).to_string(), ct.x, ct.y + sub.h * 0.05, (0.5, 1.), 0.88, BLACK);
         draw_text_aligned(
             self.font,

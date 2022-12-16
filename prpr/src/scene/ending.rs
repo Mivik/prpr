@@ -110,7 +110,15 @@ impl Scene for EndingScene {
 
         tran(gl, (1. - ran(now, 0.1, 1.3)).powi(3));
         let r = draw_illustration(self.illustration, -0.38, 0., 1., 1.2, WHITE);
-        draw_parallelogram_ex(r, None, Color::default(), Color::new(0., 0., 0., 0.5));
+        let slope = PARALLELOGRAM_SLOPE;
+        let ratio = 0.2;
+        draw_parallelogram_ex(
+            Rect::new(r.x, r.y + r.h * (1. - ratio), r.w - r.h * (1. - ratio) * slope, r.h * ratio),
+            None,
+            Color::default(),
+            Color::new(0., 0., 0., 0.7),
+            false,
+        );
         draw_text_aligned(
             self.font,
             &self.info.name,
@@ -124,12 +132,11 @@ impl Scene for EndingScene {
         gl.pop_model_matrix();
 
         let dx = 0.06;
-        let slope = PARALLELOGRAM_SLOPE;
         let c = Color::new(0., 0., 0., 0.6);
 
         tran(gl, (1. - ran(now, 0.2, 1.3)).powi(3));
         let main = Rect::new(r.right() - 0.05, r.y, r.w * 0.84, r.h / 2.);
-        draw_parallelogram(main, None, c);
+        draw_parallelogram(main, None, c, true);
         {
             let r = draw_text_aligned(
                 self.font,
@@ -171,7 +178,7 @@ impl Scene for EndingScene {
         tran(gl, (1. - ran(now, 0.4, 1.5)).powi(3));
         let d = r.h / 16.;
         let s1 = Rect::new(main.x - d * 4. * slope, main.bottom() + d, main.w - d * 5. * slope, d * 3.);
-        draw_parallelogram(s1, None, c);
+        draw_parallelogram(s1, None, c, true);
         {
             let dy = 0.025;
             let r = draw_text_aligned(self.font, "Max Combo", s1.x + dx, s1.bottom() - dy, (0., 1.), 0.34, WHITE);
@@ -183,7 +190,7 @@ impl Scene for EndingScene {
 
         tran(gl, (1. - ran(now, 0.5, 1.7)).powi(3));
         let s2 = Rect::new(s1.x - d * 4. * slope, s1.bottom() + d, s1.w, s1.h);
-        draw_parallelogram(s2, None, c);
+        draw_parallelogram(s2, None, c, true);
         {
             let dy = 0.025;
             let dy2 = 0.015;
@@ -233,8 +240,8 @@ impl Scene for EndingScene {
         };
         tran(gl, -p * 0.085);
         let r = Rect::new(-1. - h * slope, -top + dy, w, h);
-        draw_parallelogram(r, None, c);
-        draw_parallelogram(Rect::new(r.x + r.w * (1. - s), r.y, r.w * s, r.h), None, WHITE);
+        draw_parallelogram(r, None, c, true);
+        draw_parallelogram(Rect::new(r.x + r.w * (1. - s), r.y, r.w * s, r.h), None, WHITE, false);
         let ct = r.center();
         draw_texture_ex(self.icon_retry, ct.x - hs, ct.y - hs, WHITE, params.clone());
         gl.pop_model_matrix();
@@ -244,8 +251,8 @@ impl Scene for EndingScene {
 
         tran(gl, p * 0.085);
         let r = Rect::new(1. + h * slope - w, top - dy - h, w, h);
-        draw_parallelogram(r, None, c);
-        draw_parallelogram(Rect::new(r.x + r.w * s, r.y, r.w * s, r.h), None, WHITE);
+        draw_parallelogram(r, None, c, true);
+        draw_parallelogram(Rect::new(r.x + r.w * s, r.y, r.w * s, r.h), None, WHITE, false);
         let ct = r.center();
         draw_texture_ex(self.icon_proceed, ct.x - hs, ct.y - hs, WHITE, params);
         gl.pop_model_matrix();
@@ -255,9 +262,9 @@ impl Scene for EndingScene {
 
         let alpha = ran(now, 1.5, 1.9);
         let main = Rect::new(1. - 0.28, -top + dy * 2., 0.35, 0.09);
-        draw_parallelogram(main, None, Color::new(0., 0., 0., c.a * alpha));
+        draw_parallelogram(main, None, Color::new(0., 0., 0., c.a * alpha), false);
         let sub = Rect::new(1. - 0.17, main.center().y + 0.005, 0.16, 0.028);
-        draw_parallelogram(sub, None, Color::new(1., 1., 1., alpha));
+        draw_parallelogram(sub, None, Color::new(1., 1., 1., alpha), false);
         draw_text_aligned(
             self.font,
             &format!("{:.2}", self.player_rks),
@@ -273,6 +280,7 @@ impl Scene for EndingScene {
             Rect::new(text.x - main.h * slope - 0.01, main.y, main.x - text.x + main.h * slope * 2. + 0.01, main.h),
             None,
             Color::new(0., 0., 0., c.a * alpha),
+            false,
         );
         draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, Color::new(1., 1., 1., alpha));
 

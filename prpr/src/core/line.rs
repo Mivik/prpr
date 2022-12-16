@@ -92,7 +92,7 @@ impl JudgeLine {
                         JudgeLineKind::Normal => {
                             let mut color = color.unwrap_or(res.judge_line_color);
                             color.a = alpha.max(0.0);
-                            let len = res.config.line_length;
+                            let len = res.info.line_length;
                             draw_line(-len, 0.0, len, 0.0, 0.01, color);
                         }
                         JudgeLineKind::Texture(texture) => {

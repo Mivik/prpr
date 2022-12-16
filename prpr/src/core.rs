@@ -28,7 +28,7 @@ mod object;
 pub use object::Object;
 
 mod resource;
-pub use resource::Resource;
+pub use resource::{Resource, DPI_VALUE};
 
 mod tween;
 pub use tween::{easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor, Tweenable, TWEEN_FUNCTIONS};

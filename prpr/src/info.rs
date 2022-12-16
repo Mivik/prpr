@@ -10,7 +10,7 @@ pub enum ChartFormat {
 
 #[derive(Clone, Deserialize)]
 #[serde(default)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct ChartInfo {
     pub id: Option<String>,
 
@@ -27,6 +27,7 @@ pub struct ChartInfo {
     pub illustration: String,
 
     pub aspect_ratio: f32,
+    pub line_length: f32,
     pub tip: String,
 
     pub intro: String,
@@ -51,6 +52,7 @@ impl Default for ChartInfo {
             illustration: "background.png".to_string(),
 
             aspect_ratio: 16. / 9.,
+            line_length: 6.,
             tip: "Tip: 欢迎来到 prpr！".to_owned(),
 
             intro: String::new(),

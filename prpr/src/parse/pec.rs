@@ -176,7 +176,7 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     let mut last_line = None;
     fn get_line(lines: &mut Vec<PECJudgeLine>, id: usize) -> &mut PECJudgeLine {
         if lines.len() <= id {
-            lines.reserve(id + 1);
+            lines.reserve(id - lines.len() + 1);
             for _ in 0..=(id - lines.len()) {
                 lines.push(PECJudgeLine::default());
             }

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use macroquad::prelude::*;
-use prpr::{build_conf, config::Config, fs, scene::LoadingScene, time::TimeManager, Main};
+use prpr::{build_conf, config::Config, core::DPI_VALUE, fs, scene::LoadingScene, time::TimeManager, Main};
 use std::sync::{mpsc, Mutex};
 
 #[cfg(not(target_os = "android"))]
@@ -96,4 +96,9 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setConfig(_: *mut std::ffi
     let env = crate::miniquad::native::attach_jni_env();
     let json = string_from_java(env, json);
     *CONFIG.lock().unwrap() = Some(serde_json::from_str(&json).unwrap());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn Java_quad_1native_QuadNative_setDpi(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, dpi: ndk_sys::jint) {
+    DPI_VALUE.store(dpi as _, std::sync::atomic::Ordering::SeqCst);
 }

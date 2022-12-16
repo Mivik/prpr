@@ -14,40 +14,24 @@ use std::{
 
 const X_DIFF_MAX: f32 = 1.9 * NOTE_WIDTH_RATIO;
 
-pub const FLICK_SPEED_THRESHOLD: f32 = 2.2;
+pub const FLICK_SPEED_THRESHOLD: f32 = 1.8;
 pub const LIMIT_PERFECT: f32 = 0.08;
 pub const LIMIT_GOOD: f32 = 0.18;
 pub const LIMIT_BAD: f32 = 0.22;
 
 pub struct VelocityTracker {
     movements: VecDeque<(f32, Point)>,
-    pub start_time: f32,
-    sum_x: f32,
-    sum_x2: f32,
-    sum_x3: f32,
-    sum_x4: f32,
-    sum_y: Point,
-    sum_x_y: Point,
-    sum_x2_y: Point,
     last_dir: Vector,
     wait: bool,
 }
 
 impl VelocityTracker {
-    pub const RECORD_MAX: usize = 20;
+    pub const RECORD_MAX: usize = 10;
 
     pub fn new(time: f32, point: Point) -> Self {
         let mut res = Self {
             movements: VecDeque::with_capacity(Self::RECORD_MAX),
-            start_time: time,
             // TODO simplify
-            sum_x: 0.0,
-            sum_x2: 0.0,
-            sum_x3: 0.0,
-            sum_x4: 0.0,
-            sum_y: Point::default(),
-            sum_x_y: Point::default(),
-            sum_x2_y: Point::default(),
             last_dir: Vector::default(),
             wait: false,
         };
@@ -55,30 +39,12 @@ impl VelocityTracker {
         res
     }
 
-    fn update<const C: i32>(&mut self, (time, position): (f32, Point)) {
-        let position = position.coords;
-        let c = C as f32;
-        self.sum_y += position * c;
-        let mut cur = time * c;
-        self.sum_x += cur;
-        self.sum_x_y += position * cur;
-        cur *= time;
-        self.sum_x2 += cur;
-        self.sum_x2_y += position * cur;
-        cur *= time;
-        self.sum_x3 += cur;
-        self.sum_x4 += cur * time;
-    }
-
     pub fn push(&mut self, time: f32, position: Point) {
-        let time = time - self.start_time;
         if self.movements.len() == Self::RECORD_MAX {
-            let pair = self.movements.pop_front().unwrap();
-            self.update::<-1>(pair);
+            // TODO optimize
+            self.movements.pop_front();
         }
-        let pair = (time, position);
-        self.movements.push_back(pair);
-        self.update::<1>(pair);
+        self.movements.push_back((time, position));
     }
 
     pub fn speed(&self) -> Vector {
@@ -86,38 +52,57 @@ impl VelocityTracker {
             return Vector::default();
         }
         let n = self.movements.len() as f32;
-        let s_xx = self.sum_x2 - self.sum_x * self.sum_x / n;
-        let s_xy = self.sum_x_y - self.sum_y * (self.sum_x / n);
-        let s_xx2 = self.sum_x3 - self.sum_x * self.sum_x2 / n;
-        let s_x2y = self.sum_x2_y - self.sum_y * (self.sum_x2 / n);
-        let s_x2x2 = self.sum_x4 - self.sum_x2 * self.sum_x2 / n;
+        let lst = self.movements.back().unwrap().0;
+        let mut sum_x = 0.;
+        let mut sum_x2 = 0.;
+        let mut sum_x3 = 0.;
+        let mut sum_x4 = 0.;
+        let mut sum_y = Point::new(0., 0.);
+        let mut sum_x_y = Point::new(0., 0.);
+        let mut sum_x2_y = Point::new(0., 0.);
+        for (t, pt) in &self.movements {
+            let t = t - lst;
+            let v = pt.coords;
+            let mut w = t;
+            sum_y += v;
+            sum_x += w;
+            sum_x_y += w * v;
+            w *= t;
+            sum_x2 += w;
+            sum_x2_y += w * v;
+            w *= t;
+            sum_x3 += w;
+            sum_x4 += w * t;
+        }
+        let s_xx = sum_x2 - sum_x * sum_x / n;
+        let s_xy = sum_x_y - sum_y * (sum_x / n);
+        let s_xx2 = sum_x3 - sum_x * sum_x2 / n;
+        let s_x2y = sum_x2_y - sum_y * (sum_x2 / n);
+        let s_x2x2 = sum_x4 - sum_x2 * sum_x2 / n;
         let denom = s_xx * s_x2x2 - s_xx2 * s_xx2;
         if denom == 0.0 {
             return Vector::default();
         }
-        let a = (s_x2y * s_xx - s_xy * s_xx2) / denom;
+        // let a = (s_x2y * s_xx - s_xy * s_xx2) / denom;
         let b = (s_xy * s_x2x2 - s_x2y * s_xx2) / denom;
-        // let c = (self.sum_y - b * self.sum_x - a * self.sum_x2) / n;
-        let x = self.movements.back().unwrap().0;
-        a * (x * 2.0) + b
+        // let c = (sum_y - b * sum_x - a * sum_x2) / n;
+        #[allow(clippy::let_and_return)]
+        b
     }
 
-    pub fn has_flick(&mut self) -> bool {
+    pub fn has_flick(&mut self, res: &Resource) -> bool {
         let spd = self.speed();
         let norm = spd.norm();
-        if self.wait && (norm <= 1.2 || (self.last_dir.dot(&spd.unscale(norm)) - 1.).abs() > 0.4) {
+        let threshold = FLICK_SPEED_THRESHOLD * (res.dpi as f32 / 275.);
+        if self.wait && (norm <= threshold * (1.2 / 1.8) || (self.last_dir.dot(&spd.unscale(norm)) - 1.).abs() > 0.4) {
             self.wait = false;
         }
-        if self.wait {
-            return false;
-        }
-        if norm >= FLICK_SPEED_THRESHOLD {
-            self.last_dir = spd.unscale(norm);
-            self.wait = true;
-            true
-        } else {
-            false
-        }
+        !self.wait && norm >= threshold
+    }
+
+    pub fn consume_flick(&mut self) {
+        self.last_dir = self.speed().normalize();
+        self.wait = true;
     }
 }
 
@@ -347,7 +332,7 @@ impl Judge {
                 // check for flicks
                 use TouchPhase::*;
                 if match touch.phase {
-                    Moved | Stationary => self.trackers.get_mut(&touch.id).map_or(false, |it| it.has_flick()),
+                    Moved | Stationary => self.trackers.get_mut(&touch.id).map_or(false, |it| it.has_flick(res)),
                     _ => false,
                 } {
                     |kind: &NoteKind| matches!(kind, NoteKind::Flick)
@@ -412,6 +397,9 @@ impl Judge {
                 } else {
                     // flick
                     line.notes[id as usize].judge = JudgeStatus::PreJudge;
+                    if let Some(tracker) = self.trackers.get_mut(&touch.id) {
+                        tracker.consume_flick();
+                    }
                 }
             }
         }
@@ -544,6 +532,7 @@ impl Judge {
             }
         }
         for (judgement, line_id, id, diff) in judgements.into_iter() {
+            chart.lines[line_id].notes[id as usize].object.set_time(t);
             let line = &chart.lines[line_id];
             let note = &line.notes[id as usize];
             self.commit(
@@ -644,8 +633,10 @@ impl Judge {
         }
         for (line_id, id) in judgements.into_iter() {
             self.commit(Judgement::Perfect, None);
-            let line = &chart.lines[line_id];
-            let note = &line.notes[id as usize];
+            let line = &mut chart.lines[line_id];
+            let note = &mut line.notes[id as usize];
+            line.object.set_time(t);
+            note.object.set_time(t);
             res.with_model(line.object.now(res) * note.object.now(res), |res| res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR));
             if let Some(sfx) = match note.kind {
                 NoteKind::Click => Some(&res.sfx_click),

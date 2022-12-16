@@ -122,7 +122,7 @@ impl Audio for WebAudio {
         gain.connect_with_audio_node(&self.0.destination()).map_err(js_err)?;
         node.start_with_when_and_grain_offset(0., params.offset).map_err(js_err)?;
         if params.loop_ {
-            node.set_loop(true)?;
+            node.set_loop(true);
         }
         Ok(AudioHandle(node, AudioState::Playing(self.0.current_time() - params.offset), clip.clone(), params))
     }

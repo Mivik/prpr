@@ -41,11 +41,11 @@ pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f
 
 pub const PARALLELOGRAM_SLOPE: f32 = 0.13 / (7. / 13.);
 
-pub fn draw_parallelogram(rect: Rect, texture: Option<(Texture2D, Rect)>, color: Color) {
-    draw_parallelogram_ex(rect, texture, color, color);
+pub fn draw_parallelogram(rect: Rect, texture: Option<(Texture2D, Rect)>, color: Color, shadow: bool) {
+    draw_parallelogram_ex(rect, texture, color, color, shadow);
 }
 
-pub fn draw_parallelogram_ex(rect: Rect, texture: Option<(Texture2D, Rect)>, top: Color, bottom: Color) {
+pub fn draw_parallelogram_ex(rect: Rect, texture: Option<(Texture2D, Rect)>, top: Color, bottom: Color, shadow: bool) {
     let l = rect.h * PARALLELOGRAM_SLOPE;
     let gl = unsafe { get_internal_gl() }.quad_gl;
     let p = [
@@ -74,7 +74,9 @@ pub fn draw_parallelogram_ex(rect: Rect, texture: Option<(Texture2D, Rect)>, top
     };
     gl.draw_mode(DrawMode::Triangles);
     gl.geometry(&v, &[0, 2, 3, 0, 1, 3]);
-    drop_shadow(p, top.a.min(bottom.a));
+    if shadow {
+        drop_shadow(p, top.a.min(bottom.a));
+    }
 }
 
 fn drop_shadow(p: [Point; 4], alpha: f32) {
@@ -82,7 +84,7 @@ fn drop_shadow(p: [Point; 4], alpha: f32) {
     let len = (PARALLELOGRAM_SLOPE * PARALLELOGRAM_SLOPE + 1.).sqrt();
     let n1 = Vector::new(PARALLELOGRAM_SLOPE / len - 1., -1. / len) * RADIUS;
     let n2 = Vector::new(n1.x + RADIUS * 2., n1.y);
-    let c1 = Color::new(0., 0., 0., alpha * 0.13);
+    let c1 = Color::new(0., 0., 0., alpha * 0.11);
     let c2 = Color::default();
     let v = |p: Point, c: Color| Vertex::new(p.x, p.y, 0., 0., 0., c);
     let p = [

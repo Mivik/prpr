@@ -122,6 +122,6 @@ fn draw_illustration(tex: Texture2D, x: f32, y: f32, w: f32, h: f32, color: Colo
             Rect::new(0.5 - w / 2., 0., w, 1.)
         }
     };
-    crate::ext::draw_parallelogram(r, Some((tex, tr)), color);
+    crate::ext::draw_parallelogram(r, Some((tex, tr)), color, true);
     r
 }

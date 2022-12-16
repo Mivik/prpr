@@ -8,6 +8,9 @@ use crate::{
 };
 use anyhow::Result;
 use macroquad::prelude::*;
+use std::sync::atomic::AtomicU32;
+
+pub static DPI_VALUE: AtomicU32 = AtomicU32::new(250);
 
 pub struct NoteStyle {
     pub click: Texture2D,
@@ -22,6 +25,7 @@ pub struct Resource {
     pub config: Config,
     pub info: ChartInfo,
     pub aspect_ratio: f32,
+    pub dpi: u32,
     pub last_screen_size: (u32, u32),
 
     pub time: f32,
@@ -134,6 +138,7 @@ impl Resource {
             config,
             info,
             aspect_ratio,
+            dpi: DPI_VALUE.load(std::sync::atomic::Ordering::SeqCst),
             last_screen_size: (0, 0),
 
             time: 0.,

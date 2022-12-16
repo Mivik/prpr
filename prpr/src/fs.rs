@@ -1,5 +1,5 @@
 use crate::{ext::thread_as_future, info::ChartInfo};
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use concat_string::concat_string;
 use macroquad::prelude::load_file;
@@ -36,14 +36,25 @@ impl FileSystem for ExternalFileSystem {
     }
 }
 
-struct ZipFileSystem(Arc<Mutex<ZipArchive<Cursor<Vec<u8>>>>>);
+struct ZipFileSystem(Arc<Mutex<ZipArchive<Cursor<Vec<u8>>>>>, String);
+
+impl ZipFileSystem {
+    pub fn new(zip: ZipArchive<Cursor<Vec<u8>>>) -> Result<Self> {
+        let root_dirs = zip
+            .file_names()
+            .filter(|it| it.ends_with('/') && it.find('/') == Some(it.len() - 1))
+            .collect::<Vec<_>>();
+        let root = if root_dirs.len() == 1 { root_dirs[0].to_owned() } else { String::new() };
+        Ok(Self(Arc::new(Mutex::new(zip)), root))
+    }
+}
 
 #[async_trait]
 impl FileSystem for ZipFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
         thread_as_future({
             let arc = Arc::clone(&self.0);
-            let path = path.to_owned();
+            let path = concat_string!(self.1, path);
             move || {
                 let mut zip = arc.lock().unwrap();
                 let mut entry = zip.by_name(&path)?;
@@ -132,11 +143,7 @@ fn info_from_csv(bytes: Vec<u8>) -> Result<ChartInfo> {
     let mut reader = csv::Reader::from_reader(Cursor::new(bytes));
     // shitty design
     let headers = reader.headers()?.iter().map(str::to_owned).collect::<Vec<_>>();
-    let records = reader.into_records().collect::<Vec<_>>();
-    if records.len() != 1 {
-        bail!("Expected exactly one record");
-    }
-    let record = records.into_iter().next().unwrap()?;
+    let record = reader.into_records().last().ok_or_else(|| anyhow!("Expected csv records"))??; // ??
     info_from_kv(
         headers
             .iter()
@@ -163,7 +170,7 @@ pub fn fs_from_file(path: &str) -> Result<Box<dyn FileSystem>> {
     Ok(if meta.is_file() {
         let bytes = fs::read(path).with_context(|| format!("Failed to read from {path}"))?;
         let zip = ZipArchive::new(Cursor::new(bytes)).with_context(|| format!("Cannot open {path} as zip archive"))?;
-        Box::new(ZipFileSystem(Arc::new(Mutex::new(zip))))
+        Box::new(ZipFileSystem::new(zip)?)
     } else {
         Box::new(ExternalFileSystem(fs::canonicalize(path)?))
     })
