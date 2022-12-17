@@ -279,7 +279,7 @@ impl BadNote {
                     _ => unreachable!(),
                 },
                 res.note_width,
-                Color::new(0.423529, 0.262745, 0.262745, (self.time - res.time).min(0.) / BAD_TIME + 1.),
+                Color::new(0.423529, 0.262745, 0.262745, (self.time - res.time).max(-1.) / BAD_TIME + 1.),
             )
         });
         true

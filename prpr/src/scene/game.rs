@@ -313,8 +313,10 @@ impl Scene for GameScene {
     }
 
     fn pause(&mut self, tm: &mut TimeManager) -> Result<()> {
-        self.res.audio.pause(&mut self.audio_handle)?;
-        tm.pause();
+        if !tm.paused() {
+            self.res.audio.pause(&mut self.audio_handle)?;
+            tm.pause();
+        }
         Ok(())
     }
 

@@ -325,21 +325,12 @@ impl Judge {
         let mut judgements = Vec::new();
         // clicks & flicks
         for (id, touch) in touches.iter().enumerate() {
-            // TODO optimize?
-            let filter = if matches!(touch.phase, TouchPhase::Started) {
-                |kind: &NoteKind| matches!(kind, NoteKind::Click | NoteKind::Hold { .. })
-            } else {
-                // check for flicks
-                use TouchPhase::*;
-                if match touch.phase {
-                    Moved | Stationary => self.trackers.get_mut(&touch.id).map_or(false, |it| it.has_flick(res)),
-                    _ => false,
-                } {
-                    |kind: &NoteKind| matches!(kind, NoteKind::Flick)
-                } else {
-                    continue; // to next touch
-                }
-            };
+            let click = matches!(touch.phase, TouchPhase::Started);
+            let flick = matches!(touch.phase, TouchPhase::Moved | TouchPhase::Stationary)
+                && self.trackers.get_mut(&touch.id).map_or(false, |it| it.has_flick(res));
+            if !(click || flick) {
+                continue;
+            }
             let mut closest = (None, x_diff_max, LIMIT_BAD);
             for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter_mut()).enumerate() {
                 let Some(pos) = pos[id] else { continue; };
@@ -348,7 +339,7 @@ impl Judge {
                     if !matches!(note.judge, JudgeStatus::NotJudged) {
                         continue;
                     }
-                    if !filter(&note.kind) {
+                    if matches!(note.kind, NoteKind::Drag) || (!click && matches!(note.kind, NoteKind::Click | NoteKind::Hold{..})) {
                         continue;
                     }
                     if note.time - t >= closest.2 {
@@ -362,7 +353,7 @@ impl Judge {
                     if dt > bad {
                         continue;
                     }
-                    if dist < res.note_width || dist < closest.1 {
+                    if (dist < res.note_width || dist < closest.1) && (flick || !matches!(note.kind, NoteKind::Flick) || note.time < t) {
                         closest.0 = Some((line_id, *id));
                         closest.1 = dist;
                         closest.2 = note.time - t + 0.01;
@@ -374,9 +365,12 @@ impl Judge {
             }
             if let (Some((line_id, id)), _, dt) = closest {
                 let line = &mut chart.lines[line_id];
-                if matches!(touch.phase, TouchPhase::Started) {
+                if click {
                     // click & hold
                     let note = &mut line.notes[id as usize];
+                    if matches!(note.kind, NoteKind::Flick) {
+                        continue; // to next loop
+                    }
                     let dt = dt.abs();
                     if dt <= LIMIT_GOOD || matches!(note.kind, NoteKind::Hold { .. }) {
                         match note.kind {
