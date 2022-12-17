@@ -66,7 +66,7 @@ impl LoadingScene {
             }
         };
         let (illustration, background) =
-            background.unwrap_or_else(|| (Texture2D::from_rgba8(1, 1, &[0, 0, 0, 1]), Texture2D::from_rgba8(1, 1, &[0, 0, 0, 1])));
+            background.unwrap_or_else(|| (Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]), Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255])));
         let font = match load_ttf_font("font.ttf").await {
             Err(err) => {
                 warn!("Failed to load font, falling back to default\n{err:?}");
