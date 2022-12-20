@@ -10,3 +10,4 @@ macroquad = { version = "*", default-features = false }
 prpr = { path = "../prpr" }
 kira = "*"
 serde_yaml = "0.9"
+tokio = "*"

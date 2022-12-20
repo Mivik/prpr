@@ -3,7 +3,7 @@ use crate::{
     audio::Audio,
     audio::{AudioClip, AudioHandle, DefaultAudio, PlayParams},
     config::Config,
-    ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, PARALLELOGRAM_SLOPE},
+    ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, PARALLELOGRAM_SLOPE, screen_aspect, SafeTexture},
     info::ChartInfo,
     judge::{Judge, PlayResult},
 };
@@ -11,13 +11,13 @@ use anyhow::Result;
 use macroquad::prelude::*;
 
 pub struct EndingScene {
-    background: Texture2D,
-    illustration: Texture2D,
-    player: Texture2D,
+    background: SafeTexture,
+    illustration: SafeTexture,
+    player: SafeTexture,
     font: Font,
-    icons: [Texture2D; 8],
-    icon_retry: Texture2D,
-    icon_proceed: Texture2D,
+    icons: [SafeTexture; 8],
+    icon_retry: SafeTexture,
+    icon_proceed: SafeTexture,
     target: Option<RenderTarget>,
     audio: DefaultAudio,
     bgm: AudioClip,
@@ -32,13 +32,13 @@ pub struct EndingScene {
 
 impl EndingScene {
     pub fn new(
-        background: Texture2D,
-        illustration: Texture2D,
-        player: Texture2D,
+        background: SafeTexture,
+        illustration: SafeTexture,
+        player: SafeTexture,
         font: Font,
-        icons: [Texture2D; 8],
-        icon_retry: Texture2D,
-        icon_proceed: Texture2D,
+        icons: [SafeTexture; 8],
+        icon_retry: SafeTexture,
+        icon_proceed: SafeTexture,
         info: ChartInfo,
         result: PlayResult,
         config: &Config,
@@ -106,7 +106,7 @@ impl Scene for EndingScene {
     }
 
     fn render(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
-        let asp = screen_width() / screen_height();
+        let asp = screen_aspect();
         let top = 1. / asp;
         let now = tm.now() as f32;
         let gl = unsafe { get_internal_gl() }.quad_gl;
@@ -116,7 +116,7 @@ impl Scene for EndingScene {
             render_target: self.target,
             ..Default::default()
         });
-        draw_background(self.background);
+        draw_background(*self.background);
 
         fn ran(t: f32, l: f32, r: f32) -> f32 {
             ((t - l) / (r - l)).max(0.).min(1.)
@@ -126,7 +126,7 @@ impl Scene for EndingScene {
         }
 
         tran(gl, (1. - ran(now, 0.1, 1.3)).powi(3));
-        let r = draw_illustration(self.illustration, -0.38, 0., 1., 1.2, WHITE);
+        let r = draw_illustration(*self.illustration, -0.38, 0., 1., 1.2, WHITE);
         let slope = PARALLELOGRAM_SLOPE;
         let ratio = 0.2;
         draw_parallelogram_ex(
@@ -180,7 +180,7 @@ impl Scene for EndingScene {
             let ct = (main.right() - main.h * slope - s / 2., r.bottom() + 0.02 - s / 2.);
             let s = s + s * (1. - p) * 0.3;
             draw_texture_ex(
-                self.icons[icon],
+                *self.icons[icon],
                 ct.0 - s / 2.,
                 ct.1 - s / 2.,
                 Color::new(1., 1., 1., p),
@@ -260,7 +260,7 @@ impl Scene for EndingScene {
         draw_parallelogram(r, None, c, true);
         draw_parallelogram(Rect::new(r.x + r.w * (1. - s), r.y, r.w * s, r.h), None, WHITE, false);
         let ct = r.center();
-        draw_texture_ex(self.icon_retry, ct.x - hs, ct.y - hs, WHITE, params.clone());
+        draw_texture_ex(*self.icon_retry, ct.x - hs, ct.y - hs, WHITE, params.clone());
         gl.pop_model_matrix();
         if p <= 0. && touched(r) {
             self.next = 1;
@@ -271,7 +271,7 @@ impl Scene for EndingScene {
         draw_parallelogram(r, None, c, true);
         draw_parallelogram(Rect::new(r.x + r.w * s, r.y, r.w * s, r.h), None, WHITE, false);
         let ct = r.center();
-        draw_texture_ex(self.icon_proceed, ct.x - hs, ct.y - hs, WHITE, params);
+        draw_texture_ex(*self.icon_proceed, ct.x - hs, ct.y - hs, WHITE, params);
         gl.pop_model_matrix();
         if p <= 0. && touched(r) {
             self.next = 2;
@@ -291,7 +291,7 @@ impl Scene for EndingScene {
             0.3,
             Color::new(0., 0., 0., alpha),
         );
-        let r = draw_illustration(self.player, 1. - 0.17, main.center().y, 0.1 / (0.076 * 7.), 0.1 / (0.076 * 7.), Color::new(1., 1., 1., alpha));
+        let r = draw_illustration(*self.player, 1. - 0.17, main.center().y, 0.1 / (0.076 * 7.), 0.1 / (0.076 * 7.), Color::new(1., 1., 1., alpha));
         let text = draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, Color::new(1., 1., 1., alpha));
         draw_parallelogram(
             Rect::new(text.x - main.h * slope - 0.01, main.y, main.x - text.x + main.h * slope * 2. + 0.01, main.h),
@@ -313,7 +313,7 @@ impl Scene for EndingScene {
         match self.next {
             0 => NextScene::None,
             1 => NextScene::Pop,
-            2 => NextScene::Exit,
+            2 => NextScene::PopN(2),
             _ => unreachable!(),
         }
     }

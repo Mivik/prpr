@@ -5,7 +5,7 @@ use crate::{
     core::NOTE_WIDTH_RATIO_BASE,
     fs::FileSystem,
     info::ChartInfo,
-    particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
+    particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig}, ext::SafeTexture,
 };
 use anyhow::Result;
 use macroquad::prelude::*;
@@ -14,12 +14,12 @@ use std::sync::atomic::AtomicU32;
 pub static DPI_VALUE: AtomicU32 = AtomicU32::new(250);
 
 pub struct NoteStyle {
-    pub click: Texture2D,
-    pub hold_head: Texture2D,
-    pub hold: Texture2D,
-    pub hold_tail: Texture2D,
-    pub flick: Texture2D,
-    pub drag: Texture2D,
+    pub click: SafeTexture,
+    pub hold_head: SafeTexture,
+    pub hold: SafeTexture,
+    pub hold_tail: SafeTexture,
+    pub flick: SafeTexture,
+    pub drag: SafeTexture,
 }
 
 pub struct Resource {
@@ -39,16 +39,16 @@ pub struct Resource {
     pub camera_matrix: Mat4,
 
     pub font: Font,
-    pub background: Texture2D,
-    pub illustration: Texture2D,
-    pub icons: [Texture2D; 8],
+    pub background: SafeTexture,
+    pub illustration: SafeTexture,
+    pub icons: [SafeTexture; 8],
     pub note_style: NoteStyle,
     pub note_style_mh: NoteStyle,
-    pub player: Texture2D,
-    pub icon_back: Texture2D,
-    pub icon_retry: Texture2D,
-    pub icon_resume: Texture2D,
-    pub icon_proceed: Texture2D,
+    pub player: SafeTexture,
+    pub icon_back: SafeTexture,
+    pub icon_retry: SafeTexture,
+    pub icon_resume: SafeTexture,
+    pub icon_proceed: SafeTexture,
 
     pub emitter: Emitter,
     pub emitter_square: Emitter,
@@ -65,14 +65,14 @@ pub struct Resource {
 }
 
 impl Resource {
-    pub async fn load_icons() -> Result<[Texture2D; 8]> {
+    pub async fn load_icons() -> Result<[SafeTexture; 8]> {
         macro_rules! loads {
             ($($path:literal),*) => {
                 [$(loads!(@detail $path)),*]
             };
 
             (@detail $path:literal) => {
-                Texture2D::from_image(&load_image($path).await?)
+                Texture2D::from_image(&load_image($path).await?).into()
             };
         }
         Ok(loads![
@@ -91,13 +91,13 @@ impl Resource {
         config: Config,
         info: ChartInfo,
         mut fs: Box<dyn FileSystem>,
-        background: Texture2D,
-        illustration: Texture2D,
+        background: SafeTexture,
+        illustration: SafeTexture,
         font: Font,
     ) -> Result<Self> {
         macro_rules! load_tex {
             ($path:literal) => {
-                Texture2D::from_image(&load_image($path).await?)
+                SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
             };
         }
         let hold_tail = load_tex!("hold_tail.png");
@@ -105,7 +105,7 @@ impl Resource {
             click: load_tex!("click.png"),
             hold_head: load_tex!("hold_head.png"),
             hold: load_tex!("hold.png"),
-            hold_tail,
+            hold_tail: hold_tail.clone(),
             flick: load_tex!("flick.png"),
             drag: load_tex!("drag.png"),
         };
@@ -174,7 +174,7 @@ impl Resource {
 
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,
-                texture: Some(load_tex!("hit_fx.png")),
+                texture: Some(load_tex!("hit_fx.png").into_inner()),
                 lifetime: 0.5,
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 0.0,
@@ -261,7 +261,7 @@ impl Resource {
         let _ = self.audio.play(
             sfx,
             PlayParams {
-                volume: self.config.volume_sfx,
+                volume: self.config.volume_sfx as _,
                 ..Default::default()
             },
         );

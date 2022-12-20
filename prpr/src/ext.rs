@@ -1,8 +1,10 @@
 use crate::core::{Point, Vector};
 use macroquad::prelude::*;
+use miniquad::{BlendFactor, BlendState, BlendValue, CompareFunc, Equation, PrimitiveType, StencilFaceState, StencilOp, StencilState};
 use ordered_float::{Float, NotNan};
 use std::{
     future::Future,
+    ops::Deref,
     pin::Pin,
     sync::{Arc, Mutex},
     task::{Poll, RawWaker, RawWakerVTable, Waker},
@@ -15,6 +17,53 @@ pub trait NotNanExt: Sized {
 impl<T: Sized + Float> NotNanExt for T {
     fn not_nan(self) -> NotNan<Self> {
         NotNan::new(self).unwrap()
+    }
+}
+
+pub trait RectExt: Sized {
+    fn feather(&self, radius: f32) -> Self;
+}
+
+impl RectExt for Rect {
+    fn feather(&self, radius: f32) -> Self {
+        Self::new(self.x - radius, self.y - radius, self.w + radius * 2., self.h + radius * 2.)
+    }
+}
+
+struct SafeTextureWrapper(Texture2D);
+impl Drop for SafeTextureWrapper {
+    fn drop(&mut self) {
+        self.0.delete()
+    }
+}
+
+pub struct SafeTexture(Arc<SafeTextureWrapper>);
+impl SafeTexture {
+    pub fn into_inner(self) -> Texture2D {
+        let arc = self.0;
+        let res = arc.0;
+        std::mem::forget(arc);
+        res
+    }
+}
+
+impl Clone for SafeTexture {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
+impl Deref for SafeTexture {
+    type Target = Texture2D;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0.as_ref().0
+    }
+}
+
+impl From<Texture2D> for SafeTexture {
+    fn from(tex: Texture2D) -> Self {
+        Self(Arc::new(SafeTextureWrapper(tex)))
     }
 }
 
@@ -37,6 +86,58 @@ pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f
         },
     );
     rect
+}
+
+#[derive(Default, Clone, Copy)]
+pub enum ScaleType {
+    #[default]
+    Scale,
+    Inside,
+    Fit,
+}
+
+pub fn source_of_image(tex: &Texture2D, rect: Rect, scale_type: ScaleType) -> Option<Rect> {
+    match scale_type {
+        ScaleType::Scale => {
+            let exp = rect.w / rect.h;
+            let act = tex.width() / tex.height();
+            Some(if exp > act {
+                let h = act / exp;
+                Rect::new(0., 0.5 - h / 2., 1., h)
+            } else {
+                let w = exp / act;
+                Rect::new(0.5 - w / 2., 0., w, 1.)
+            })
+        }
+        ScaleType::Inside => {
+            let exp = rect.w / rect.h;
+            let act = tex.width() / tex.height();
+            Some(if exp > act {
+                let w = act / exp;
+                Rect::new(0.5 - w / 2., 0., w, 1.)
+            } else {
+                let h = exp / act;
+                Rect::new(0., 0.5 - h / 2., 1., h)
+            })
+        }
+        ScaleType::Fit => None,
+    }
+}
+
+pub fn draw_image(tex: Texture2D, rect: Rect, scale_type: ScaleType) {
+    let source = source_of_image(&tex, rect, scale_type);
+    let (w, h) = (tex.width(), tex.height());
+    draw_texture_ex(
+        tex,
+        rect.x,
+        rect.y,
+        WHITE,
+        DrawTextureParams {
+            source: source.map(|it| Rect::new(it.x * w, it.y * h, it.w * w, it.h * h)),
+            dest_size: Some(rect.size()),
+            ..Default::default()
+        },
+    );
 }
 
 pub const PARALLELOGRAM_SLOPE: f32 = 0.13 / (7. / 13.);
@@ -132,7 +233,7 @@ pub fn poll_future<R>(future: Pin<&mut (impl Future<Output = R> + ?Sized)>) -> O
             RawWaker::new(data, &VTABLE)
         }
         unsafe fn wake(_data: *const ()) {
-            panic!()
+            // panic!()
         }
         unsafe fn wake_by_ref(data: *const ()) {
             wake(data)
@@ -148,4 +249,75 @@ pub fn poll_future<R>(future: Pin<&mut (impl Future<Output = R> + ?Sized)>) -> O
         Poll::Ready(val) => Some(val),
         Poll::Pending => None,
     }
+}
+
+pub fn screen_aspect() -> f32 {
+    let vp = unsafe { get_internal_gl() }.quad_gl.get_viewport();
+    vp.2 as f32 / vp.3 as f32
+}
+
+pub fn make_pipeline(write_color: bool, pass_op: StencilOp, test_func: CompareFunc, test_ref: i32) -> GlPipeline {
+    let InternalGlContext {
+        quad_gl: gl,
+        quad_context: context,
+    } = unsafe { get_internal_gl() };
+    gl.make_pipeline(
+        context,
+        shader::VERTEX,
+        shader::FRAGMENT,
+        PipelineParams {
+            color_write: (write_color, write_color, write_color, write_color),
+            color_blend: Some(BlendState::new(
+                Equation::Add,
+                BlendFactor::Value(BlendValue::SourceAlpha),
+                BlendFactor::OneMinusValue(BlendValue::SourceAlpha),
+            )),
+            stencil_test: {
+                let state = StencilFaceState {
+                    fail_op: StencilOp::Keep,
+                    depth_fail_op: StencilOp::Keep,
+                    pass_op,
+                    test_func,
+                    test_ref,
+                    test_mask: u32::MAX,
+                    write_mask: u32::MAX,
+                };
+                Some(StencilState { front: state, back: state })
+            },
+            primitive_type: PrimitiveType::Triangles,
+            ..Default::default()
+        },
+        Vec::new(),
+        Vec::new(),
+    )
+    .unwrap()
+}
+
+mod shader {
+    pub const VERTEX: &str = r#"#version 100
+attribute vec3 position;
+attribute vec2 texcoord;
+attribute vec4 color0;
+
+varying lowp vec2 uv;
+varying lowp vec4 color;
+
+uniform mat4 Model;
+uniform mat4 Projection;
+
+void main() {
+    gl_Position = Projection * Model * vec4(position, 1);
+    color = color0 / 255.0;
+    uv = texcoord;
+}"#;
+
+    pub const FRAGMENT: &str = r#"#version 100
+varying lowp vec4 color;
+varying lowp vec2 uv;
+
+uniform sampler2D Texture;
+
+void main() {
+    gl_FragColor = color * texture2D(Texture, uv) ;
+}"#;
 }

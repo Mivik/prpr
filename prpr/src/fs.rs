@@ -1,4 +1,4 @@
-use crate::{ext::thread_as_future, info::ChartInfo};
+use crate::info::ChartInfo;
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use concat_string::concat_string;
@@ -7,13 +7,13 @@ use miniquad::warn;
 use std::{
     fs,
     io::{Cursor, Read},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 use zip::ZipArchive;
 
 #[async_trait]
-pub trait FileSystem {
+pub trait FileSystem: Send {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>>;
 }
 
@@ -32,7 +32,7 @@ pub struct ExternalFileSystem(PathBuf);
 impl FileSystem for ExternalFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
         let path = self.0.join(path);
-        thread_as_future(move || Ok(fs::read(path)?)).await
+        Ok(tokio::spawn(async move { tokio::fs::read(path).await }).await??)
     }
 }
 
@@ -53,18 +53,16 @@ impl ZipFileSystem {
 #[async_trait]
 impl FileSystem for ZipFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
-        thread_as_future({
-            let arc = Arc::clone(&self.0);
-            let path = concat_string!(self.1, path);
-            move || {
-                let mut zip = arc.lock().unwrap();
-                let mut entry = zip.by_name(&path)?;
-                let mut res = Vec::new();
-                entry.read_to_end(&mut res)?;
-                Ok(res)
-            }
+        let arc = Arc::clone(&self.0);
+        let path = concat_string!(self.1, path);
+        tokio::spawn(async move {
+            let mut zip = arc.lock().unwrap();
+            let mut entry = zip.by_name(&path)?;
+            let mut res = Vec::new();
+            entry.read_to_end(&mut res)?;
+            Ok(res)
         })
-        .await
+        .await?
     }
 }
 
@@ -166,11 +164,11 @@ pub async fn load_info(mut fs: Box<dyn FileSystem>) -> Result<(ChartInfo, Box<dy
     Ok((info, fs))
 }
 
-pub fn fs_from_file(path: &str) -> Result<Box<dyn FileSystem>> {
+pub fn fs_from_file(path: &Path) -> Result<Box<dyn FileSystem>> {
     let meta = fs::metadata(path)?;
     Ok(if meta.is_file() {
-        let bytes = fs::read(path).with_context(|| format!("Failed to read from {path}"))?;
-        Box::new(ZipFileSystem::new(bytes).with_context(|| format!("Cannot open {path} as zip archive"))?)
+        let bytes = fs::read(path).with_context(|| format!("Failed to read from {}", path.display()))?;
+        Box::new(ZipFileSystem::new(bytes).with_context(|| format!("Cannot open {} as zip archive", path.display()))?)
     } else {
         Box::new(ExternalFileSystem(fs::canonicalize(path)?))
     })

@@ -31,6 +31,15 @@ compile_error!("WASM target is not supported");
 async fn main() -> Result<()> {
     set_pc_assets_folder("assets");
 
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+        .unwrap();
+    let _guard = rt.enter();
+
+    let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
+
     let path = {
         let mut args = std::env::args();
         let program = args.next().unwrap();
@@ -40,7 +49,7 @@ async fn main() -> Result<()> {
         path
     };
 
-    let (info, mut fs) = fs::load_info(fs::fs_from_file(&path)?).await?;
+    let (info, mut fs) = fs::load_info(fs::fs_from_file(&std::path::Path::new(&path))?).await?;
 
     let chart = GameScene::load_chart(&mut fs, &info).await?;
     macro_rules! ld {

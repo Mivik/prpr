@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
@@ -16,9 +16,9 @@ pub struct Config {
     pub particle: bool,
     pub player_name: String,
     pub player_rks: f32,
-    pub speed: f64,
-    pub volume_music: f64,
-    pub volume_sfx: f64,
+    pub speed: f32,
+    pub volume_music: f32,
+    pub volume_sfx: f32,
 }
 
 impl Default for Config {

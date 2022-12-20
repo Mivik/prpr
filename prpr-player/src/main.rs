@@ -34,8 +34,17 @@ async fn main() -> Result<()> {
         if let Some(config_path) = args.next() {
             config = Some(serde_yaml::from_str(&std::fs::read_to_string(config_path).context("Cannot read from config file")?)?);
         }
-        (fs::fs_from_file(&path)?, config)
+        (fs::fs_from_file(&std::path::Path::new(&path))?, config)
     };
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+        .unwrap();
+    let _guard = rt.enter();
+
+    let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
 
     let (info, fs) = fs::load_info(fs).await?;
     let config = config.unwrap_or_default();

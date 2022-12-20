@@ -2,7 +2,7 @@ use crate::config::Config;
 
 pub struct TimeManager {
     adjust_time: bool,
-    start_time: f64,
+    pub start_time: f64,
     pause_time: Option<f64>,
     pub speed: f64,
     wait: f64,
@@ -99,7 +99,7 @@ impl TimeManager {
     }
 
     pub fn seek_to(&mut self, pos: f64) {
-        self.start_time = self.real_time() - pos / self.speed;
+        self.start_time = self.pause_time.unwrap_or_else(&self.get_time_fn) - pos / self.speed;
         self.wait();
     }
 }

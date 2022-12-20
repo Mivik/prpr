@@ -179,7 +179,7 @@ impl Note {
             };
             match self.kind {
                 NoteKind::Click => {
-                    draw(style.click);
+                    draw(*style.click);
                 }
                 NoteKind::Hold { end_time, end_height } => {
                     if matches!(self.judge, JudgeStatus::Judged) {
@@ -193,11 +193,11 @@ impl Note {
                     let base = height - line_height;
                     // head
                     if res.time < self.time {
-                        let tex = style.hold_head;
+                        let tex = &style.hold_head;
                         let hf = vec2(scale, tex.height() * scale / tex.width());
                         draw_tex(
                             res,
-                            tex,
+                            **tex,
                             -hf.x,
                             -hf.y * 2.,
                             color,
@@ -209,13 +209,13 @@ impl Note {
                         );
                     }
                     // body
-                    let tex = style.hold;
+                    let tex = &style.hold;
                     let w = scale;
                     let h = if self.time <= res.time { line_height } else { height };
                     // TODO (end_height - height) is not always total height
                     draw_tex(
                         res,
-                        tex,
+                        **tex,
                         -w,
                         h - line_height - base,
                         color,
@@ -232,11 +232,11 @@ impl Note {
                         },
                     );
                     // tail
-                    let tex = style.hold_tail;
+                    let tex = &style.hold_tail;
                     let hf = vec2(res.note_width, tex.height() / tex.width() * res.note_width);
                     draw_tex(
                         res,
-                        tex,
+                        **tex,
                         -hf.x,
                         end_height - line_height - base,
                         color,
@@ -248,10 +248,10 @@ impl Note {
                     );
                 }
                 NoteKind::Flick => {
-                    draw(style.flick);
+                    draw(*style.flick);
                 }
                 NoteKind::Drag => {
-                    draw(style.drag);
+                    draw(*style.drag);
                 }
             }
         });
@@ -273,9 +273,9 @@ impl BadNote {
             draw_center(
                 res,
                 match &self.kind {
-                    NoteKind::Click => res.note_style.click,
-                    NoteKind::Drag => res.note_style.drag,
-                    NoteKind::Flick => res.note_style.flick,
+                    NoteKind::Click => *res.note_style.click,
+                    NoteKind::Drag => *res.note_style.drag,
+                    NoteKind::Flick => *res.note_style.flick,
                     _ => unreachable!(),
                 },
                 res.note_width,

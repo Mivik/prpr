@@ -26,15 +26,24 @@ pub struct VelocityTracker {
 impl VelocityTracker {
     pub const RECORD_MAX: usize = 10;
 
-    pub fn new(time: f32, point: Point) -> Self {
-        let mut res = Self {
+    pub fn empty() -> Self {
+        Self {
             movements: VecDeque::with_capacity(Self::RECORD_MAX),
-            // TODO simplify
             last_dir: Vector::default(),
             wait: false,
-        };
+        }
+    }
+
+    pub fn new(time: f32, point: Point) -> Self {
+        let mut res = Self::empty();
         res.push(time, point);
         res
+    }
+
+    pub fn reset(&mut self) {
+        self.movements.clear();
+        self.last_dir = Vector::default();
+        self.wait = false;
     }
 
     pub fn push(&mut self, time: f32, position: Point) {
@@ -233,14 +242,15 @@ impl Judge {
         touches
     }
 
-    pub fn get_touches(res: &Resource) -> Vec<Touch> {
+    pub fn get_touches() -> Vec<Touch> {
         let touches = Self::touches_raw();
         let vp = unsafe { get_internal_gl() }.quad_gl.get_viewport();
         touches
             .into_iter()
             .map(|mut touch| {
                 let p = touch.position;
-                touch.position = vec2((p.x - vp.0 as f32) / vp.2 as f32 * 2. - 1., ((p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / res.aspect_ratio);
+                touch.position =
+                    vec2((p.x - vp.0 as f32) / vp.2 as f32 * 2. - 1., ((p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / (vp.2 as f32 / vp.3 as f32));
                 touch
             })
             .collect()
@@ -254,7 +264,7 @@ impl Judge {
         let x_diff_max = res.note_width * 1.9;
 
         let t = res.time;
-        let touches = Self::get_touches(res);
+        let touches = Self::get_touches();
         // TODO optimize
         let mut touches: HashMap<u64, Touch> = touches.into_iter().map(|it| (it.id, it)).collect();
         let (events, keys_down) = {
@@ -339,7 +349,7 @@ impl Judge {
                     if !matches!(note.judge, JudgeStatus::NotJudged) {
                         continue;
                     }
-                    if matches!(note.kind, NoteKind::Drag) || (!click && matches!(note.kind, NoteKind::Click | NoteKind::Hold{..})) {
+                    if matches!(note.kind, NoteKind::Drag) || (!click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. })) {
                         continue;
                     }
                     if note.time - t >= closest.2 {

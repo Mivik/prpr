@@ -5,13 +5,14 @@
 /wbindgen
 /dist
 Cargo.lock
-conf.yml
+/conf.yml
+/data
 
 # Mac
 
 ._*
-run_ios.sh
-prpr.app
+/run_ios.sh
+/prpr.app
 
 # Test
 

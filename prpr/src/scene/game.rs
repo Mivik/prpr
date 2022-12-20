@@ -4,6 +4,7 @@ use crate::{
     config::Config,
     core::{BadNote, Chart, Matrix, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
     ext::draw_text_aligned,
+    ext::{screen_aspect, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
     judge::Judge,
@@ -104,8 +105,8 @@ impl GameScene {
         info: ChartInfo,
         config: Config,
         mut fs: Box<dyn FileSystem>,
-        background: Texture2D,
-        illustration: Texture2D,
+        background: SafeTexture,
+        illustration: SafeTexture,
         font: Font,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
     ) -> Result<Self> {
@@ -145,8 +146,8 @@ impl GameScene {
         let mut audio_handle = res.audio.play(
             &res.music,
             PlayParams {
-                volume: res.config.volume_music,
-                playback_rate: res.config.speed,
+                volume: res.config.volume_music as _,
+                playback_rate: res.config.speed as _,
                 ..Default::default()
             },
         )?;
@@ -165,7 +166,7 @@ impl GameScene {
         let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
         if Self::interactive(res, &self.state)
             && !tm.paused()
-            && Judge::get_touches(res).into_iter().any(|touch| {
+            && Judge::get_touches().into_iter().any(|touch| {
                 matches!(touch.phase, TouchPhase::Started) && {
                     let p = touch.position;
                     let p = Point::new(p.x, p.y);
@@ -209,7 +210,7 @@ impl GameScene {
             let s = 0.06;
             let w = 0.05;
             draw_texture_ex(
-                res.icon_back,
+                *res.icon_back,
                 -s * 3. - w,
                 -s,
                 c,
@@ -219,7 +220,7 @@ impl GameScene {
                 },
             );
             draw_texture_ex(
-                res.icon_retry,
+                *res.icon_retry,
                 -s,
                 -s,
                 c,
@@ -229,7 +230,7 @@ impl GameScene {
                 },
             );
             draw_texture_ex(
-                res.icon_resume,
+                *res.icon_resume,
                 s + w,
                 -s,
                 c,
@@ -239,7 +240,7 @@ impl GameScene {
                 },
             );
             if Self::interactive(res, &self.state) {
-                match Judge::get_touches(res)
+                match Judge::get_touches()
                     .into_iter()
                     .filter_map(|touch| {
                         if !matches!(touch.phase, TouchPhase::Started) {
@@ -307,7 +308,7 @@ impl Scene for GameScene {
         on_game_start();
         self.audio_handle = Self::new_handle(&mut self.res)?;
         self.res.camera.render_target = target;
-        tm.speed = self.res.config.speed;
+        tm.speed = self.res.config.speed as _;
         reset!(self, self.res, tm);
         Ok(())
     }
@@ -358,13 +359,13 @@ impl Scene for GameScene {
                 let t = time - self.res.track_length - WAIT_TIME;
                 if t >= AFTER_TIME + 0.3 {
                     self.next_scene = Some(Box::new(EndingScene::new(
-                        self.res.background,
-                        self.res.illustration,
-                        self.res.player,
+                        self.res.background.clone(),
+                        self.res.illustration.clone(),
+                        self.res.player.clone(),
                         self.res.font,
-                        self.res.icons,
-                        self.res.icon_retry,
-                        self.res.icon_proceed,
+                        self.res.icons.clone(),
+                        self.res.icon_retry.clone(),
+                        self.res.icon_proceed.clone(),
                         self.res.info.clone(),
                         self.judge.result(),
                         &self.res.config,
@@ -428,12 +429,13 @@ impl Scene for GameScene {
             set_camera(&res.camera);
         }
         push_camera_state();
+        self.gl.quad_gl.viewport(None);
         set_camera(&Camera2D {
-            zoom: vec2(1., -screen_width() / screen_height()),
+            zoom: vec2(1., -screen_aspect()),
             render_target: res.camera.render_target,
             ..Default::default()
         });
-        draw_background(res.background);
+        draw_background(*res.background);
         pop_camera_state();
 
         self.gl.quad_gl.viewport(res.camera.viewport);
@@ -452,7 +454,7 @@ impl Scene for GameScene {
 
     fn next_scene(&mut self, tm: &mut TimeManager) -> NextScene {
         if self.should_exit {
-            NextScene::Exit
+            NextScene::Pop
         } else if let Some(scene) = self.next_scene.take() {
             tm.speed = 1.0;
             NextScene::Overlay(scene)

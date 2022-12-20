@@ -1,10 +1,11 @@
 use super::{draw_background, draw_illustration, GameScene, NextScene, Scene};
 use crate::{
     config::Config,
-    ext::{draw_parallelogram, draw_text_aligned, poll_future},
+    ext::{draw_parallelogram, draw_text_aligned, poll_future, screen_aspect, SafeTexture},
     fs::FileSystem,
     info::ChartInfo,
     time::TimeManager,
+    ui::FONT,
 };
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
@@ -16,8 +17,8 @@ const WAIT_TIME: f32 = 0.4;
 
 pub struct LoadingScene {
     info: ChartInfo,
-    illustration: Texture2D,
-    background: Texture2D,
+    illustration: SafeTexture,
+    background: SafeTexture,
     font: Font,
     future: Option<Pin<Box<dyn Future<Output = Result<GameScene>>>>>,
     next_scene: Option<Box<dyn Scene>>,
@@ -67,15 +68,10 @@ impl LoadingScene {
         };
         let (illustration, background) =
             background.unwrap_or_else(|| (Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]), Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255])));
-        let font = match load_ttf_font("font.ttf").await {
-            Err(err) => {
-                warn!("Failed to load font, falling back to default\n{err:?}");
-                Font::default()
-            }
-            Ok(font) => font,
-        };
+        let (illustration, background): (SafeTexture, SafeTexture) = (illustration.into(), background.into());
+        let font = *FONT.get().unwrap();
         let get_size_fn = get_size_fn.unwrap_or_else(|| Rc::new(|| (screen_width() as u32, screen_height() as u32)));
-        let future = Box::pin(GameScene::new(info.clone(), config, fs, background, illustration, font, Rc::clone(&get_size_fn)));
+        let future = Box::pin(GameScene::new(info.clone(), config, fs, background.clone(), illustration.clone(), font, Rc::clone(&get_size_fn)));
         Ok(Self {
             info,
             illustration,
@@ -119,7 +115,7 @@ impl Scene for LoadingScene {
     }
 
     fn render(&mut self, tm: &mut TimeManager) -> Result<()> {
-        let asp = screen_width() / screen_height();
+        let asp = screen_aspect();
         let top = 1. / asp;
         let now = tm.now() as f32;
         let intern = unsafe { get_internal_gl() };
@@ -129,7 +125,7 @@ impl Scene for LoadingScene {
             render_target: self.target,
             ..Default::default()
         });
-        draw_background(self.background);
+        draw_background(*self.background);
         let dx = if now > self.finish_time {
             let p = ((now - self.finish_time) / TRANSITION_TIME).min(1.);
             p.powi(3) * 2.
@@ -140,7 +136,7 @@ impl Scene for LoadingScene {
             gl.push_model_matrix(Mat4::from_translation(vec3(dx, 0., 0.)));
         }
         let vo = -top / 10.;
-        let r = draw_illustration(self.illustration, 0.38, vo, 1., 1., WHITE);
+        let r = draw_illustration(*self.illustration, 0.38, vo, 1., 1., WHITE);
         let h = r.h / 3.6;
         let main = Rect::new(-0.88, vo - h / 2. - top / 10., 0.78, h);
         draw_parallelogram(main, None, Color::new(0., 0., 0., 0.7), true);

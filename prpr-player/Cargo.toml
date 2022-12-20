@@ -11,6 +11,7 @@ prpr = { path = "../prpr" }
 image = "*"
 fastblur = "*"
 serde_yaml = "0.9"
+tokio = "*"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = "*"
