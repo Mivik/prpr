@@ -446,8 +446,7 @@ impl Scene for GameScene {
         let t = tm.real_time();
         let dt = (t - std::mem::replace(&mut self.last_update_time, t)) as f32;
         if res.config.particle {
-            res.emitter.draw(vec2(0., 0.), dt);
-            res.emitter_square.draw(vec2(0., 0.), dt);
+            res.emitter.draw(dt);
         }
         self.ui(tm)
     }

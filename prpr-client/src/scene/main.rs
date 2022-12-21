@@ -13,11 +13,11 @@ use lyon::{
 };
 use macroquad::{prelude::*, texture::RenderTarget};
 use prpr::{
-    core::Tweenable,
+    audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
+    core::{ParticleEmitter, Tweenable, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
     ext::{poll_future, screen_aspect, SafeTexture, ScaleType},
     fs,
-    scene::LoadingScene,
-    scene::{NextScene, Scene},
+    scene::{LoadingScene, NextScene, Scene},
     time::TimeManager,
     ui::{RectButton, Scroll, Ui},
 };
@@ -71,6 +71,15 @@ pub struct MainScene {
     scroll_local: Scroll,
     scroll_remote: Scroll,
     tex: SafeTexture,
+    click_texture: SafeTexture,
+
+    audio: DefaultAudio,
+    cali_clip: AudioClip,
+    cali_hit_clip: AudioClip,
+    cali_handle: Option<AudioHandle>,
+    cali_tm: TimeManager,
+    cali_last: bool,
+    emitter: ParticleEmitter,
 
     billboard: BillBoard,
 
@@ -95,14 +104,30 @@ pub struct MainScene {
 }
 
 impl MainScene {
-    pub fn new(tex: SafeTexture) -> Self {
-        Self {
+    pub async fn new() -> Result<Self> {
+        let tex: SafeTexture = Texture2D::from_image(&load_image("player.jpg").await?).into();
+        let audio = DefaultAudio::new()?;
+        let cali_clip = audio.create_clip(load_file("cali.ogg").await?)?.0;
+        let cali_hit_clip = audio.create_clip(load_file("cali_hit.ogg").await?)?.0;
+
+        let mut cali_tm = TimeManager::new(1., true);
+        cali_tm.force = 3e-2;
+        Ok(Self {
             target: None,
             next_scene: None,
             future: None,
             scroll_local: Scroll::new(),
             scroll_remote: Scroll::new(),
             tex: tex.clone(),
+            click_texture: Texture2D::from_image(&load_image("click.png").await?).into(),
+
+            audio,
+            cali_clip,
+            cali_hit_clip,
+            cali_handle: None,
+            cali_tm,
+            cali_last: false,
+            emitter: ParticleEmitter::new().await?,
 
             billboard: BillBoard::new(),
 
@@ -124,7 +149,7 @@ impl MainScene {
             import_task: Task::pending(),
 
             downloading: HashMap::new(),
-        }
+        })
     }
 
     fn render_scroll(ui: &mut Ui, content_size: (f32, f32), scroll: &mut Scroll, charts: &mut Vec<ChartItem>) {
@@ -210,15 +235,20 @@ impl MainScene {
                 ui.dx(content_size.0);
                 Self::render_scroll(ui, content_size, &mut self.scroll_remote, &mut self.charts_remote);
                 ui.dx(content_size.0);
-                Self::render_settings(ui);
+                if Self::render_settings(ui, &self.click_texture, self.cali_tm.now() as _, &mut self.cali_last, &mut self.emitter)
+                    && self.tab_index == 2
+                {
+                    let _ = self.audio.play(&self.cali_hit_clip, PlayParams::default());
+                }
                 (content_size.0 * 3., content_size.1)
             });
         });
     }
 
-    fn render_settings(ui: &mut Ui) {
+    fn render_settings(ui: &mut Ui, click: &SafeTexture, cali_t: f32, cali_last: &mut bool, emitter: &mut ParticleEmitter) -> bool {
         let config = &mut get_data_mut().unwrap().config;
         let s = 0.01;
+        let mut result = false;
         ui.scope(|ui| {
             ui.dx(0.02);
             ui.scope(|ui| {
@@ -238,7 +268,7 @@ impl MainScene {
             ui.dx(0.4);
 
             ui.scope(|ui| {
-                let r = ui.slider("偏移", -0.5..0.5, 0.005, &mut config.offset);
+                let r = ui.slider("偏移(s)", -0.5..0.5, 0.005, &mut config.offset);
                 ui.dy(r.h + s);
                 let r = ui.slider("速度", 0.8..1.2, 0.005, &mut config.speed);
                 ui.dy(r.h + s);
@@ -249,7 +279,34 @@ impl MainScene {
                 let r = ui.slider("音效音量", 0.0..2.0, 0.1, &mut config.volume_sfx);
                 ui.dy(r.h + s);
             });
+
+            let ct = (0.8, 0.8);
+            let len = 0.25;
+            ui.fill_rect(Rect::new(ct.0 - len, ct.1 - 0.005, len * 2., 0.01), WHITE);
+            let mut cali_t = cali_t - config.offset;
+            if cali_t < 0. {
+                cali_t += 2.;
+            }
+            if cali_t >= 2. {
+                cali_t -= 2.;
+            }
+            if cali_t <= 1. {
+                let w = NOTE_WIDTH_RATIO_BASE * 1.4;
+                let h = w * click.height() / click.width();
+                let r = Rect::new(ct.0 - w / 2., ct.1 + (cali_t - 1.) * 0.4, w, h);
+                ui.fill_rect(r, (**click, r));
+                *cali_last = true;
+            } else {
+                if *cali_last {
+                    let g = ui.to_global(ct);
+                    emitter.emit_at(vec2(g.0, g.1), JUDGE_LINE_PERFECT_COLOR);
+                    result = true;
+                }
+                *cali_last = false;
+            }
         });
+        emitter.draw(get_frame_time());
+        result
     }
 
     fn get_touched(pos: (f32, f32)) -> Option<u32> {
@@ -354,6 +411,23 @@ impl Scene for MainScene {
                                 .collect::<Vec<_>>())
                         }
                     });
+                }
+                if tab_id == 2 {
+                    self.cali_handle = Some(self.audio.play(
+                        &self.cali_clip,
+                        PlayParams {
+                            loop_: true,
+                            volume: 0.7,
+                            ..Default::default()
+                        },
+                    )?);
+                    self.cali_tm.reset();
+                }
+                if self.tab_from_index == 2 {
+                    if let Some(handle) = &mut self.cali_handle {
+                        self.audio.pause(handle)?;
+                    }
+                    self.cali_handle = None;
                 }
                 return Ok(());
             }
@@ -463,6 +537,18 @@ impl Scene for MainScene {
         self.scroll_local.update(t);
         self.scroll_remote.update(t);
         let p = ((tm.now() as f32 - self.tab_start_time) / SWITCH_TIME).min(1.);
+        if let Some(handle) = &self.cali_handle {
+            let pos = self.audio.position(handle)?;
+            let now = self.cali_tm.now();
+            if now > 2. {
+                self.cali_tm.seek_to(now - 2.);
+                self.cali_tm.dont_wait();
+            }
+            let now = self.cali_tm.now();
+            if now - pos >= -1. {
+                self.cali_tm.update(pos);
+            }
+        }
         if p < 1. {
             let p = 1. - (1. - p).powi(3);
             self.tab_scroll
@@ -546,8 +632,9 @@ impl Scene for MainScene {
             ..Default::default()
         });
         clear_background(GRAY);
-        self.ui(&mut Ui::new(), tm.now() as f32);
-        self.billboard.render(&mut Ui::new());
+        let mut ui = Ui::new();
+        ui.scope(|ui| self.ui(ui, tm.now() as f32));
+        ui.scope(|ui| self.billboard.render(ui));
         Ok(())
     }
 

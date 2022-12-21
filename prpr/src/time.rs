@@ -5,6 +5,7 @@ pub struct TimeManager {
     pub start_time: f64,
     pause_time: Option<f64>,
     pub speed: f64,
+    pub force: f64,
     wait: f64,
 
     get_time_fn: Box<dyn Fn() -> f64>,
@@ -29,6 +30,7 @@ impl TimeManager {
             pause_time: None,
             speed: 1.0,
             wait: f64::NEG_INFINITY,
+            force: 3e-3,
 
             get_time_fn,
         }
@@ -54,6 +56,7 @@ impl TimeManager {
             pause_time: None,
             speed,
             wait: f64::NEG_INFINITY,
+            force: 3e-3,
 
             get_time_fn: Box::new(get_time_fn),
         }
@@ -73,6 +76,10 @@ impl TimeManager {
         self.wait = self.real_time() + 0.1;
     }
 
+    pub fn dont_wait(&mut self) {
+        self.wait = f64::NEG_INFINITY;
+    }
+
     #[must_use]
     pub fn now(&self) -> f64 {
         (self.pause_time.unwrap_or_else(&self.get_time_fn) - self.start_time) * self.speed
@@ -80,7 +87,7 @@ impl TimeManager {
 
     pub fn update(&mut self, music_time: f64) {
         if self.adjust_time && self.real_time() > self.wait && self.pause_time.is_none() {
-            self.start_time -= (music_time - self.now()) * 3e-3;
+            self.start_time -= (music_time - self.now()) * self.force;
         }
     }
 

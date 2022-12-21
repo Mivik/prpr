@@ -3,9 +3,10 @@ use crate::{
     audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
     core::NOTE_WIDTH_RATIO_BASE,
+    ext::SafeTexture,
     fs::FileSystem,
     info::ChartInfo,
-    particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig}, ext::SafeTexture,
+    particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
 };
 use anyhow::Result;
 use macroquad::prelude::*;
@@ -20,6 +21,64 @@ pub struct NoteStyle {
     pub hold_tail: SafeTexture,
     pub flick: SafeTexture,
     pub drag: SafeTexture,
+}
+
+pub struct ParticleEmitter {
+    emitter: Emitter,
+    emitter_square: Emitter,
+}
+
+impl ParticleEmitter {
+    pub async fn new() -> Result<Self> {
+        let colors_curve = {
+            let start = WHITE;
+            let mut mid = start;
+            let mut end = start;
+            mid.a *= 0.7;
+            end.a = 0.;
+            ColorCurve { start, mid, end }
+        };
+        Ok(Self {
+            emitter: Emitter::new(EmitterConfig {
+                local_coords: false,
+                texture: Some(Texture2D::from_image(&load_image("hit_fx.png").await?)),
+                lifetime: 0.5,
+                lifetime_randomness: 0.0,
+                initial_direction_spread: 0.0,
+                initial_velocity: 0.0,
+                size: 1. / 5.,
+                atlas: Some(AtlasConfig::new(5, 6, ..)),
+                emitting: false,
+                colors_curve,
+                ..Default::default()
+            }),
+            emitter_square: Emitter::new(EmitterConfig {
+                local_coords: false,
+                lifetime: 0.5,
+                lifetime_randomness: 0.0,
+                initial_direction_spread: 2. * std::f32::consts::PI,
+                size: 1. / 65.,
+                emitting: false,
+                initial_velocity: 1.4,
+                initial_velocity_randomness: 1. / 10.,
+                linear_accel: -4. / 1.,
+                colors_curve,
+                ..Default::default()
+            }),
+        })
+    }
+
+    pub fn emit_at(&mut self, pt: Vec2, color: Color) {
+        self.emitter.config.base_color = color;
+        self.emitter.emit(pt, 1);
+        self.emitter_square.config.base_color = color;
+        self.emitter_square.emit(pt, 4);
+    }
+
+    pub fn draw(&mut self, dt: f32) {
+        self.emitter.draw(vec2(0., 0.), dt);
+        self.emitter_square.draw(vec2(0., 0.), dt);
+    }
 }
 
 pub struct Resource {
@@ -50,8 +109,7 @@ pub struct Resource {
     pub icon_resume: SafeTexture,
     pub icon_proceed: SafeTexture,
 
-    pub emitter: Emitter,
-    pub emitter_square: Emitter,
+    pub emitter: ParticleEmitter,
 
     pub audio: DefaultAudio,
     pub music: AudioClip,
@@ -114,14 +172,6 @@ impl Resource {
             zoom: vec2(1., config.aspect_ratio.unwrap_or(info.aspect_ratio)),
             ..Default::default()
         };
-        let colors_curve = {
-            let start = WHITE;
-            let mut mid = start;
-            let mut end = start;
-            mid.a *= 0.7;
-            end.a = 0.;
-            ColorCurve { start, mid, end }
-        };
 
         let audio = DefaultAudio::new()?;
         macro_rules! load_sfx {
@@ -172,32 +222,7 @@ impl Resource {
             icon_resume: load_tex!("resume.png"),
             icon_proceed: load_tex!("proceed.png"),
 
-            emitter: Emitter::new(EmitterConfig {
-                local_coords: false,
-                texture: Some(load_tex!("hit_fx.png").into_inner()),
-                lifetime: 0.5,
-                lifetime_randomness: 0.0,
-                initial_direction_spread: 0.0,
-                initial_velocity: 0.0,
-                size: 1. / 5.,
-                atlas: Some(AtlasConfig::new(5, 6, ..)),
-                emitting: false,
-                colors_curve,
-                ..Default::default()
-            }),
-            emitter_square: Emitter::new(EmitterConfig {
-                local_coords: false,
-                lifetime: 0.5,
-                lifetime_randomness: 0.0,
-                initial_direction_spread: 2. * std::f32::consts::PI,
-                size: 1. / 65.,
-                emitting: false,
-                initial_velocity: 1.4,
-                initial_velocity_randomness: 1. / 10.,
-                linear_accel: -4. / 1.,
-                colors_curve,
-                ..Default::default()
-            }),
+            emitter: ParticleEmitter::new().await?,
 
             audio,
             music,
@@ -216,11 +241,7 @@ impl Resource {
             return;
         }
         let pt = self.world_to_screen(Point::default());
-        let pt = vec2(pt.x, pt.y);
-        self.emitter.config.base_color = color;
-        self.emitter.emit(pt, 1);
-        self.emitter_square.config.base_color = color;
-        self.emitter_square.emit(pt, 4);
+        self.emitter.emit_at(vec2(pt.x, pt.y), color);
     }
 
     pub fn update_size(&mut self, dim: (u32, u32)) -> bool {

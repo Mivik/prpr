@@ -95,7 +95,7 @@ async fn the_main() -> Result<()> {
 
     let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
 
-    let mut main = Main::new(Box::new(MainScene::new(Texture2D::from_image(&load_image("player.jpg").await?).into())), TimeManager::default(), None)?;
+    let mut main = Main::new(Box::new(MainScene::new().await?), TimeManager::default(), None)?;
     'app: loop {
         main.update()?;
         main.render()?;
