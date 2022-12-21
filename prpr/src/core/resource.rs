@@ -1,8 +1,7 @@
-use super::{Matrix, Point, JUDGE_LINE_PERFECT_COLOR};
+use super::{Matrix, Point, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE};
 use crate::{
     audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
-    core::NOTE_WIDTH_RATIO_BASE,
     ext::SafeTexture,
     fs::FileSystem,
     info::ChartInfo,

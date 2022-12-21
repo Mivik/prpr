@@ -1,6 +1,5 @@
-use crate::judge::JudgeStatus;
-
 use super::{JudgeLine, Resource};
+use crate::judge::JudgeStatus;
 
 #[derive(Default)]
 pub struct Chart {

@@ -1,9 +1,8 @@
 use super::{draw_background, draw_illustration, NextScene, Scene};
 use crate::{
-    audio::Audio,
-    audio::{AudioClip, AudioHandle, DefaultAudio, PlayParams},
+    audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
     config::Config,
-    ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, PARALLELOGRAM_SLOPE, screen_aspect, SafeTexture},
+    ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, screen_aspect, SafeTexture, PARALLELOGRAM_SLOPE},
     info::ChartInfo,
     judge::{Judge, PlayResult},
 };
