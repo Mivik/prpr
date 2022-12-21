@@ -280,7 +280,7 @@ impl MainScene {
                 ui.dy(r.h + s);
             });
 
-            let ct = (0.8, 0.8);
+            let ct = (0.8, ui.top * 1.3);
             let len = 0.25;
             ui.fill_rect(Rect::new(ct.0 - len, ct.1 - 0.005, len * 2., 0.01), WHITE);
             let mut cali_t = cali_t - config.offset;
