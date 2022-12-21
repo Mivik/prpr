@@ -291,7 +291,7 @@ impl MainScene {
                 cali_t -= 2.;
             }
             if cali_t <= 1. {
-                let w = NOTE_WIDTH_RATIO_BASE * 1.4;
+                let w = NOTE_WIDTH_RATIO_BASE * config.note_scale * 2.;
                 let h = w * click.height() / click.width();
                 let r = Rect::new(ct.0 - w / 2., ct.1 + (cali_t - 1.) * 0.4, w, h);
                 ui.fill_rect(r, (**click, r));
