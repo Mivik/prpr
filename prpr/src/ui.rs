@@ -95,6 +95,7 @@ pub struct DrawText<'a> {
     anchor: (f32, f32),
     color: Color,
     max_width: Option<f32>,
+    multiline: bool,
 }
 
 impl<'a> DrawText<'a> {
@@ -108,6 +109,7 @@ impl<'a> DrawText<'a> {
             anchor: (0., 0.),
             color: WHITE,
             max_width: None,
+            multiline: false,
         }
     }
 
@@ -148,6 +150,12 @@ impl<'a> DrawText<'a> {
     }
 
     #[must_use]
+    pub fn multiline(mut self) -> Self {
+        self.multiline = true;
+        self
+    }
+
+    #[must_use]
     pub fn measure(&self) -> Rect {
         let size = (screen_width() / 23. * self.size) as u16;
         let scale = 0.08 * self.size / size as f32;
@@ -156,19 +164,25 @@ impl<'a> DrawText<'a> {
     }
 
     pub fn draw(mut self) -> Rect {
+        let mut tmp = None;
         if let Some(width) = self.max_width {
-            if self.measure().w > width {
+            if self.measure().w > width || self.multiline {
                 let text = std::mem::take(&mut self.text);
                 for ch in text.chars() {
                     self.text.push(ch);
-                    if self.measure().w > width {
-                        self.text.pop();
+                    if self.measure().w > width || (self.multiline && ch == '\n') {
+                        if ch != '\n' {
+                            self.text.pop();
+                        }
                         break;
                     }
                 }
+                tmp = Some(text);
+            } else {
+                tmp = Some(self.text.clone());
             }
         }
-        self.ui.apply(|| {
+        let mut res = self.ui.apply(|| {
             draw_text_aligned(
                 self.font.unwrap_or_else(|| *FONT.get().unwrap()),
                 &self.text,
@@ -178,7 +192,19 @@ impl<'a> DrawText<'a> {
                 self.size,
                 self.color,
             )
-        })
+        });
+        if self.multiline {
+            // only supports anchor (0, 0)
+            if self.text.len() < tmp.as_ref().unwrap().len() {
+                self.text = tmp.unwrap()[self.text.len()..].to_string();
+                res.h += 0.01;
+                self.pos.1 += res.h;
+                let new = self.draw();
+                res.w = res.w.max(res.w);
+                res.h += new.h;
+            }
+        }
+        res
     }
 }
 

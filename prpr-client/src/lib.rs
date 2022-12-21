@@ -96,7 +96,11 @@ async fn the_main() -> Result<()> {
     let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
 
     let mut main = Main::new(Box::new(MainScene::new().await?), TimeManager::default(), None)?;
+
+    let tm = TimeManager::default();
+    let mut fps_time = -1;
     'app: loop {
+        let frame_start = tm.real_time();
         main.update()?;
         main.render()?;
         if let Ok(paused) = rx.try_recv() {
@@ -108,6 +112,13 @@ async fn the_main() -> Result<()> {
         }
         if main.should_exit() {
             break 'app;
+        }
+
+        let t = tm.real_time();
+        let fps_now = t as i32;
+        if fps_now != fps_time {
+            fps_time = fps_now;
+            info!("| {}", (1. / (t - frame_start)) as u32);
         }
 
         next_frame().await;

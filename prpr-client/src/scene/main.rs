@@ -1,7 +1,7 @@
 use crate::{
     billboard::BillBoard,
     cloud::{ChartItemData, Client},
-    data::LocalChart,
+    data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut, save_data,
     task::Task,
 };
@@ -15,14 +15,15 @@ use macroquad::{prelude::*, texture::RenderTarget};
 use prpr::{
     audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
     core::{ParticleEmitter, Tweenable, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
-    ext::{poll_future, screen_aspect, SafeTexture, ScaleType},
+    ext::{screen_aspect, SafeTexture, ScaleType},
     fs,
-    scene::{LoadingScene, NextScene, Scene},
+    scene::{NextScene, Scene},
     time::TimeManager,
     ui::{RectButton, Scroll, Ui},
 };
-use std::{collections::HashMap, future::Future, pin::Pin, sync::Mutex};
+use std::{collections::HashMap, sync::Mutex};
 use tempfile::NamedTempFile;
+use super::SongScene;
 
 const SIDE_PADDING: f32 = 0.02;
 const ROW_NUM: u32 = 4;
@@ -30,6 +31,7 @@ const CARD_HEIGHT: f32 = 0.3;
 const CARD_PADDING: f32 = 0.02;
 
 const SWITCH_TIME: f32 = 0.4;
+const TRANSIT_TIME: f32 = 0.4;
 
 pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
 
@@ -39,10 +41,7 @@ fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
         .charts
         .iter()
         .map(|it| ChartItem {
-            id: it.id.clone(),
-            name: it.name.clone(),
-            intro: it.intro.clone(),
-            tags: it.tags.clone(),
+            info: it.info.clone(),
             path: it.path.clone(),
             illustration: tex.clone(),
             illustration_task: Task::new(async move {
@@ -55,10 +54,7 @@ fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
 }
 
 pub struct ChartItem {
-    pub id: Option<String>,
-    pub name: String,
-    pub intro: String,
-    pub tags: Vec<String>,
+    pub info: BriefChartInfo,
     pub path: String,
     pub illustration: SafeTexture,
     pub illustration_task: Task<Result<DynamicImage>>,
@@ -67,11 +63,12 @@ pub struct ChartItem {
 pub struct MainScene {
     target: Option<RenderTarget>,
     next_scene: Option<NextScene>,
-    future: Option<Pin<Box<dyn Future<Output = Result<LoadingScene>>>>>,
     scroll_local: Scroll,
     scroll_remote: Scroll,
     tex: SafeTexture,
     click_texture: SafeTexture,
+    icon_back: SafeTexture,
+    icon_play: SafeTexture,
 
     audio: DefaultAudio,
     cali_clip: AudioClip,
@@ -84,7 +81,8 @@ pub struct MainScene {
     billboard: BillBoard,
 
     task_load: Task<Result<Vec<ChartItem>>>,
-    task_started: bool,
+    remote_first_time: bool,
+    loading_remote: bool,
     charts_local: Vec<ChartItem>,
     charts_remote: Vec<ChartItem>,
 
@@ -101,6 +99,7 @@ pub struct MainScene {
     import_task: Task<Result<LocalChart>>,
 
     downloading: HashMap<String, (String, Task<Result<LocalChart>>)>,
+    transit: Option<(u32, f32, Rect, bool)>,
 }
 
 impl MainScene {
@@ -115,11 +114,12 @@ impl MainScene {
         Ok(Self {
             target: None,
             next_scene: None,
-            future: None,
             scroll_local: Scroll::new(),
             scroll_remote: Scroll::new(),
             tex: tex.clone(),
             click_texture: Texture2D::from_image(&load_image("click.png").await?).into(),
+            icon_back: Texture2D::from_image(&load_image("back.png").await?).into(),
+            icon_play: Texture2D::from_image(&load_image("resume.png").await?).into(),
 
             audio,
             cali_clip,
@@ -132,7 +132,8 @@ impl MainScene {
             billboard: BillBoard::new(),
 
             task_load: Task::pending(),
-            task_started: false,
+            remote_first_time: true,
+            loading_remote: false,
             charts_local: load_local(&tex),
             charts_remote: Vec::new(),
 
@@ -149,6 +150,7 @@ impl MainScene {
             import_task: Task::pending(),
 
             downloading: HashMap::new(),
+            transit: None,
         })
     }
 
@@ -174,9 +176,9 @@ impl MainScene {
                     })
                     .into();
                 }
-                ui.fill_path(&path, (*chart.illustration, Rect::new(0., 0., cw, ch), ScaleType::Scale));
+                ui.fill_path(&path, (*chart.illustration, Rect::new(0., 0., cw, ch)));
                 ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
-                ui.text(&chart.name)
+                ui.text(&chart.info.name)
                     .pos(p + 0.01, ch - p - 0.02)
                     .max_width(cw - p * 2.)
                     .anchor(0., 1.)
@@ -223,6 +225,14 @@ impl MainScene {
             self.tab_scroll.size(content_size);
             self.tab_scroll.render(ui, |ui| {
                 Self::render_scroll(ui, content_size, &mut self.scroll_local, &mut self.charts_local);
+                if let Some((id, _, rect, _)) = &mut self.transit {
+                    *rect = ui.rect_to_global(Rect::new(
+                        (*id % ROW_NUM) as f32 * width / ROW_NUM as f32,
+                        (*id / ROW_NUM) as f32 * CARD_HEIGHT - self.scroll_local.y_scroller.offset(),
+                        width / ROW_NUM as f32,
+                        CARD_HEIGHT,
+                    ));
+                }
                 {
                     let pad = 0.03;
                     let rad = 0.06;
@@ -350,6 +360,41 @@ impl MainScene {
             TouchPhase::Ended => choose.take() == id && id.is_some(),
         }
     }
+
+    fn refresh_remote(&mut self, tm: &TimeManager) {
+        if self.loading_remote {
+            return;
+        }
+        self.charts_remote.clear();
+        self.billboard.add("正在加载", tm.now() as _);
+        self.loading_remote = true;
+        self.task_load = Task::new({
+            let tex = self.tex.clone();
+            async move {
+                let cli = Client::new("https://uxjq2roe.lc-cn-n1-shared.com/1.1", "uxjq2ROe26ucGlFXIbWYOhEW-gzGzoHsz", "LW6yy6lkSFfXDqZo0442oFjT");
+                let charts: Vec<ChartItemData> = cli.query().await?;
+                Ok(charts
+                    .into_iter()
+                    .map(|it| {
+                        let url = it.illustration;
+                        ChartItem {
+                            info: BriefChartInfo {
+                                id: Some(it.id),
+                                ..it.info.clone()
+                            },
+                            path: it.file.url,
+                            illustration: tex.clone(),
+                            illustration_task: Task::new(async move {
+                                let bytes = reqwest::get(url.url).await?.bytes().await?;
+                                let image = image::load_from_memory(&bytes)?;
+                                Ok(image)
+                            }),
+                        }
+                    })
+                    .collect::<Vec<_>>())
+            }
+        });
+    }
 }
 
 impl Scene for MainScene {
@@ -357,8 +402,12 @@ impl Scene for MainScene {
         self.tab_start_time = f32::NEG_INFINITY;
         tm.reset();
         self.target = target;
-        self.billboard.clear();
-        self.billboard.add("欢迎回来", tm.now() as _);
+        if let Some((_, st, _, true)) = &mut self.transit {
+            *st = tm.now() as _;
+        } else {
+            self.billboard.clear();
+            self.billboard.add("欢迎回来", tm.now() as _);
+        }
         Ok(())
     }
 
@@ -368,7 +417,7 @@ impl Scene for MainScene {
     }
 
     fn touch(&mut self, tm: &mut TimeManager, touch: Touch) -> Result<()> {
-        if tm.now() as f32 <= self.tab_start_time + SWITCH_TIME {
+        if tm.now() as f32 <= self.tab_start_time + SWITCH_TIME || self.transit.is_some() {
             return Ok(());
         }
         if let Some(tab_id) = self.tab_buttons.iter_mut().position(|it| it.touch(&touch)) {
@@ -379,38 +428,9 @@ impl Scene for MainScene {
                 if self.tab_from_index == 2 {
                     save_data()?;
                 }
-                if tab_id == 1 && !self.task_started {
-                    self.task_started = true;
-                    self.task_load = Task::new({
-                        let tex = self.tex.clone();
-                        async move {
-                            let cli = Client::new(
-                                "https://uxjq2roe.lc-cn-n1-shared.com/1.1",
-                                "uxjq2ROe26ucGlFXIbWYOhEW-gzGzoHsz",
-                                "LW6yy6lkSFfXDqZo0442oFjT",
-                            );
-                            let charts: Vec<ChartItemData> = cli.query().await?;
-                            Ok(charts
-                                .into_iter()
-                                .map(|it| {
-                                    let url = it.illustration;
-                                    ChartItem {
-                                        id: Some(it.id),
-                                        name: it.name,
-                                        intro: it.intro,
-                                        tags: it.tags,
-                                        path: it.file.url,
-                                        illustration: tex.clone(),
-                                        illustration_task: Task::new(async move {
-                                            let bytes = reqwest::get(url.url).await?.bytes().await?;
-                                            let image = image::load_from_memory(&bytes)?;
-                                            Ok(image)
-                                        }),
-                                    }
-                                })
-                                .collect::<Vec<_>>())
-                        }
-                    });
+                if tab_id == 1 && self.remote_first_time {
+                    self.remote_first_time = false;
+                    self.refresh_remote(tm);
                 }
                 if tab_id == 2 {
                     self.cali_handle = Some(self.audio.play(
@@ -463,16 +483,7 @@ impl Scene for MainScene {
                 if trigger {
                     let id = id.unwrap();
                     if id < self.charts_local.len() as u32 {
-                        let chart = &self.charts_local[id as usize];
-                        let fs = if let Some(name) = chart.path.strip_prefix(':') {
-                            fs::fs_from_assets(name)?
-                        } else {
-                            fs::fs_from_file(&std::path::Path::new(&format!("{}/{}", dir::charts()?, chart.path)))?
-                        };
-                        self.future = Some(Box::pin(async move {
-                            let (info, fs) = fs::load_info(fs).await?;
-                            LoadingScene::new(info, get_data().unwrap().config.clone(), fs, None).await
-                        }));
+                        self.transit = Some((id, tm.now() as _, Rect::default(), false));
                     }
                     return Ok(());
                 }
@@ -487,7 +498,7 @@ impl Scene for MainScene {
                 if trigger {
                     let id = id.unwrap();
                     if id < self.charts_remote.len() as u32 {
-                        let chart_id = self.charts_remote[id as usize].id.as_ref().unwrap();
+                        let chart_id = self.charts_remote[id as usize].info.id.as_ref().unwrap();
                         dir::downloaded_charts()?;
                         let path = format!("download/{}", chart_id);
                         if get_data().unwrap().charts.iter().any(|it| it.path == path) {
@@ -502,16 +513,13 @@ impl Scene for MainScene {
                         let chart = &self.charts_remote[id as usize];
                         let url = chart.path.clone();
                         let chart = LocalChart {
-                            id: chart.id.clone(),
-                            name: chart.name.clone(),
-                            intro: chart.intro.clone(),
-                            tags: chart.tags.clone(),
+                            info: chart.info.clone(),
                             path,
                         };
                         self.downloading.insert(
                             chart_id.clone(),
                             (
-                                chart.name.clone(),
+                                chart.info.name.clone(),
                                 Task::new({
                                     let path = format!("{}/{}", dir::downloaded_charts()?, chart_id);
                                     async move {
@@ -533,6 +541,9 @@ impl Scene for MainScene {
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
         let t = tm.now() as _;
+        if self.scroll_remote.y_scroller.pulled {
+            self.refresh_remote(tm);
+        }
         self.billboard.update(t);
         self.scroll_local.update(t);
         self.scroll_remote.update(t);
@@ -553,12 +564,6 @@ impl Scene for MainScene {
             let p = 1. - (1. - p).powi(3);
             self.tab_scroll
                 .set_offset(f32::tween(&(self.tab_from_index as f32), &(self.tab_index as f32), p) * (1. - SIDE_PADDING) * 2., 0.);
-        }
-        if let Some(future) = &mut self.future {
-            if let Some(scene) = poll_future(future.as_mut()) {
-                self.future = None;
-                self.next_scene = Some(NextScene::Overlay(Box::new(scene?)));
-            }
         }
         let remove = self
             .downloading
@@ -584,8 +589,10 @@ impl Scene for MainScene {
             }
         }
         if let Some(charts) = self.task_load.take() {
+            self.loading_remote = false;
             match charts {
                 Ok(charts) => {
+                    self.billboard.add("加载完成", tm.now() as _);
                     self.charts_remote = charts;
                 }
                 Err(err) => {
@@ -600,10 +607,7 @@ impl Scene for MainScene {
                 let fs = fs::fs_from_file(&std::path::Path::new(&file))?;
                 let (info, _) = fs::load_info(fs).await?;
                 Ok(LocalChart {
-                    id: None,
-                    name: info.name,
-                    intro: info.intro,
-                    tags: info.tags,
+                    info: BriefChartInfo { id: None, ..info.into() },
                     path: format!("custom/{}", file.file_name().unwrap().to_str().unwrap()),
                 })
             }
@@ -635,6 +639,49 @@ impl Scene for MainScene {
         let mut ui = Ui::new();
         ui.scope(|ui| self.ui(ui, tm.now() as f32));
         ui.scope(|ui| self.billboard.render(ui));
+        if let Some((id, st, rect, back)) = &mut self.transit {
+            let t = tm.now() as f32;
+            let p = ((t - *st) / TRANSIT_TIME).min(1.);
+            let mut p = 1. - (1. - p).powi(4);
+            if *back {
+                p = 1. - p;
+            }
+            let rect = Rect::new(
+                f32::tween(&rect.x, &-1., p),
+                f32::tween(&rect.y, &-ui.top, p),
+                f32::tween(&rect.w, &2., p),
+                f32::tween(&rect.h, &(ui.top * 2.), p),
+            );
+            let path = {
+                let mut path = Path::builder();
+                let pad = CARD_PADDING * (1. - p);
+                path.add_rounded_rectangle(
+                    &lm::Box2D::new(lm::point(rect.x + pad, rect.y + pad), lm::point(rect.right() - pad, rect.bottom() - pad)),
+                    &BorderRadii::new(0.01 * (1. - p)),
+                    Winding::Positive,
+                );
+                path.build()
+            };
+            let chart = &self.charts_local[*id as usize];
+            ui.fill_path(&path, (*chart.illustration, rect, ScaleType::Scale));
+            ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
+            if *back && p <= 0. {
+                self.transit = None;
+            } else if !*back && p >= 1. {
+                self.next_scene = Some(NextScene::Overlay(Box::new(SongScene::new(
+                    ChartItem {
+                        info: chart.info.clone(),
+                        path: chart.path.clone(),
+                        illustration: chart.illustration.clone(),
+                        illustration_task: Task::pending(),
+                    },
+                    chart.illustration.clone(),
+                    self.icon_back.clone(),
+                    self.icon_play.clone(),
+                ))));
+                *back = true;
+            }
+        }
         Ok(())
     }
 

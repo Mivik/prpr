@@ -10,7 +10,7 @@ use macroquad::{
 use nalgebra::Translation2;
 
 const THRESHOLD: f32 = 0.03;
-const EXTEND: f32 = 0.4;
+const EXTEND: f32 = 0.33;
 
 pub struct Scroller {
     touch: Option<(u64, f32, f32, bool)>,
@@ -20,6 +20,7 @@ pub struct Scroller {
     speed: f32,
     last_time: f32,
     tracker: VelocityTracker,
+    pub pulled: bool,
 }
 
 impl Default for Scroller {
@@ -38,6 +39,7 @@ impl Scroller {
             speed: 0.,
             last_time: 0.,
             tracker: VelocityTracker::empty(),
+            pulled: false,
         }
     }
 
@@ -70,6 +72,9 @@ impl Scroller {
                     self.speed = -speed * 0.4;
                     self.last_time = t;
                 }
+                if self.offset <= -EXTEND * 0.7 {
+                    self.pulled = true;
+                }
                 let res = self.touch.map(|it| it.3).unwrap_or_default();
                 self.touch = None;
                 return res;
@@ -91,6 +96,9 @@ impl Scroller {
             self.speed *= (0.5_f32).powf((t - self.last_time) / 0.9);
         }
         self.last_time = t;
+        if self.pulled {
+            self.pulled = false;
+        }
     }
 
     pub fn offset(&self) -> f32 {
@@ -111,8 +119,8 @@ impl Scroller {
 }
 
 pub struct Scroll {
-    x_scroller: Scroller,
-    y_scroller: Scroller,
+    pub x_scroller: Scroller,
+    pub y_scroller: Scroller,
     size: (f32, f32),
     matrix: Option<Matrix>,
 }

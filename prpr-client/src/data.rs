@@ -1,15 +1,36 @@
 use crate::dir;
 use anyhow::Result;
-use prpr::config::Config;
+use prpr::{config::Config, info::ChartInfo};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-#[derive(Serialize, Deserialize)]
-pub struct LocalChart {
+#[derive(Clone, Serialize, Deserialize)]
+pub struct BriefChartInfo {
     pub id: Option<String>,
     pub name: String,
     pub intro: String,
     pub tags: Vec<String>,
+    pub composer: String,
+    pub illustrator: String,
+}
+
+impl From<ChartInfo> for BriefChartInfo {
+    fn from(info: ChartInfo) -> Self {
+        Self {
+            id: info.id,
+            name: info.name,
+            intro: info.intro,
+            tags: info.tags,
+            composer: info.composer,
+            illustrator: info.illustrator,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LocalChart {
+    #[serde(flatten)]
+    pub info: BriefChartInfo,
     pub path: String,
 }
 
@@ -37,10 +58,7 @@ impl Data {
             let result = prpr::fs::load_info(fs).await;
             if let Ok((info, _)) = result {
                 self.charts.push(LocalChart {
-                    id: None,
-                    name: info.name,
-                    intro: info.intro,
-                    tags: info.tags,
+                    info: BriefChartInfo { id: None, ..info.into() },
                     path: filename,
                 })
             }

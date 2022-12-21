@@ -10,6 +10,24 @@ use std::{
     task::{Poll, RawWaker, RawWakerVTable, Waker},
 };
 
+pub trait JoinToString {
+    fn join(self, sep: &str) -> String;
+}
+
+impl<V: AsRef<str>, T: Iterator<Item = V>> JoinToString for T {
+    fn join(mut self, sep: &str) -> String {
+        let mut result = String::new();
+        if let Some(first) = self.next() {
+            result += first.as_ref();
+            for element in self {
+                result += sep;
+                result += element.as_ref();
+            }
+        }
+        result
+    }
+}
+
 pub trait NotNanExt: Sized {
     fn not_nan(self) -> NotNan<Self>;
 }

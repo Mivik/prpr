@@ -1,5 +1,6 @@
-use serde::Deserialize;
 use super::LCObject;
+use crate::data::BriefChartInfo;
+use serde::Deserialize;
 
 #[derive(Clone, Deserialize)]
 pub struct LCFile {
@@ -10,9 +11,9 @@ pub struct LCFile {
 pub struct ChartItemData {
     #[serde(rename = "objectId")]
     pub id: String,
-    pub name: String,
-    pub intro: String,
-    pub tags: Vec<String>,
+
+    #[serde(flatten)]
+    pub info: BriefChartInfo,
 
     pub file: LCFile,
     pub illustration: LCFile,
