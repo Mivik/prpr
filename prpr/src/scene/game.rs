@@ -199,7 +199,7 @@ impl GameScene {
                 let hw = 0.003;
                 let height = eps * 1.2;
                 let dest = 2. * res.time / res.track_length;
-                draw_rectangle(-1., top, dest, height, Color::new(1., 1., 1., 0.6 * res.alpha));
+                draw_rectangle(-1., top, dest, height, Color::new(0.6, 0.6, 0.6, res.alpha));
                 draw_rectangle(-1. + dest - hw, top, hw * 2., height, c);
             });
         });
