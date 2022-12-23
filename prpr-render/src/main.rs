@@ -119,7 +119,7 @@ async fn main() -> Result<()> {
     let frames = ((O + length + A + ending.frames.len() as f64 / ending.sample_rate as f64) / FRAME_DELTA as f64).ceil() as u64;
     let start_time = Instant::now();
     for frame in 0..frames {
-        *my_time.borrow_mut() = (frame as f32 * FRAME_DELTA - offset).max(0.) as f64;
+        *my_time.borrow_mut() = (frame as f32 * FRAME_DELTA).max(0.) as f64;
         main.update()?;
         main.render()?;
         gl.flush();
@@ -167,12 +167,12 @@ async fn main() -> Result<()> {
     info!("[3] Merging...");
     let mut proc = Command::new("ffmpeg")
         .args(
-            "-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -af loudnorm -c:v copy -c:a mp3 -map 0:v:0 -map 1:a:0 out.mp4"
+            "-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -af loudnorm -vf format=yuv420p -c:a mp3 -map 0:v:0 -map 1:a:0 out.mp4"
                 .to_string()
                 .split_whitespace(),
         )
         .stdin(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::inherit())
         .spawn()?;
     let input = proc.stdin.as_mut().unwrap();
     let mut writer = BufWriter::new(input);
