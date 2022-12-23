@@ -15,8 +15,9 @@ use lyon::{
 use macroquad::{prelude::*, texture::RenderTarget};
 use prpr::{
     audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
+    config::ChallengeModeColor,
     core::{ParticleEmitter, Tweenable, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
-    ext::{screen_aspect, SafeTexture, ScaleType},
+    ext::{screen_aspect, RectExt, SafeTexture, ScaleType},
     fs,
     scene::{NextScene, Scene},
     time::TimeManager,
@@ -37,6 +38,7 @@ const SWITCH_TIME: f32 = 0.4;
 const TRANSIT_TIME: f32 = 0.4;
 
 pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
+pub static INPUT_TEXT: Mutex<Option<String>> = Mutex::new(None);
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
 
 fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
@@ -104,6 +106,9 @@ pub struct MainScene {
     import_button: RectButton,
     import_task: Task<Result<LocalChart>>,
 
+    player_name_button: RectButton,
+    chal_buttons: [RectButton; 6],
+
     downloading: HashMap<String, (String, Task<Result<LocalChart>>)>,
     transit: Option<(u32, f32, Rect, bool)>,
 }
@@ -161,6 +166,9 @@ impl MainScene {
 
             import_button: RectButton::new(),
             import_task: Task::pending(),
+
+            player_name_button: RectButton::new(),
+            chal_buttons: [RectButton::new(); 6],
 
             downloading: HashMap::new(),
             transit: None,
@@ -258,8 +266,15 @@ impl MainScene {
                 ui.dx(content_size.0);
                 Self::render_scroll(ui, content_size, &mut self.scroll_remote, &mut self.charts_remote);
                 ui.dx(content_size.0);
-                if Self::render_settings(ui, &self.click_texture, self.cali_tm.now() as _, &mut self.cali_last, &mut self.emitter)
-                    && self.tab_index == 2
+                if Self::render_settings(
+                    ui,
+                    &self.click_texture,
+                    self.cali_tm.now() as _,
+                    &mut self.cali_last,
+                    &mut self.emitter,
+                    &mut self.player_name_button,
+                    &mut self.chal_buttons,
+                ) && self.tab_index == 2
                 {
                     let _ = self.audio.play(&self.cali_hit_clip, PlayParams::default());
                 }
@@ -268,7 +283,15 @@ impl MainScene {
         });
     }
 
-    fn render_settings(ui: &mut Ui, click: &SafeTexture, cali_t: f32, cali_last: &mut bool, emitter: &mut ParticleEmitter) -> bool {
+    fn render_settings(
+        ui: &mut Ui,
+        click: &SafeTexture,
+        cali_t: f32,
+        cali_last: &mut bool,
+        emitter: &mut ParticleEmitter,
+        player_button: &mut RectButton,
+        chal_buttons: &mut [RectButton; 6],
+    ) -> bool {
         let config = &mut get_data_mut().unwrap().config;
         let s = 0.01;
         let mut result = false;
@@ -287,23 +310,60 @@ impl MainScene {
                 ui.dy(r.h + s);
                 let r = ui.checkbox("激进优化", &mut config.aggressive);
                 ui.dy(r.h + s);
+                let r = ui.text("玩家名称").size(0.4).draw();
+                let r = Rect::new(r.right() + 0.02, r.y - 0.01, 0.3, r.h + 0.02);
+                player_button.set(ui, r);
+                ui.fill_rect(r, if player_button.touching() { Color::new(1., 1., 1., 0.5) } else { WHITE });
+                let ct = r.center();
+                ui.text(&config.player_name)
+                    .pos(ct.x, ct.y)
+                    .anchor(0.5, 0.5)
+                    .max_width(0.3)
+                    .size(0.42)
+                    .color(BLACK)
+                    .draw();
+                ui.dy(r.h + s);
+                let r = ui.slider("玩家 RKS", 1.0..17.0, 0.01, &mut config.player_rks, Some(0.45));
+                ui.dy(r.h + s);
             });
-            ui.dx(0.4);
+            ui.dx(0.62);
 
             ui.scope(|ui| {
-                let r = ui.slider("偏移(s)", -0.5..0.5, 0.005, &mut config.offset);
+                let r = ui.slider("偏移(s)", -0.5..0.5, 0.005, &mut config.offset, None);
                 ui.dy(r.h + s);
-                let r = ui.slider("速度", 0.8..1.2, 0.005, &mut config.speed);
+                let r = ui.slider("速度", 0.8..1.2, 0.005, &mut config.speed, None);
                 ui.dy(r.h + s);
-                let r = ui.slider("音符大小", 0.8..1.2, 0.005, &mut config.note_scale);
+                let r = ui.slider("音符大小", 0.8..1.2, 0.005, &mut config.note_scale, None);
                 ui.dy(r.h + s);
-                let r = ui.slider("音乐音量", 0.0..2.0, 0.05, &mut config.volume_music);
+                let r = ui.slider("音乐音量", 0.0..2.0, 0.05, &mut config.volume_music, None);
                 ui.dy(r.h + s);
-                let r = ui.slider("音效音量", 0.0..2.0, 0.05, &mut config.volume_sfx);
+                let r = ui.slider("音效音量", 0.0..2.0, 0.05, &mut config.volume_sfx, None);
+                ui.dy(r.h + s);
+                let r = ui.text("挑战模式颜色").size(0.4).draw();
+                let chosen = config.challenge_color.clone() as usize;
+                ui.dy(r.h + s * 2.);
+                let dy = ui.scope(|ui| {
+                    let mut max: f32 = 0.;
+                    for (id, (name, button)) in ["白", "绿", "蓝", "红", "金", "彩"].into_iter().zip(chal_buttons.iter_mut()).enumerate() {
+                        let r = ui.text(name).size(0.4).measure().feather(0.01);
+                        button.set(ui, r);
+                        ui.fill_rect(r, if chosen == id { ui.accent() } else { WHITE });
+                        let color = if chosen == id { WHITE } else { ui.accent() };
+                        ui.text(name).size(0.4).color(color).draw();
+                        ui.dx(r.w + s);
+                        max = max.max(r.h);
+                    }
+                    max
+                });
+                ui.dy(dy + s);
+
+                let mut rks = config.challenge_rank as f32;
+                let r = ui.slider("挑战模式等级", 0.0..48.0, 1., &mut rks, Some(0.45));
+                config.challenge_rank = rks.round() as u32;
                 ui.dy(r.h + s);
             });
 
-            let ct = (0.8, ui.top * 1.3);
+            let ct = (0.9, ui.top * 1.3);
             let len = 0.25;
             ui.fill_rect(Rect::new(ct.0 - len, ct.1 - 0.005, len * 2., 0.01), WHITE);
             let mut cali_t = cali_t - config.offset;
@@ -425,6 +485,18 @@ impl Scene for MainScene {
 
     fn pause(&mut self, _tm: &mut TimeManager) -> Result<()> {
         save_data()?;
+        self.cali_tm.pause();
+        if let Some(handle) = &mut self.cali_handle {
+            self.audio.pause(handle)?;
+        }
+        Ok(())
+    }
+
+    fn resume(&mut self, _tm: &mut TimeManager) -> Result<()> {
+        self.cali_tm.resume();
+        if let Some(handle) = &mut self.cali_handle {
+            self.audio.resume(handle)?;
+        }
         Ok(())
     }
 
@@ -548,6 +620,33 @@ impl Scene for MainScene {
         } else {
             self.choose_remote = None;
         }
+        if self.tab_index == 2 {
+            if self.player_name_button.touch(&touch) {
+                #[cfg(not(target_os = "android"))]
+                {
+                    get_data_mut().unwrap().config.player_name = unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default();
+                    save_data()?;
+                    self.billboard.add("从剪贴板修改成功", tm.now() as _);
+                }
+                #[cfg(target_os = "android")]
+                unsafe {
+                    let env = crate::miniquad::native::attach_jni_env();
+                    let ctx = ndk_context::android_context().context();
+                    let class = (**env).GetObjectClass.unwrap()(env, ctx);
+                    let method = (**env).GetMethodID.unwrap()(env, class, b"inputText\0".as_ptr() as _, b"(Ljava/lang/String;)V\0".as_ptr() as _);
+                    let text = std::ffi::CString::new(get_data_mut().unwrap().config.player_name.clone()).unwrap();
+                    (**env).CallVoidMethod.unwrap()(env, ctx, method, (**env).NewStringUTF.unwrap()(env, text.as_ptr()));
+                }
+            }
+
+            for (id, button) in self.chal_buttons.iter_mut().enumerate() {
+                if button.touch(&touch) {
+                    use ChallengeModeColor::*;
+                    get_data_mut().unwrap().config.challenge_color = [White, Green, Blue, Red, Golden, Rainbow][id].clone();
+                    save_data()?;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -635,9 +734,14 @@ impl Scene for MainScene {
                     get_data_mut().unwrap().charts.push(chart);
                     save_data()?;
                     self.charts_local = load_local(&self.tex);
-                    self.billboard.add(format!("导入成功"), tm.now() as _);
+                    self.billboard.add("导入成功", tm.now() as _);
                 }
             }
+        }
+        if let Some(text) = INPUT_TEXT.lock().unwrap().take() {
+            get_data_mut().unwrap().config.player_name = text;
+            save_data()?;
+            self.billboard.add("修改名称成功", tm.now() as _);
         }
         Ok(())
     }

@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
         (path, config)
     };
 
-    let (info, mut fs) = fs::load_info(fs::fs_from_file(&std::path::Path::new(&path))?).await?;
+    let (info, mut fs) = fs::load_info(fs::fs_from_file(std::path::Path::new(&path))?).await?;
 
     let chart = GameScene::load_chart(&mut fs, &info).await?;
     macro_rules! ld {

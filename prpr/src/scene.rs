@@ -61,6 +61,7 @@ pub struct Main {
 
 impl Main {
     pub fn new(mut scene: Box<dyn Scene>, mut tm: TimeManager, target: Option<RenderTarget>) -> Result<Self> {
+        simulate_mouse_with_touch(false);
         scene.enter(&mut tm, target)?;
         let last_update_time = tm.now();
         Ok(Self {

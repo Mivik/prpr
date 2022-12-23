@@ -109,8 +109,6 @@ impl GameScene {
         font: Font,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
     ) -> Result<Self> {
-        simulate_mouse_with_touch(false);
-
         let chart = Self::load_chart(&mut fs, &info).await?;
 
         let mut res = Resource::new(config, info, fs, background, illustration, font)

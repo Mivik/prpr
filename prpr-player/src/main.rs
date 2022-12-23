@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
         if let Some(config_path) = args.next() {
             config = Some(serde_yaml::from_str(&std::fs::read_to_string(config_path).context("Cannot read from config file")?)?);
         }
-        (fs::fs_from_file(&std::path::Path::new(&path))?, config)
+        (fs::fs_from_file(std::path::Path::new(&path))?, config)
     };
 
     let rt = tokio::runtime::Builder::new_multi_thread()

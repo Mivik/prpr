@@ -297,7 +297,7 @@ impl VertexBuilder {
 
 #[derive(Clone, Copy)]
 pub struct RectButton {
-    rect: Rect,
+    pub rect: Rect,
     id: Option<u64>,
 }
 
@@ -313,6 +313,10 @@ impl RectButton {
             rect: Rect::default(),
             id: None,
         }
+    }
+
+    pub fn touching(&self) -> bool {
+        self.id.is_some()
     }
 
     pub fn set(&mut self, ui: &mut Ui, rect: Rect) {
@@ -336,7 +340,7 @@ impl RectButton {
                 self.id = None;
             }
             TouchPhase::Ended => {
-                if self.id == Some(touch.id) && inside {
+                if self.id.take() == Some(touch.id) && inside {
                     return true;
                 }
             }
@@ -594,12 +598,12 @@ impl Ui {
         r
     }
 
-    pub fn slider(&mut self, text: impl Into<String>, range: Range<f32>, step: f32, value: &mut f32) -> Rect {
+    pub fn slider(&mut self, text: impl Into<String>, range: Range<f32>, step: f32, value: &mut f32, length: Option<f32>) -> Rect {
         let text = text.into();
         let mut state = STATE.lock().unwrap();
         let entry = state.entry(text.clone()).or_default();
 
-        let len = 0.3;
+        let len = length.unwrap_or(0.3);
         let s = 0.002;
         let tr = self.text(format!("{text}: {value:.3}")).size(0.4).draw();
         let cy = tr.h + 0.03;

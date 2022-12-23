@@ -182,3 +182,12 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setChosenFile(_: *mut std:
     let env = crate::miniquad::native::attach_jni_env();
     *CHOSEN_FILE.lock().unwrap() = Some(string_from_java(env, file));
 }
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "C" fn Java_quad_1native_QuadNative_setInputText(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, text: ndk_sys::jstring) {
+    use scene::INPUT_TEXT;
+
+    let env = crate::miniquad::native::attach_jni_env();
+    *INPUT_TEXT.lock().unwrap() = Some(string_from_java(env, text));
+}
