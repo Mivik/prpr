@@ -55,6 +55,7 @@ pub struct Main {
     target: Option<RenderTarget>,
     tm: TimeManager,
     subscriber: usize,
+    paused: bool,
     last_update_time: f64,
     should_exit: bool,
 }
@@ -70,12 +71,16 @@ impl Main {
             target,
             tm,
             subscriber: register_input_subscriber(),
+            paused: false,
             last_update_time,
             should_exit: false,
         })
     }
 
     pub fn update(&mut self) -> Result<()> {
+        if self.paused {
+            return Ok(());
+        }
         match self.scenes.last_mut().unwrap().next_scene(&mut self.tm) {
             NextScene::None => {}
             NextScene::Pop => {
@@ -123,14 +128,19 @@ impl Main {
     }
 
     pub fn render(&mut self) -> Result<()> {
+        if self.paused {
+            return Ok(());
+        }
         self.scenes.last_mut().unwrap().render(&mut self.tm)
     }
 
     pub fn pause(&mut self) -> Result<()> {
+        self.paused = true;
         self.scenes.last_mut().unwrap().pause(&mut self.tm)
     }
 
     pub fn resume(&mut self) -> Result<()> {
+        self.paused = false;
         self.scenes.last_mut().unwrap().resume(&mut self.tm)
     }
 
