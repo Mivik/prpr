@@ -166,6 +166,12 @@ impl SongScene {
                     .size(1.4)
                     .color(color)
                     .draw();
+                ui.text(&self.chart.info.level)
+                    .pos(r.right() + 0.01, r.bottom())
+                    .anchor(0., 1.)
+                    .size(0.7)
+                    .color(color)
+                    .draw();
                 ui.text(&self.chart.info.composer)
                     .pos(0., r.y - 0.02)
                     .anchor(0., 1.)
