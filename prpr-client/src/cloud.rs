@@ -76,8 +76,8 @@ impl Client {
             .header("X-LC-Key", &self.app_key)
     }
 
-    pub async fn fetch_file(&self, file: &LCFile) -> Result<Vec<u8>> {
-        Ok(self.http.get(&file.url).send().await?.bytes().await?.to_vec())
+    pub async fn fetch<T: LCObject>(&self, ptr: impl Into<Pointer>) -> Result<T> {
+        parse_lc(self.get(format!("/classes/{}", ptr.into().id))).await
     }
 
     pub async fn query<T: LCObject>(&self) -> Result<Vec<T>> {

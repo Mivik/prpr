@@ -5,10 +5,10 @@ use crate::{
     fs::FileSystem,
     info::ChartInfo,
     time::TimeManager,
-    ui::FONT,
+    ui::{Ui, FONT},
 };
 use anyhow::{Context, Result};
-use macroquad::prelude::*;
+use macroquad::{prelude::*, rand::ChooseRandom};
 use std::{future::Future, pin::Pin, rc::Rc};
 
 const BEFORE_TIME: f32 = 1.;
@@ -24,13 +24,12 @@ pub struct LoadingScene {
     next_scene: Option<Box<dyn Scene>>,
     finish_time: f32,
     target: Option<RenderTarget>,
-    get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
 }
 
 impl LoadingScene {
     pub const TOTAL_TIME: f32 = BEFORE_TIME + TRANSITION_TIME + WAIT_TIME;
 
-    pub async fn new(info: ChartInfo, config: Config, mut fs: Box<dyn FileSystem>, get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>) -> Result<Self> {
+    pub async fn new(mut info: ChartInfo, config: Config, mut fs: Box<dyn FileSystem>, get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>) -> Result<Self> {
         async fn load(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<(Texture2D, Texture2D)> {
             let image = image::load_from_memory(&fs.load_file(path).await?).context("Failed to decode image")?;
             let (w, h) = (image.width(), image.height());
@@ -71,7 +70,10 @@ impl LoadingScene {
         let (illustration, background): (SafeTexture, SafeTexture) = (illustration.into(), background.into());
         let font = *FONT.get().unwrap();
         let get_size_fn = get_size_fn.unwrap_or_else(|| Rc::new(|| (screen_width() as u32, screen_height() as u32)));
-        let future = Box::pin(GameScene::new(info.clone(), config, fs, background.clone(), illustration.clone(), font, Rc::clone(&get_size_fn)));
+        if info.tip.is_none() {
+            info.tip = Some(config.tips.choose().cloned().unwrap());
+        }
+        let future = Box::pin(GameScene::new(info.clone(), config, fs, background.clone(), illustration.clone(), font, get_size_fn));
         Ok(Self {
             info,
             illustration,
@@ -81,7 +83,6 @@ impl LoadingScene {
             next_scene: None,
             finish_time: f32::INFINITY,
             target: None,
-            get_size_fn,
         })
     }
 }
@@ -172,7 +173,7 @@ impl Scene for LoadingScene {
         let t = draw_text_aligned(self.font, "Illustration", t.x - w, t.y + w / 0.13 / 13. * 5., (0., 0.), 0.3, WHITE);
         draw_text_aligned(self.font, &self.info.illustrator, t.x, t.y + top / 20., (0., 0.), 0.47, WHITE);
 
-        draw_text_aligned(self.font, &self.info.tip, -0.91, top * 0.92, (0., 1.), 0.47, WHITE);
+        draw_text_aligned(self.font, self.info.tip.as_ref().unwrap(), -0.91, top * 0.92, (0., 1.), 0.47, WHITE);
         let t = draw_text_aligned(self.font, "Loading...", 0.87, top * 0.92, (1., 1.), 0.44, WHITE);
         let we = 0.2;
         let he = 0.5;
@@ -184,14 +185,13 @@ impl Scene for LoadingScene {
         let st = (t - 1.).max(0.).min(1.).powi(3);
         let en = 1. - (1. - t.min(1.)).powi(3);
 
-        draw_rectangle(r.x + r.w * st, r.y, r.w * (en - st), r.h, WHITE);
-        let lt = (r.x + r.w * st, r.y);
-        let (sw, sh) = (self.get_size_fn)();
-        let (sw, sh) = (sw as f32, sh as f32);
-        let lt = ((lt.0 + 1. + dx) / 2. * sw, lt.1 / 2. * sw + sh / 2.);
-        gl.scissor(Some((lt.0 as _, lt.1 as _, (r.w * (en - st) * sw / 2.).ceil() as _, (r.h * sw / 2.).ceil() as _)));
+        let mut ui = Ui::new();
+        let mut r = Rect::new(r.x + r.w * st, r.y, r.w * (en - st), r.h);
+        ui.fill_rect(r, WHITE);
+        r.x += dx;
+        ui.scissor(Some(r));
         draw_text_aligned(self.font, "Loading...", 0.87, top * 0.92, (1., 1.), 0.44, BLACK);
-        gl.scissor(None);
+        ui.scissor(None);
 
         if dx != 0. {
             gl.pop_model_matrix();

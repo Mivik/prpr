@@ -525,6 +525,25 @@ impl Ui {
         gl.pipeline(if self.clips == 0 { None } else { Some(get_draw_pipeline(self.clips)) });
     }
 
+    pub fn scissor(&mut self, rect: Option<Rect>) {
+        let igl = unsafe { get_internal_gl() };
+        let gl = igl.quad_gl;
+        if let Some(rect) = rect {
+            let rect = self.rect_to_global(rect);
+            let vp = gl
+                .get_active_render_pass()
+                .map(|it| {
+                    let tex = it.texture(igl.quad_context);
+                    (0, 0, tex.width as i32, tex.height as i32)
+                })
+                .unwrap_or_else(|| gl.get_viewport());
+            let pt = (vp.0 as f32 + (rect.x + 1.) / 2. * vp.2 as f32, vp.1 as f32 + (rect.y * vp.2 as f32 / vp.3 as f32 + 1.) / 2. * vp.3 as f32);
+            gl.scissor(Some((pt.0 as _, pt.1 as _, (rect.w * vp.2 as f32 / 2.) as _, (rect.h * vp.2 as f32 / 2.) as _)));
+        } else {
+            gl.scissor(None);
+        }
+    }
+
     #[must_use]
     pub fn text(&mut self, text: impl Into<String>) -> DrawText<'_> {
         DrawText::new(self, text.into())

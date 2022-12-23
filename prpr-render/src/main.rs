@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Result, Context};
 use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use macroquad::{miniquad::TextureFormat, prelude::*};
 use prpr::{
@@ -40,13 +40,17 @@ async fn main() -> Result<()> {
 
     let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
 
-    let path = {
+    let (path, config) = {
         let mut args = std::env::args();
         let program = args.next().unwrap();
         let Some(path) = args.next() else {
             bail!("Usage: {program} <chart>");
         };
-        path
+        let mut config = Config::default();
+        if let Some(config_path) = args.next() {
+            config = serde_yaml::from_str(&std::fs::read_to_string(config_path).context("Cannot read from config file")?)?;
+        }
+        (path, config)
     };
 
     let (info, mut fs) = fs::load_info(fs::fs_from_file(&std::path::Path::new(&path))?).await?;
@@ -68,7 +72,7 @@ async fn main() -> Result<()> {
         autoplay: true,
         volume_music: 0.,
         volume_sfx: 0.,
-        ..Default::default()
+        ..config
     };
 
     let mut proc = Command::new("ffmpeg")
@@ -112,7 +116,7 @@ async fn main() -> Result<()> {
 
     let length = track_length - chart.offset.min(0.) as f64 + 1.;
     let offset = chart.offset.max(0.);
-    let frames = ((O + length + GameScene::FADEOUT_TIME as f64 + 3.) / FRAME_DELTA as f64).ceil() as u64;
+    let frames = ((O + length + A + ending.frames.len() as f64 / ending.sample_rate as f64) / FRAME_DELTA as f64).ceil() as u64;
     let start_time = Instant::now();
     for frame in 0..frames {
         *my_time.borrow_mut() = (frame as f32 * FRAME_DELTA - offset).max(0.) as f64;

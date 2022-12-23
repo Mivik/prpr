@@ -6,7 +6,7 @@ use prpr::{
     config::Config,
     core::DPI_VALUE,
     fs::{self, ZipFileSystem},
-    poll_future,
+    ext::poll_future,
     scene::LoadingScene,
     time::TimeManager,
     Main,
@@ -26,12 +26,21 @@ static CONFIG: Mutex<Option<Config>> = Mutex::new(None);
 async fn the_main() -> Result<()> {
     set_pc_assets_folder("assets");
 
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+        .unwrap();
+    let _guard = rt.enter();
+
+    let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
+
     let path = CHART_PATH.lock().unwrap().clone().unwrap();
 
     let fs = if let Some(name) = path.strip_prefix(':') {
         fs::fs_from_assets(name)?
     } else {
-        fs::fs_from_file(&path)?
+        fs::fs_from_file(&std::path::Path::new(&path))?
     };
 
     let (info, fs) = fs::load_info(fs).await?;
@@ -145,10 +154,10 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_getChartName(
     (release_byte_array_elements)(env, bytes, array, ndk_sys::JNI_ABORT as _);
 
     fn get_name(vec: Vec<u8>) -> Result<String> {
-        let mut future = Box::pin(fs::load_info(Box::new(ZipFileSystem::new(vec).context("Failed to load the zip")?)));
+        let mut future = Box::pin(tokio::spawn(fs::load_info(Box::new(ZipFileSystem::new(vec).context("Failed to load the zip")?))));
         loop {
             if let Some(info) = poll_future(future.as_mut()) {
-                break Ok(info?.0.name);
+                break Ok(info??.0.name);
             }
             std::thread::yield_now();
         }

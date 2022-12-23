@@ -1,3 +1,4 @@
+use super::{song::TrashBin, SongScene};
 use crate::{
     billboard::BillBoard,
     cloud::{ChartItemData, Client},
@@ -21,9 +22,11 @@ use prpr::{
     time::TimeManager,
     ui::{RectButton, Scroll, Ui},
 };
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicBool, Mutex},
+};
 use tempfile::NamedTempFile;
-use super::SongScene;
 
 const SIDE_PADDING: f32 = 0.02;
 const ROW_NUM: u32 = 4;
@@ -34,6 +37,7 @@ const SWITCH_TIME: f32 = 0.4;
 const TRANSIT_TIME: f32 = 0.4;
 
 pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
+pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
 
 fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
     get_data()
@@ -69,6 +73,8 @@ pub struct MainScene {
     click_texture: SafeTexture,
     icon_back: SafeTexture,
     icon_play: SafeTexture,
+    icon_delete: SafeTexture,
+    icon_question: SafeTexture,
 
     audio: DefaultAudio,
     cali_clip: AudioClip,
@@ -111,15 +117,22 @@ impl MainScene {
 
         let mut cali_tm = TimeManager::new(1., true);
         cali_tm.force = 3e-2;
+        macro_rules! load_tex {
+            ($path:literal) => {
+                SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
+            };
+        }
         Ok(Self {
             target: None,
             next_scene: None,
             scroll_local: Scroll::new(),
             scroll_remote: Scroll::new(),
             tex: tex.clone(),
-            click_texture: Texture2D::from_image(&load_image("click.png").await?).into(),
-            icon_back: Texture2D::from_image(&load_image("back.png").await?).into(),
-            icon_play: Texture2D::from_image(&load_image("resume.png").await?).into(),
+            click_texture: load_tex!("click.png"),
+            icon_back: load_tex!("back.png"),
+            icon_play: load_tex!("resume.png"),
+            icon_delete: load_tex!("delete.png"),
+            icon_question: load_tex!("question.png"),
 
             audio,
             cali_clip,
@@ -284,9 +297,9 @@ impl MainScene {
                 ui.dy(r.h + s);
                 let r = ui.slider("音符大小", 0.8..1.2, 0.005, &mut config.note_scale);
                 ui.dy(r.h + s);
-                let r = ui.slider("音乐音量", 0.0..2.0, 0.1, &mut config.volume_music);
+                let r = ui.slider("音乐音量", 0.0..2.0, 0.05, &mut config.volume_music);
                 ui.dy(r.h + s);
-                let r = ui.slider("音效音量", 0.0..2.0, 0.1, &mut config.volume_sfx);
+                let r = ui.slider("音效音量", 0.0..2.0, 0.05, &mut config.volume_sfx);
                 ui.dy(r.h + s);
             });
 
@@ -400,7 +413,6 @@ impl MainScene {
 impl Scene for MainScene {
     fn enter(&mut self, tm: &mut TimeManager, target: Option<RenderTarget>) -> Result<()> {
         self.tab_start_time = f32::NEG_INFINITY;
-        tm.reset();
         self.target = target;
         if let Some((_, st, _, true)) = &mut self.transit {
             *st = tm.now() as _;
@@ -476,7 +488,7 @@ impl Scene for MainScene {
             }
         }
         let t = tm.now() as _;
-        if !self.scroll_local.touch(touch.clone(), t) {
+        if self.tab_index == 0 && !self.scroll_local.touch(touch.clone(), t) {
             if let Some(pos) = self.scroll_local.position(&touch) {
                 let id = Self::get_touched(pos);
                 let trigger = Self::trigger_grid(touch.phase, &mut self.choose_local, id);
@@ -491,7 +503,7 @@ impl Scene for MainScene {
         } else {
             self.choose_local = None;
         }
-        if !self.scroll_remote.touch(touch.clone(), t) {
+        if self.tab_index == 1 && !self.scroll_remote.touch(touch.clone(), t) {
             if let Some(pos) = self.scroll_remote.position(&touch) {
                 let id = Self::get_touched(pos);
                 let trigger = Self::trigger_grid(touch.phase, &mut self.choose_remote, id);
@@ -596,6 +608,7 @@ impl Scene for MainScene {
                     self.charts_remote = charts;
                 }
                 Err(err) => {
+                    self.remote_first_time = true;
                     self.billboard.add(format!("加载失败：{err:?}"), tm.now() as _);
                 }
             }
@@ -666,6 +679,28 @@ impl Scene for MainScene {
             ui.fill_path(&path, (*chart.illustration, rect, ScaleType::Scale));
             ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
             if *back && p <= 0. {
+                if SHOULD_DELETE.fetch_and(false, std::sync::atomic::Ordering::SeqCst) {
+                    let err: Result<_> = (|| {
+                        let Some((id, ..)) = self.transit else {unreachable!()};
+                        let id = id as usize;
+                        let path = format!("{}/{}", dir::charts()?, self.charts_local[id].path);
+                        let path = std::path::Path::new(&path);
+                        if path.is_file() {
+                            std::fs::remove_file(path)?;
+                        } else {
+                            std::fs::remove_dir_all(path)?;
+                        }
+                        get_data_mut().unwrap().charts.remove(id);
+                        save_data()?;
+                        self.charts_local.remove(id);
+                        Ok(())
+                    })();
+                    if let Err(err) = err {
+                        self.billboard.add(format!("删除失败：{err:?}"), tm.now() as _);
+                    } else {
+                        self.billboard.add("删除成功", tm.now() as _);
+                    }
+                }
                 self.transit = None;
             } else if !*back && p >= 1. {
                 self.next_scene = Some(NextScene::Overlay(Box::new(SongScene::new(
@@ -678,6 +713,7 @@ impl Scene for MainScene {
                     chart.illustration.clone(),
                     self.icon_back.clone(),
                     self.icon_play.clone(),
+                    TrashBin::new(self.icon_delete.clone(), self.icon_question.clone()),
                 ))));
                 *back = true;
             }

@@ -5,9 +5,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BriefChartInfo {
     pub id: Option<String>,
     pub name: String,
+    pub level: String,
+    pub difficulty: f32,
+    pub preview_time: f32,
     pub intro: String,
     pub tags: Vec<String>,
     pub composer: String,
@@ -19,6 +23,9 @@ impl From<ChartInfo> for BriefChartInfo {
         Self {
             id: info.id,
             name: info.name,
+            level: info.level,
+            difficulty: info.difficulty,
+            preview_time: info.preview_time,
             intro: info.intro,
             tags: info.tags,
             composer: info.composer,

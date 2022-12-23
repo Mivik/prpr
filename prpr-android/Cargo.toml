@@ -12,3 +12,4 @@ macroquad = { path = "../../macroquad", default-features = false }
 ndk-sys = "0.2.0"
 prpr = { path = "../prpr" }
 serde_json = "*"
+tokio = "*"

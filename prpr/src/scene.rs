@@ -51,6 +51,7 @@ pub trait Scene {
 
 pub struct Main {
     scenes: Vec<Box<dyn Scene>>,
+    times: Vec<f64>,
     target: Option<RenderTarget>,
     tm: TimeManager,
     subscriber: usize,
@@ -64,6 +65,7 @@ impl Main {
         let last_update_time = tm.now();
         Ok(Self {
             scenes: vec![scene],
+            times: Vec::new(),
             target,
             tm,
             subscriber: register_input_subscriber(),
@@ -77,11 +79,13 @@ impl Main {
             NextScene::None => {}
             NextScene::Pop => {
                 self.scenes.pop();
+                self.tm.seek_to(self.times.pop().unwrap());
                 self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target)?;
             }
             NextScene::PopN(num) => {
                 for _ in 0..num {
                     self.scenes.pop();
+                    self.tm.seek_to(self.times.pop().unwrap());
                 }
                 self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target)?;
             }
@@ -89,6 +93,7 @@ impl Main {
                 self.should_exit = true;
             }
             NextScene::Overlay(mut scene) => {
+                self.times.push(self.tm.now());
                 scene.enter(&mut self.tm, self.target)?;
                 self.scenes.push(scene);
             }

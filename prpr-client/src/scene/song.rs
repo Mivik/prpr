@@ -2,22 +2,90 @@ use super::main::ChartItem;
 use crate::{dir, get_data};
 use anyhow::Result;
 use macroquad::prelude::*;
-use prpr::core::Tweenable;
-use prpr::ext::{poll_future, screen_aspect, JoinToString, ScaleType};
-use prpr::scene::LoadingScene;
-use prpr::ui::{RectButton, Scroll, Ui};
-use prpr::{ext::SafeTexture, scene::Scene, time::TimeManager};
-use prpr::{fs, scene::NextScene};
-use std::future::Future;
-use std::pin::Pin;
+use prpr::{
+    core::Tweenable,
+    ext::{poll_future, screen_aspect, JoinToString, SafeTexture, ScaleType},
+    fs,
+    scene::{LoadingScene, NextScene, Scene},
+    time::TimeManager,
+    ui::{RectButton, Scroll, Ui},
+};
+use std::{future::Future, pin::Pin};
 
 const FADEIN_TIME: f32 = 0.3;
+
+pub struct TrashBin {
+    icon_delete: SafeTexture,
+    icon_question: SafeTexture,
+    button: RectButton,
+    pub clicked: bool,
+    height: f32,
+    offset: f32,
+    time: f32,
+}
+
+impl TrashBin {
+    pub const TRANSIT_TIME: f32 = 0.2;
+    pub const WAIT_TIME: f32 = 1.;
+
+    pub fn new(icon_delete: SafeTexture, icon_question: SafeTexture) -> Self {
+        Self {
+            icon_delete,
+            icon_question,
+            button: RectButton::new(),
+            clicked: false,
+            height: 0.,
+            offset: 0.,
+            time: f32::INFINITY,
+        }
+    }
+
+    pub fn touch(&mut self, touch: &Touch, t: f32) {
+        if self.button.touch(touch) {
+            if (0.0..Self::WAIT_TIME).contains(&(t - self.time - Self::TRANSIT_TIME)) {
+                // delete
+                self.clicked = true;
+            } else if self.time.is_infinite() {
+                self.time = t;
+            }
+        }
+    }
+
+    pub fn update(&mut self, t: f32) {
+        if self.time.is_infinite() {
+            self.offset = 0.;
+        } else {
+            let p = ((t - self.time - Self::WAIT_TIME - Self::TRANSIT_TIME) / Self::TRANSIT_TIME).min(1.);
+            if p >= 0. {
+                self.offset = (1. - p).powi(3) * self.height;
+                if p >= 1. {
+                    self.time = f32::INFINITY;
+                }
+            } else {
+                let p = 1. - (1. - ((t - self.time) / Self::TRANSIT_TIME).min(1.)).powi(3);
+                self.offset = p * self.height;
+            }
+        }
+    }
+
+    pub fn render(&mut self, ui: &mut Ui, mut rect: Rect, color: Color) {
+        self.button.set(ui, rect);
+        self.height = rect.h;
+        ui.scissor(Some(rect));
+        rect.y -= self.offset;
+        ui.fill_rect(rect, (*self.icon_delete, rect, ScaleType::Fit, color));
+        rect.y += rect.h;
+        ui.fill_rect(rect, (*self.icon_question, rect, ScaleType::Fit, color));
+        ui.scissor(None);
+    }
+}
 
 pub struct SongScene {
     chart: ChartItem,
     illustration: SafeTexture,
     icon_back: SafeTexture,
     icon_play: SafeTexture,
+    bin: TrashBin,
 
     back_button: RectButton,
     play_button: RectButton,
@@ -33,12 +101,13 @@ pub struct SongScene {
 }
 
 impl SongScene {
-    pub fn new(chart: ChartItem, illustration: SafeTexture, icon_back: SafeTexture, icon_play: SafeTexture) -> Self {
+    pub fn new(chart: ChartItem, illustration: SafeTexture, icon_back: SafeTexture, icon_play: SafeTexture, bin: TrashBin) -> Self {
         Self {
             chart,
             illustration,
             icon_back,
             icon_play,
+            bin,
 
             back_button: RectButton::new(),
             play_button: RectButton::new(),
@@ -74,6 +143,14 @@ impl SongScene {
         ui.fill_rect(r, (*self.icon_play, r, ScaleType::Fit, color));
         self.play_button.set(ui, r);
 
+        ui.scope(|ui| {
+            ui.dx(1. - 0.03);
+            ui.dy(-ui.top + 0.03);
+            let s = 0.08;
+            let r = Rect::new(-s, 0., s, s);
+            self.bin.render(ui, r, color);
+        });
+
         let color = Color::new(1., 1., 1., p);
         ui.scope(|ui| {
             ui.dx(-1.);
@@ -96,19 +173,23 @@ impl SongScene {
                     .color(Color::new(1., 1., 1., 0.77 * p))
                     .draw();
                 ui.dy(top + 0.03);
-                ui.text(format!(
-                    "{}\n\n{}\n\n曲师：{}\n插图：{}",
-                    self.chart.info.intro,
-                    self.chart.info.tags.iter().map(|it| format!("#{it}")).join(" "),
-                    self.chart.info.composer,
-                    self.chart.info.illustrator
-                ))
-                .multiline()
-                .max_width(2. - 0.06 * 2.)
-                .size(0.5)
-                .color(Color::new(1., 1., 1., 0.77))
-                .draw();
-                (2., ui.top * 3.)
+                let r = ui
+                    .text(format!(
+                        "{}\n\n{}\n\n难度：{} ({:.1})\n曲师：{}\n插图：{}",
+                        self.chart.info.intro,
+                        self.chart.info.tags.iter().map(|it| format!("#{it}")).join(" "),
+                        self.chart.info.level,
+                        self.chart.info.difficulty,
+                        self.chart.info.composer,
+                        self.chart.info.illustrator
+                    ))
+                    .multiline()
+                    .max_width(2. - 0.06 * 2.)
+                    .size(0.5)
+                    .color(Color::new(1., 1., 1., 0.77))
+                    .draw();
+                ui.dy(r.h + 0.02);
+                (2., top + r.h + 0.1)
             });
         });
     }
@@ -117,9 +198,9 @@ impl SongScene {
 impl Scene for SongScene {
     fn enter(&mut self, tm: &mut TimeManager, target: Option<RenderTarget>) -> Result<()> {
         self.target = target;
+        tm.reset();
         if self.first_in {
             self.first_in = false;
-            tm.reset();
             tm.seek_to(-FADEIN_TIME as _);
         }
         Ok(())
@@ -130,6 +211,7 @@ impl Scene for SongScene {
             return Ok(());
         }
         if self.scroll_progress() < 0.4 {
+            self.bin.touch(&touch, tm.now() as _);
             if self.back_button.touch(&touch) {
                 self.next_scene = Some(NextScene::Pop);
             }
@@ -150,12 +232,17 @@ impl Scene for SongScene {
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
+        if self.bin.clicked {
+            self.next_scene = Some(NextScene::Pop);
+            super::main::SHOULD_DELETE.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
         if let Some(future) = &mut self.future {
             if let Some(scene) = poll_future(future.as_mut()) {
                 self.future = None;
                 self.next_scene = Some(NextScene::Overlay(Box::new(scene?)));
             }
         }
+        self.bin.update(tm.now() as _);
         self.scroll.update(tm.now() as _);
         Ok(())
     }

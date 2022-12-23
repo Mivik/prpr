@@ -14,7 +14,7 @@ impl BillBoard {
         Self { messages: VecDeque::new() }
     }
 
-    pub fn render(&mut self, ui: &mut Ui) {
+    pub fn render(&self, ui: &mut Ui) {
         let rt = 1. - PADDING;
         let mut tp = -ui.top + PADDING;
         for msg in &self.messages {

@@ -26,9 +26,10 @@ pub struct ChartInfo {
     pub music: String,
     pub illustration: String,
 
+    pub preview_time: f32,
     pub aspect_ratio: f32,
     pub line_length: f32,
-    pub tip: String,
+    pub tip: Option<String>,
 
     pub intro: String,
     pub tags: Vec<String>,
@@ -51,9 +52,10 @@ impl Default for ChartInfo {
             music: "song.mp3".to_string(),
             illustration: "background.png".to_string(),
 
+            preview_time: 0.,
             aspect_ratio: 16. / 9.,
             line_length: 6.,
-            tip: "Tip: 欢迎来到 prpr！".to_owned(),
+            tip: None,
 
             intro: String::new(),
             tags: Vec::new(),

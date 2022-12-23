@@ -205,10 +205,11 @@ impl Judge {
     }
 
     pub fn score(&self) -> u32 {
+        const TOTAL: u32 = 1000000;
         if self.counts[0] == self.num_of_notes {
-            1000000
+            TOTAL
         } else {
-            let score = (9.0 * self.accuracy() + self.max_combo as f64 / self.num_of_notes as f64) * 100000.0;
+            let score = (0.9 * self.accuracy() + self.max_combo as f64 / self.num_of_notes as f64 * 0.1) * TOTAL as f64;
             score.round() as u32
         }
     }

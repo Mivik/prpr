@@ -367,6 +367,7 @@ impl Scene for GameScene {
                         self.res.icon_proceed.clone(),
                         self.res.info.clone(),
                         self.judge.result(),
+                        self.res.challenge_icons[self.res.config.challenge_color.clone() as usize].clone(),
                         &self.res.config,
                         self.res.ending_bgm_bytes.clone(),
                     )?));

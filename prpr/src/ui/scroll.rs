@@ -3,10 +3,7 @@ use crate::{
     core::{Matrix, Point},
     judge::VelocityTracker,
 };
-use macroquad::{
-    prelude::{Touch, TouchPhase, Vec2},
-    window::get_internal_gl,
-};
+use macroquad::prelude::{Rect, Touch, TouchPhase, Vec2};
 use nalgebra::Translation2;
 
 const THRESHOLD: f32 = 0.03;
@@ -172,15 +169,10 @@ impl Scroll {
     }
 
     pub fn render(&mut self, ui: &mut Ui, content: impl FnOnce(&mut Ui) -> (f32, f32)) {
-        let gl = unsafe { get_internal_gl() }.quad_gl;
         self.matrix = Some(ui.get_matrix().try_inverse().unwrap());
-        let pt = ui.to_global((0., 0.));
-        let vec = ui.vec_to_global(self.size);
-        let vp = gl.get_viewport();
-        let pt = (vp.0 as f32 + (pt.0 + 1.) / 2. * vp.2 as f32, vp.1 as f32 + (pt.1 * vp.2 as f32 / vp.3 as f32 + 1.) / 2. * vp.3 as f32);
-        gl.scissor(Some((pt.0 as _, pt.1 as _, (vec.0 * vp.2 as f32 / 2.) as _, (vec.1 * vp.2 as f32 / 2.) as _)));
+        ui.scissor(Some(Rect::new(0., 0., self.size.0, self.size.1)));
         let s = ui.with(Translation2::new(-self.x_scroller.offset(), -self.y_scroller.offset()).to_homogeneous(), content);
-        gl.scissor(None);
+        ui.scissor(None);
         self.x_scroller.bound(s.0);
         self.y_scroller.bound(s.1);
         self.x_scroller.size((s.0 - self.size.0).max(0.));

@@ -2,9 +2,10 @@ use super::{draw_background, draw_illustration, NextScene, Scene};
 use crate::{
     audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
     config::Config,
-    ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, screen_aspect, SafeTexture, PARALLELOGRAM_SLOPE},
+    ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, screen_aspect, SafeTexture, ScaleType, PARALLELOGRAM_SLOPE},
     info::ChartInfo,
     judge::{Judge, PlayResult},
+    ui::Ui,
 };
 use anyhow::Result;
 use macroquad::prelude::*;
@@ -26,6 +27,8 @@ pub struct EndingScene {
     result: PlayResult,
     player_name: String,
     player_rks: f32,
+    challenge_texture: SafeTexture,
+    challenge_rank: u32,
     next: u8, // 0 -> none, 1 -> pop, 2 -> exit
 }
 
@@ -40,6 +43,7 @@ impl EndingScene {
         icon_proceed: SafeTexture,
         info: ChartInfo,
         result: PlayResult,
+        challenge_texture: SafeTexture,
         config: &Config,
         bgm_bytes: Vec<u8>,
     ) -> Result<Self> {
@@ -62,6 +66,8 @@ impl EndingScene {
             result,
             player_name: config.player_name.clone(),
             player_rks: config.player_rks,
+            challenge_texture,
+            challenge_rank: config.challenge_rank,
             next: 0,
         })
     }
@@ -92,7 +98,7 @@ impl Scene for EndingScene {
     }
 
     fn update(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
-        if tm.now() >= 0. && self.bgm_handle.is_none() {
+        if tm.now() >= 0. && self.bgm_handle.is_none() && self.target.is_none() {
             self.bgm_handle = Some(self.audio.play(
                 &self.bgm,
                 PlayParams {
@@ -277,28 +283,42 @@ impl Scene for EndingScene {
         }
 
         let alpha = ran(now, 1.5, 1.9);
-        let main = Rect::new(1. - 0.28, -top + dy * 2., 0.35, 0.09);
+        let main = Rect::new(1. - 0.28, -top + dy * 2.5, 0.35, 0.1);
         draw_parallelogram(main, None, Color::new(0., 0., 0., c.a * alpha), false);
-        let sub = Rect::new(1. - 0.17, main.center().y + 0.005, 0.16, 0.028);
-        draw_parallelogram(sub, None, Color::new(1., 1., 1., alpha), false);
+        let sub = Rect::new(1. - 0.13, main.center().y + 0.01, 0.12, 0.03);
+        let color = Color::new(1., 1., 1., alpha);
+        draw_parallelogram(sub, None, color, false);
         draw_text_aligned(
             self.font,
             &format!("{:.2}", self.player_rks),
-            sub.center().x + 0.034,
+            sub.center().x,
             sub.center().y,
             (0.5, 0.5),
-            0.3,
+            0.37,
             Color::new(0., 0., 0., alpha),
         );
-        let r = draw_illustration(*self.player, 1. - 0.17, main.center().y, 0.1 / (0.076 * 7.), 0.1 / (0.076 * 7.), Color::new(1., 1., 1., alpha));
-        let text = draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, Color::new(1., 1., 1., alpha));
+        let r = draw_illustration(*self.player, 1. - 0.21, main.center().y, 0.12 / (0.076 * 7.), 0.12 / (0.076 * 7.), color);
+        let text = draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, color);
         draw_parallelogram(
-            Rect::new(text.x - main.h * slope - 0.01, main.y, main.x - text.x + main.h * slope * 2. + 0.01, main.h),
+            Rect::new(text.x - main.h * slope - 0.01, main.y, r.x - text.x + main.h * slope * 2. + 0.013, main.h),
             None,
             Color::new(0., 0., 0., c.a * alpha),
             false,
         );
-        draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, Color::new(1., 1., 1., alpha));
+        draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, color);
+
+        let mut ui = Ui::new();
+        let ct = (1. - 0.1 + 0.043, main.center().y - 0.034 + 0.02);
+        let (w, h) = (0.09 * self.challenge_texture.width() / 78., 0.04 * self.challenge_texture.height() / 38.);
+        let r = Rect::new(ct.0 - w / 2., ct.1 - h / 2., w, h);
+        ui.fill_rect(r, (*self.challenge_texture, r, ScaleType::Fit, color));
+        let ct = r.center();
+        ui.text(self.challenge_rank.to_string())
+            .pos(ct.x, ct.y)
+            .anchor(0.5, 1.)
+            .size(0.46)
+            .color(color)
+            .draw();
 
         Ok(())
     }
