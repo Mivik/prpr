@@ -162,7 +162,7 @@ impl Scene for EndingScene {
         {
             let r = draw_text_aligned(
                 self.font,
-                &format!("NEW BEST   {:07}  +{:07}", res.score, res.score),
+                &format!("PRPR   {:07}  +{:07}", res.score, res.score),
                 main.x + dx,
                 main.bottom() - 0.035,
                 (0., 1.),

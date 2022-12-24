@@ -18,7 +18,8 @@ reqwest = "0.11"
 serde = { version = "*", features = ["derive"] }
 openssl = { version = "*", features = ["vendored"] }
 serde_json = "*"
-tokio = { version = "*", features = ["rt-multi-thread"] }
+# tokio = { version = "*", features = ["rt-multi-thread"] }
+tokio = "*"
 tempfile = "3.3"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]

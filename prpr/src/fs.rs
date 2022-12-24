@@ -1,4 +1,4 @@
-use crate::info::ChartInfo;
+use crate::{info::ChartInfo, ext::spawn_task};
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use concat_string::concat_string;
@@ -32,7 +32,10 @@ pub struct ExternalFileSystem(PathBuf);
 impl FileSystem for ExternalFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
         let path = self.0.join(path);
-        Ok(tokio::spawn(async move { tokio::fs::read(path).await }).await??)
+        #[cfg(target_arch = "wasm32")]
+        { Ok(async move { std::fs::read(path) }.await?) }
+        #[cfg(not(target_arch = "wasm32"))]
+        { Ok(tokio::spawn(async move { tokio::fs::read(path).await }).await??) }
     }
 }
 
@@ -55,7 +58,7 @@ impl FileSystem for ZipFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
         let arc = Arc::clone(&self.0);
         let path = concat_string!(self.1, path);
-        tokio::spawn(async move {
+        spawn_task(async move {
             let mut zip = arc.lock().unwrap();
             let mut entry = zip.by_name(&path)?;
             let mut res = Vec::new();

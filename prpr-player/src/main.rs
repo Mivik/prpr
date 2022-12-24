@@ -37,12 +37,22 @@ async fn main() -> Result<()> {
         (fs::fs_from_file(std::path::Path::new(&path))?, config)
     };
 
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
-        .enable_all()
-        .build()
-        .unwrap();
-    let _guard = rt.enter();
+    let _guard = {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+                .unwrap();
+            let rt = Box::leak(Box::new(rt));
+            rt.enter()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            ()
+        }
+    };
 
     let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
 

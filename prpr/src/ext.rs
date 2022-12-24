@@ -245,6 +245,13 @@ pub fn thread_as_future<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'stati
     DummyFuture(arc)
 }
 
+pub fn spawn_task<R: Send + 'static>(future: impl Future<Output = R> + Send + 'static) -> impl Future<Output = anyhow::Result<R>> {
+    #[cfg(target_arch = "wasm32")]
+    { async move { Ok(future.await) } }
+    #[cfg(not(target_arch = "wasm32"))]
+    { async move { Ok(tokio::spawn(future).await?) } }
+}
+
 pub fn poll_future<R>(future: Pin<&mut (impl Future<Output = R> + ?Sized)>) -> Option<R> {
     fn waker() -> Waker {
         unsafe fn clone(data: *const ()) -> RawWaker {
