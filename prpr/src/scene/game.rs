@@ -53,6 +53,7 @@ pub struct GameScene {
 
 macro_rules! reset {
     ($self:ident, $res:expr, $tm:ident) => {{
+        $self.bad_notes.clear();
         $self.judge.reset();
         $self.chart.reset();
         $res.judge_line_color = JUDGE_LINE_PERFECT_COLOR;
@@ -163,6 +164,7 @@ impl GameScene {
         let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
         if Self::interactive(res, &self.state)
             && !tm.paused()
+            && self.pause_rewind.is_none()
             && Judge::get_touches().into_iter().any(|touch| {
                 matches!(touch.phase, TouchPhase::Started) && {
                     let p = touch.position;
