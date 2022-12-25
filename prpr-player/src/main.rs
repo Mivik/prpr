@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
 
     let tm = TimeManager::default();
     let ctm = TimeManager::from_config(&config); // strange variable name...
-    let mut main = Main::new(Box::new(LoadingScene::new(info, config, fs, None).await?), ctm, None)?;
+    let mut main = Main::new(Box::new(LoadingScene::new(info, config, fs, None, None).await?), ctm, None)?;
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;

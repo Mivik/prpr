@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
         let my_time = Rc::clone(&my_time);
         move || *(*my_time).borrow()
     }));
-    let mut main = Main::new(Box::new(LoadingScene::new(info, config, fs, Some(Rc::new(|| (VIDEO_WIDTH, VIDEO_HEIGHT)))).await?), tm, target)?;
+    let mut main = Main::new(Box::new(LoadingScene::new(info, config, fs, None, Some(Rc::new(|| (VIDEO_WIDTH, VIDEO_HEIGHT)))).await?), tm, target)?;
 
     let mut bytes = vec![0; VIDEO_WIDTH as usize * VIDEO_HEIGHT as usize * 3];
 
