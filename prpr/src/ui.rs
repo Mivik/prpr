@@ -86,6 +86,7 @@ impl FillVertexConstructor<Vertex> for ShadedConstructor {
     }
 }
 
+#[must_use = "DrawText does nothing until you 'draw' or 'measure' it"]
 pub struct DrawText<'a> {
     ui: &'a mut Ui,
     text: String,
@@ -113,49 +114,41 @@ impl<'a> DrawText<'a> {
         }
     }
 
-    #[must_use]
     pub fn font(mut self, font: Font) -> Self {
         self.font = Some(font);
         self
     }
 
-    #[must_use]
     pub fn size(mut self, size: f32) -> Self {
         self.size = size;
         self
     }
 
-    #[must_use]
     pub fn pos(mut self, x: f32, y: f32) -> Self {
         self.pos = (x, y);
         self
     }
 
-    #[must_use]
     pub fn anchor(mut self, x: f32, y: f32) -> Self {
         self.anchor = (x, y);
         self
     }
 
-    #[must_use]
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
 
-    #[must_use]
     pub fn max_width(mut self, max_width: f32) -> Self {
         self.max_width = Some(max_width);
         self
     }
 
-    #[must_use]
     pub fn multiline(mut self) -> Self {
         self.multiline = true;
         self
     }
 
-    #[must_use]
     pub fn measure(&self) -> Rect {
         let size = (screen_width() / 23. * self.size) as u16;
         let scale = 0.08 * self.size / size as f32;

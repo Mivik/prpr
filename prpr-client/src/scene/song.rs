@@ -1,8 +1,9 @@
 use super::main::ChartItem;
-use crate::{dir, get_data};
+use crate::{cloud::UserManager, dir, get_data};
 use anyhow::Result;
 use macroquad::prelude::*;
 use prpr::{
+    config::Config,
     core::Tweenable,
     ext::{poll_future, screen_aspect, JoinToString, SafeTexture, ScaleType},
     fs,
@@ -102,6 +103,9 @@ pub struct SongScene {
 
 impl SongScene {
     pub fn new(chart: ChartItem, illustration: SafeTexture, icon_back: SafeTexture, icon_play: SafeTexture, bin: TrashBin) -> Self {
+        if let Some(user) = chart.info.uploader.as_ref() {
+            UserManager::request(&user.id);
+        }
         Self {
             chart,
             illustration,
@@ -159,6 +163,7 @@ impl SongScene {
             self.scroll.render(ui, |ui| {
                 ui.dx(0.06);
                 let top = ui.top * 2.;
+                let mut sy = 0.;
                 let r = ui
                     .text(&self.chart.info.name)
                     .pos(0., top - 0.06)
@@ -179,6 +184,19 @@ impl SongScene {
                     .color(Color::new(1., 1., 1., 0.77 * p))
                     .draw();
                 ui.dy(top + 0.03);
+                sy += top + 0.03;
+                if let Some(user) = self.chart.info.uploader.as_ref() {
+                    let r = Rect::new(0., 0., 0.1, 0.1);
+                    if let Some(avatar) = UserManager::get_avatar(&user.id) {
+                        let ct = r.center();
+                        ui.fill_circle(ct.x, ct.y, r.w / 2., (*avatar, r));
+                    }
+                    if let Some(name) = UserManager::get_name(&user.id) {
+                        ui.text(name).pos(r.right() + 0.01, r.center().y).anchor(0., 0.5).size(0.6).draw();
+                    }
+                    ui.dy(r.h + 0.02);
+                    sy += r.h + 0.02;
+                }
                 let r = ui
                     .text(format!(
                         "{}\n\n{}\n\n难度：{} ({:.1})\n曲师：{}\n插图：{}",
@@ -195,7 +213,8 @@ impl SongScene {
                     .color(Color::new(1., 1., 1., 0.77))
                     .draw();
                 ui.dy(r.h + 0.02);
-                (2., top + r.h + 0.1)
+                sy += r.h + 0.02;
+                (2., sy + 0.06)
             });
         });
     }
@@ -229,7 +248,17 @@ impl Scene for SongScene {
                 };
                 self.future = Some(Box::pin(async move {
                     let (info, fs) = fs::load_info(fs).await?;
-                    LoadingScene::new(info, get_data().unwrap().config.clone(), fs, None).await
+                    LoadingScene::new(
+                        info,
+                        Config {
+                            player_name: get_data().me.as_ref().map(|it| it.name.clone()).unwrap_or_else(|| "游客".to_string()),
+                            ..get_data().config.clone()
+                        },
+                        fs,
+                        get_data().me.as_ref().and_then(|it| UserManager::get_avatar(&it.id)),
+                        None,
+                    )
+                    .await
                 }));
             }
         }

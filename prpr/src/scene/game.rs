@@ -105,6 +105,7 @@ impl GameScene {
         info: ChartInfo,
         config: Config,
         mut fs: Box<dyn FileSystem>,
+        player: Option<SafeTexture>,
         background: SafeTexture,
         illustration: SafeTexture,
         font: Font,
@@ -112,7 +113,7 @@ impl GameScene {
     ) -> Result<Self> {
         let chart = Self::load_chart(&mut fs, &info).await?;
 
-        let mut res = Resource::new(config, info, fs, background, illustration, font)
+        let mut res = Resource::new(config, info, fs, player, background, illustration, font)
             .await
             .context("Failed to load resources")?;
 

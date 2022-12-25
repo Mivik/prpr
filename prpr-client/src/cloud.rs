@@ -1,11 +1,19 @@
+mod file;
+use file::upload_qiniu;
+
 mod structs;
 pub use structs::*;
 
-use anyhow::{bail, Context, Result};
-use reqwest::{Method, RequestBuilder};
-use serde::{de::DeserializeOwned, Deserialize};
+mod user;
+pub use user::UserManager;
 
-async fn lc_recv(request: RequestBuilder) -> Result<String> {
+use crate::get_data;
+use anyhow::{bail, Context, Result};
+use reqwest::{header, Method, RequestBuilder};
+use serde::{de::DeserializeOwned, Deserialize};
+use serde_json::{json, Value};
+
+async fn recv_lc(request: RequestBuilder) -> Result<String> {
     #[derive(Deserialize)]
     struct ErrorMsg {
         code: i32,
@@ -22,11 +30,11 @@ async fn lc_recv(request: RequestBuilder) -> Result<String> {
 }
 
 async fn parse_lc<T: LCObject>(request: RequestBuilder) -> Result<T> {
-    Ok(serde_json::from_str(&lc_recv(request).await?).context("Failed to parse content")?)
+    Ok(serde_json::from_str(&recv_lc(request).await?).context("Failed to parse content")?)
 }
 
 async fn parse_lc_many<T: LCObject>(request: RequestBuilder) -> Result<Vec<T>> {
-    let mut json: serde_json::Value = serde_json::from_str(&lc_recv(request).await?).context("Failed to parse content")?;
+    let mut json: serde_json::Value = serde_json::from_str(&recv_lc(request).await?).context("Failed to parse content")?;
     let mut results = json["results"].take();
     Ok(std::mem::take(results.as_array_mut().unwrap())
         .into_iter()
@@ -38,49 +46,147 @@ pub trait LCObject: DeserializeOwned {
     const CLASS_NAME: &'static str;
 }
 
-pub struct Client {
-    http: reqwest::Client,
+const API_URL: &str = "https://uxjq2roe.lc-cn-n1-shared.com/1.1";
+const API_ID: &str = "uxjq2ROe26ucGlFXIbWYOhEW-gzGzoHsz";
+const API_KEY: &str = "LW6yy6lkSFfXDqZo0442oFjT";
 
-    api_url: String,
-    app_id: String,
-    app_key: String,
+pub trait RequestExt {
+    fn with_session(self) -> Self;
 }
 
+impl RequestExt for RequestBuilder {
+    fn with_session(self) -> Self {
+        self.header("X-LC-Session", get_data().me.as_ref().unwrap().session_token.as_ref().unwrap())
+    }
+}
+
+#[derive(Deserialize)]
+struct UploadToken {
+    #[serde(rename = "objectId")]
+    object_id: String,
+    upload_url: String,
+    key: String,
+    token: String,
+    url: String,
+    provider: String,
+    bucket: String,
+}
+
+pub struct Client;
+
 impl Client {
-    pub fn new(api_url: impl Into<String>, app_id: impl Into<String>, app_key: impl Into<String>) -> Self {
-        Self {
-            http: reqwest::Client::new(),
+    fn get(path: impl AsRef<str>) -> RequestBuilder {
+        Self::request(Method::GET, path)
+    }
 
-            api_url: api_url.into(),
-            app_id: app_id.into(),
-            app_key: app_key.into(),
+    fn post(path: impl AsRef<str>, data: Value) -> RequestBuilder {
+        Self::request(Method::POST, path)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(data.to_string())
+    }
+
+    fn put(path: impl AsRef<str>, data: Value) -> RequestBuilder {
+        Self::request(Method::PUT, path)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(data.to_string())
+    }
+
+    fn request(method: Method, path: impl AsRef<str>) -> RequestBuilder {
+        reqwest::Client::new()
+            .request(method, API_URL.to_string() + path.as_ref())
+            .header("X-LC-Id", API_ID)
+            .header("X-LC-Key", API_KEY)
+    }
+
+    pub async fn fetch<T: LCObject>(ptr: impl Into<Pointer>) -> Result<T> {
+        parse_lc(Self::get(format!("/classes/{}/{}", T::CLASS_NAME, ptr.into().id))).await
+    }
+
+    pub async fn query<T: LCObject>() -> Result<Vec<T>> {
+        parse_lc_many(Self::get(format!("/classes/{}", T::CLASS_NAME))).await
+    }
+
+    pub async fn register(email: &str, username: &str, password: &str) -> Result<()> {
+        recv_lc(Self::post(
+            "/users",
+            json!({
+                "email": email,
+                "username": username,
+                "password": password,
+            }),
+        ))
+        .await?;
+        Ok(())
+    }
+
+    pub async fn login(username: &str, password: &str) -> Result<User> {
+        parse_lc(Self::post(
+            "/login",
+            json!({
+                "username": username,
+                "password": password,
+            }),
+        ))
+        .await
+    }
+
+    pub async fn update_user(patch: Value) -> Result<()> {
+        recv_lc(Self::put(format!("/users/{}", get_data().me.as_ref().unwrap().id), patch).with_session()).await?;
+        Ok(())
+    }
+
+    pub async fn get_me() -> Result<User> {
+        parse_lc(Self::get("/users/me").with_session()).await
+    }
+
+    pub async fn upload_file(name: &str, data: &[u8]) -> Result<LCFile> {
+        let checksum = format!("{:x}", md5::compute(data));
+        let id = get_data().me.as_ref().unwrap().id.clone();
+        let mut token: UploadToken = serde_json::from_str(
+            &recv_lc(Self::post(
+                "/fileTokens",
+                json!({
+                    "name": name,
+                    "__type": "File",
+                    "ACL": {
+                        id: {
+                            "read": true,
+                            "write": true,
+                        },
+                        "*": {
+                            "read": true
+                        }
+                    },
+                    "metaData": {
+                        "size": data.len(),
+                        "_checksum": checksum,
+                    }
+                }),
+            ))
+            .await?,
+        )?;
+        if token.provider != "qiniu" {
+            bail!("Unsupported prvider: {}", token.provider);
         }
+        let file = LCFile {
+            id: std::mem::take(&mut token.object_id),
+            url: std::mem::take(&mut token.url),
+        };
+        let token_s = token.token.clone();
+        upload_qiniu(token, data).await?;
+        let _ = recv_lc(Self::post(
+            "/fileCallback",
+            json!({
+                "result": true,
+                "token": token_s,
+            }),
+        ))
+        .await;
+        Ok(file)
     }
 
-    fn get(&self, path: impl AsRef<str>) -> RequestBuilder {
-        self.request(Method::GET, path)
-    }
-
-    fn post(&self, path: impl AsRef<str>) -> RequestBuilder {
-        self.request(Method::POST, path)
-    }
-
-    fn request(&self, method: Method, path: impl AsRef<str>) -> RequestBuilder {
-        let path = path.as_ref();
-        let mut url = self.api_url.clone();
-        url.reserve_exact(path.len());
-        url.push_str(path.as_ref());
-        self.http
-            .request(method, url)
-            .header("X-LC-Id", &self.app_id)
-            .header("X-LC-Key", &self.app_key)
-    }
-
-    pub async fn fetch<T: LCObject>(&self, ptr: impl Into<Pointer>) -> Result<T> {
-        parse_lc(self.get(format!("/classes/{}", ptr.into().id))).await
-    }
-
-    pub async fn query<T: LCObject>(&self) -> Result<Vec<T>> {
-        parse_lc_many(self.get(format!("/classes/{}", T::CLASS_NAME))).await
+    pub async fn delete_file(id: &str) -> Result<()> {
+        recv_lc(Self::request(Method::DELETE, format!("/files/{id}")).with_session()).await?;
+        Ok(())
     }
 }

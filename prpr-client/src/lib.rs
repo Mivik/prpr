@@ -21,16 +21,16 @@ pub fn set_data(data: Data) {
     }
 }
 
-pub fn get_data() -> Option<&'static Data> {
-    unsafe { DATA.as_ref() }
+pub fn get_data() -> &'static Data {
+    unsafe { DATA.as_ref().unwrap() }
 }
 
-pub fn get_data_mut() -> Option<&'static mut Data> {
-    unsafe { DATA.as_mut() }
+pub fn get_data_mut() -> &'static mut Data {
+    unsafe { DATA.as_mut().unwrap() }
 }
 
 pub fn save_data() -> Result<()> {
-    std::fs::write(format!("{}/data.json", dir::root()?), serde_json::to_string(get_data().as_ref().unwrap())?)?;
+    std::fs::write(format!("{}/data.json", dir::root()?), serde_json::to_string(get_data())?)?;
     Ok(())
 }
 
@@ -45,6 +45,10 @@ mod dir {
             std::fs::create_dir_all(&s)?;
         }
         Ok(s)
+    }
+
+    pub fn cache() -> Result<String> {
+        ensure("cache")
     }
 
     pub fn root() -> Result<String> {

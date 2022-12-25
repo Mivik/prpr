@@ -17,8 +17,8 @@ const WAIT_TIME: f32 = 0.4;
 
 pub struct LoadingScene {
     info: ChartInfo,
-    illustration: SafeTexture,
     background: SafeTexture,
+    illustration: SafeTexture,
     font: Font,
     future: Option<Pin<Box<dyn Future<Output = Result<GameScene>>>>>,
     next_scene: Option<Box<dyn Scene>>,
@@ -29,7 +29,13 @@ pub struct LoadingScene {
 impl LoadingScene {
     pub const TOTAL_TIME: f32 = BEFORE_TIME + TRANSITION_TIME + WAIT_TIME;
 
-    pub async fn new(mut info: ChartInfo, config: Config, mut fs: Box<dyn FileSystem>, get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>) -> Result<Self> {
+    pub async fn new(
+        mut info: ChartInfo,
+        config: Config,
+        mut fs: Box<dyn FileSystem>,
+        player: Option<SafeTexture>,
+        get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>,
+    ) -> Result<Self> {
         async fn load(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<(Texture2D, Texture2D)> {
             let image = image::load_from_memory(&fs.load_file(path).await?).context("Failed to decode image")?;
             let (w, h) = (image.width(), image.height());
@@ -73,11 +79,11 @@ impl LoadingScene {
         if info.tip.is_none() {
             info.tip = Some(config.tips.choose().cloned().unwrap());
         }
-        let future = Box::pin(GameScene::new(info.clone(), config, fs, background.clone(), illustration.clone(), font, get_size_fn));
+        let future = Box::pin(GameScene::new(info.clone(), config, fs, player, background.clone(), illustration.clone(), font, get_size_fn));
         Ok(Self {
             info,
-            illustration,
             background,
+            illustration,
             font,
             future: Some(future),
             next_scene: None,

@@ -1,18 +1,19 @@
 use super::{song::TrashBin, SongScene};
 use crate::{
     billboard::BillBoard,
-    cloud::{ChartItemData, Client},
+    cloud::{ChartItemData, Client, User, UserManager},
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut, save_data,
     task::Task,
 };
 use anyhow::{Context, Result};
-use image::DynamicImage;
+use image::{imageops::FilterType, DynamicImage};
 use lyon::{
     math as lm,
     path::{builder::BorderRadii, Path, Winding},
 };
 use macroquad::{prelude::*, texture::RenderTarget};
+use once_cell::sync::Lazy;
 use prpr::{
     audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
     config::ChallengeModeColor,
@@ -23,8 +24,12 @@ use prpr::{
     time::TimeManager,
     ui::{RectButton, Scroll, Ui},
 };
+use regex::Regex;
+use serde_json::json;
 use std::{
     collections::HashMap,
+    future::Future,
+    io::Cursor,
     sync::{atomic::AtomicBool, Mutex},
 };
 use tempfile::NamedTempFile;
@@ -41,9 +46,23 @@ pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
 pub static INPUT_TEXT: Mutex<Option<String>> = Mutex::new(None);
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
 
+enum InputState {
+    None,
+    SettingsName,
+    AccountEmail,
+    AccountUsername,
+    AccountPassword,
+    EditUsername,
+}
+
+enum ChooseFileState {
+    None,
+    ImportChart,
+    Avatar,
+}
+
 fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
     get_data()
-        .unwrap()
         .charts
         .iter()
         .map(|it| ChartItem {
@@ -59,11 +78,65 @@ fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
         .collect()
 }
 
+fn validate_username(username: &str) -> Option<&'static str> {
+    if !(4..=20).contains(&username.len()) {
+        return Some("用户名长度应介于 4-20 之间");
+    }
+    if username.chars().any(|it| it != '_' && it != '-' && !it.is_alphanumeric()) {
+        return Some("用户名包含非法字符");
+    }
+    None
+}
+
 pub struct ChartItem {
     pub info: BriefChartInfo,
     pub path: String,
     pub illustration: SafeTexture,
     pub illustration_task: Task<Result<DynamicImage>>,
+}
+
+pub struct AccountPage {
+    register: bool,
+    task: Option<Task<Result<Option<User>>>>,
+    task_desc: String,
+    email_input: String,
+    username_input: String,
+    password_input: String,
+    avatar_button: RectButton,
+    email_button: RectButton,
+    username_button: RectButton,
+    password_button: RectButton,
+    left_button: RectButton,
+    right_button: RectButton,
+}
+
+impl AccountPage {
+    pub fn new() -> Self {
+        let logged_in = get_data().me.is_some();
+        Self {
+            register: false,
+            task: if logged_in {
+                Some(Task::new(async { Ok(Some(Client::get_me().await?)) }))
+            } else {
+                None
+            },
+            task_desc: if logged_in { "更新数据".to_owned() } else { String::new() },
+            email_input: String::new(),
+            username_input: String::new(),
+            password_input: String::new(),
+            avatar_button: RectButton::new(),
+            email_button: RectButton::new(),
+            username_button: RectButton::new(),
+            password_button: RectButton::new(),
+            left_button: RectButton::new(),
+            right_button: RectButton::new(),
+        }
+    }
+
+    pub fn start(&mut self, desc: impl Into<String>, future: impl Future<Output = Result<Option<User>>> + Send + 'static) {
+        self.task_desc = desc.into();
+        self.task = Some(Task::new(future));
+    }
 }
 
 pub struct MainScene {
@@ -99,12 +172,16 @@ pub struct MainScene {
 
     tab_scroll: Scroll,
     tab_index: usize,
-    tab_buttons: [RectButton; 3],
+    tab_buttons: [RectButton; 4],
     tab_start_time: f32,
     tab_from_index: usize,
 
     import_button: RectButton,
     import_task: Task<Result<LocalChart>>,
+
+    input_state: InputState,
+    choose_file_state: ChooseFileState,
+    account_page: AccountPage,
 
     player_name_button: RectButton,
     chal_buttons: [RectButton; 6],
@@ -126,6 +203,9 @@ impl MainScene {
             ($path:literal) => {
                 SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
             };
+        }
+        if let Some(user) = &get_data().me {
+            UserManager::request(&user.id);
         }
         Ok(Self {
             target: None,
@@ -160,12 +240,16 @@ impl MainScene {
 
             tab_scroll: Scroll::new(),
             tab_index: 0,
-            tab_buttons: [RectButton::new(); 3],
+            tab_buttons: [RectButton::new(); 4],
             tab_start_time: f32::NEG_INFINITY,
             tab_from_index: 0,
 
             import_button: RectButton::new(),
             import_task: Task::pending(),
+
+            input_state: InputState::None,
+            choose_file_state: ChooseFileState::None,
+            account_page: AccountPage::new(),
 
             player_name_button: RectButton::new(),
             chal_buttons: [RectButton::new(); 6],
@@ -218,7 +302,7 @@ impl MainScene {
             let mut max_height: f32 = 0.;
             let mut from_range = (0., 0.);
             let mut current_range = (0., 0.);
-            for (id, tab) in ["本地", "在线", "设置"].into_iter().enumerate() {
+            for (id, tab) in ["本地", "在线", "账户", "设置"].into_iter().enumerate() {
                 let r = ui.text(tab).pos(dx, 0.).size(0.9).draw();
                 self.tab_buttons[id].set(ui, Rect::new(r.x, r.y, r.w, r.h + 0.01));
                 max_height = max_height.max(r.h);
@@ -266,15 +350,16 @@ impl MainScene {
                 ui.dx(content_size.0);
                 Self::render_scroll(ui, content_size, &mut self.scroll_remote, &mut self.charts_remote);
                 ui.dx(content_size.0);
+                ui.scope(|ui| Self::render_account(ui, &mut self.account_page));
+                ui.dx(content_size.0);
                 if Self::render_settings(
                     ui,
                     &self.click_texture,
                     self.cali_tm.now() as _,
                     &mut self.cali_last,
                     &mut self.emitter,
-                    &mut self.player_name_button,
                     &mut self.chal_buttons,
-                ) && self.tab_index == 2
+                ) && self.tab_index == 3
                 {
                     let _ = self.audio.play(&self.cali_hit_clip, PlayParams::default());
                 }
@@ -283,16 +368,84 @@ impl MainScene {
         });
     }
 
+    fn render_account(ui: &mut Ui, page: &mut AccountPage) {
+        ui.dx(0.02);
+        let r = Rect::new(0., 0., 0.22, 0.22);
+        page.avatar_button.set(ui, r);
+        if let Some(avatar) = get_data().me.as_ref().and_then(|it| UserManager::get_avatar(&it.id)) {
+            let ct = r.center();
+            ui.fill_circle(ct.x, ct.y, r.w / 2., (*avatar, r));
+        }
+        ui.text(get_data().me.as_ref().map(|it| it.name.as_str()).unwrap_or("[尚未登录]"))
+            .pos(r.right() + 0.02, r.center().y)
+            .anchor(0., 0.5)
+            .size(0.8)
+            .draw();
+        ui.dy(r.h + 0.03);
+        let pressed = Color::new(1., 1., 1., 0.5);
+        if get_data().me.is_none() {
+            let r = ui.text("用户名").size(0.4).measure();
+            let rt = r.right();
+            let r = Rect::new(r.right() + 0.02, r.y - 0.01, 0.3, r.h + 0.02);
+            let ct = r.center();
+            let mut input = |label: &str, input: &str, btn: &mut RectButton| {
+                ui.text(label).pos(rt, 0.).anchor(1., 0.).size(0.4).draw();
+                btn.set(ui, r);
+                ui.fill_rect(r, if btn.touching() { pressed } else { WHITE });
+                ui.text(input)
+                    .pos(ct.x, ct.y)
+                    .anchor(0.5, 0.5)
+                    .max_width(r.w)
+                    .size(0.42)
+                    .color(BLACK)
+                    .draw();
+                ui.dy(r.h + 0.02);
+            };
+            if page.register {
+                input("邮箱", &page.email_input, &mut page.email_button);
+            }
+            input("用户名", &page.username_input, &mut page.username_button);
+            input("密码", &std::iter::repeat('*').take(page.password_input.chars().count()).collect::<String>(), &mut page.password_button);
+            let labels = if page.register {
+                ["返回", if page.task.is_none() { "注册" } else { "注册中…" }]
+            } else {
+                ["注册", if page.task.is_none() { "登录" } else { "登录中…" }]
+            };
+            let cx = r.right() / 2.;
+            let mut r = Rect::new(0., 0., cx - 0.01, r.h);
+            page.left_button.set(ui, r);
+            ui.fill_rect(r, if page.left_button.touching() { pressed } else { WHITE });
+            let ct = r.center();
+            ui.text(labels[0]).pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.42).color(BLACK).draw();
+            r.x = cx + 0.01;
+            page.right_button.set(ui, r);
+            ui.fill_rect(r, if page.right_button.touching() { pressed } else { WHITE });
+            let ct = r.center();
+            ui.text(labels[1]).pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.42).color(BLACK).draw();
+        } else {
+            let cx = 0.2;
+            let mut r = Rect::new(0., 0., cx - 0.01, ui.text("呃").size(0.42).measure().h + 0.02);
+            page.left_button.set(ui, r);
+            ui.fill_rect(r, if page.left_button.touching() { pressed } else { WHITE });
+            let ct = r.center();
+            ui.text("退出登录").pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.42).color(BLACK).draw();
+            r.x = cx + 0.01;
+            page.right_button.set(ui, r);
+            ui.fill_rect(r, if page.right_button.touching() { pressed } else { WHITE });
+            let ct = r.center();
+            ui.text("修改名称").pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.42).color(BLACK).draw();
+        }
+    }
+
     fn render_settings(
         ui: &mut Ui,
         click: &SafeTexture,
         cali_t: f32,
         cali_last: &mut bool,
         emitter: &mut ParticleEmitter,
-        player_button: &mut RectButton,
         chal_buttons: &mut [RectButton; 6],
     ) -> bool {
-        let config = &mut get_data_mut().unwrap().config;
+        let config = &mut get_data_mut().config;
         let s = 0.01;
         let mut result = false;
         ui.scope(|ui| {
@@ -309,19 +462,6 @@ impl MainScene {
                 let r = ui.checkbox("粒子效果", &mut config.particle);
                 ui.dy(r.h + s);
                 let r = ui.checkbox("激进优化", &mut config.aggressive);
-                ui.dy(r.h + s);
-                let r = ui.text("玩家名称").size(0.4).draw();
-                let r = Rect::new(r.right() + 0.02, r.y - 0.01, 0.3, r.h + 0.02);
-                player_button.set(ui, r);
-                ui.fill_rect(r, if player_button.touching() { Color::new(1., 1., 1., 0.5) } else { WHITE });
-                let ct = r.center();
-                ui.text(&config.player_name)
-                    .pos(ct.x, ct.y)
-                    .anchor(0.5, 0.5)
-                    .max_width(0.3)
-                    .size(0.42)
-                    .color(BLACK)
-                    .draw();
                 ui.dy(r.h + s);
                 let r = ui.slider("玩家 RKS", 1.0..17.0, 0.01, &mut config.player_rks, Some(0.45));
                 ui.dy(r.h + s);
@@ -444,8 +584,7 @@ impl MainScene {
         self.task_load = Task::new({
             let tex = self.tex.clone();
             async move {
-                let cli = Client::new("https://uxjq2roe.lc-cn-n1-shared.com/1.1", "uxjq2ROe26ucGlFXIbWYOhEW-gzGzoHsz", "LW6yy6lkSFfXDqZo0442oFjT");
-                let charts: Vec<ChartItemData> = cli.query().await?;
+                let charts: Vec<ChartItemData> = Client::query().await?;
                 Ok(charts
                     .into_iter()
                     .map(|it| {
@@ -467,6 +606,57 @@ impl MainScene {
                     .collect::<Vec<_>>())
             }
         });
+    }
+
+    fn request_input(&mut self, state: InputState, tm: &TimeManager) {
+        self.input_state = state;
+        #[cfg(not(target_os = "android"))]
+        {
+            *INPUT_TEXT.lock().unwrap() = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
+            self.billboard.add("从剪贴板加载成功", tm.now() as _);
+        }
+        #[cfg(target_os = "android")]
+        unsafe {
+            let env = crate::miniquad::native::attach_jni_env();
+            let ctx = ndk_context::android_context().context();
+            let class = (**env).GetObjectClass.unwrap()(env, ctx);
+            let method = (**env).GetMethodID.unwrap()(env, class, b"inputText\0".as_ptr() as _, b"(Ljava/lang/String;)V\0".as_ptr() as _);
+            let text = std::ffi::CString::new(get_data_mut().config.player_name.clone()).unwrap();
+            (**env).CallVoidMethod.unwrap()(env, ctx, method, (**env).NewStringUTF.unwrap()(env, text.as_ptr()));
+        }
+    }
+
+    fn request_file(&mut self, state: ChooseFileState, tm: &TimeManager) {
+        *CHOSEN_FILE.lock().unwrap() = None;
+        self.choose_file_state = state;
+        #[cfg(not(target_os = "android"))]
+        {
+            use nfd::Response;
+            let result = nfd::open_file_dialog(None, None);
+            let result = match result {
+                Err(err) => {
+                    warn!("{:?}", err);
+                    self.billboard.add("选择文件失败：{err:?}", tm.now() as _);
+                    return;
+                }
+                Ok(result) => result,
+            };
+            match result {
+                Response::Okay(file_path) => {
+                    *CHOSEN_FILE.lock().unwrap() = Some(file_path);
+                }
+                Response::OkayMultiple(_) => unreachable!(),
+                Response::Cancel => {}
+            }
+        }
+        #[cfg(target_os = "android")]
+        unsafe {
+            let env = crate::miniquad::native::attach_jni_env();
+            let ctx = ndk_context::android_context().context();
+            let class = (**env).GetObjectClass.unwrap()(env, ctx);
+            let method = (**env).GetMethodID.unwrap()(env, class, b"chooseFile\0".as_ptr() as _, b"()V\0".as_ptr() as _);
+            (**env).CallVoidMethod.unwrap()(env, ctx, method);
+        }
     }
 }
 
@@ -516,7 +706,7 @@ impl Scene for MainScene {
                     self.remote_first_time = false;
                     self.refresh_remote(tm);
                 }
-                if tab_id == 2 {
+                if tab_id == 3 {
                     self.cali_handle = Some(self.audio.play(
                         &self.cali_clip,
                         PlayParams {
@@ -527,7 +717,7 @@ impl Scene for MainScene {
                     )?);
                     self.cali_tm.reset();
                 }
-                if self.tab_from_index == 2 {
+                if self.tab_from_index == 3 {
                     if let Some(handle) = &mut self.cali_handle {
                         self.audio.pause(handle)?;
                     }
@@ -537,27 +727,7 @@ impl Scene for MainScene {
             }
         }
         if self.import_button.touch(&touch) {
-            *CHOSEN_FILE.lock().unwrap() = None;
-            #[cfg(not(target_os = "android"))]
-            {
-                use nfd::Response;
-                let result = nfd::open_file_dialog(None, None)?;
-                match result {
-                    Response::Okay(file_path) => {
-                        *CHOSEN_FILE.lock().unwrap() = Some(file_path);
-                    }
-                    Response::OkayMultiple(_) => unreachable!(),
-                    Response::Cancel => {}
-                }
-            }
-            #[cfg(target_os = "android")]
-            unsafe {
-                let env = crate::miniquad::native::attach_jni_env();
-                let ctx = ndk_context::android_context().context();
-                let class = (**env).GetObjectClass.unwrap()(env, ctx);
-                let method = (**env).GetMethodID.unwrap()(env, class, b"chooseFile\0".as_ptr() as _, b"()V\0".as_ptr() as _);
-                (**env).CallVoidMethod.unwrap()(env, ctx, method);
-            }
+            self.request_file(ChooseFileState::ImportChart, tm);
         }
         let t = tm.now() as _;
         if self.tab_index == 0 && !self.scroll_local.touch(touch.clone(), t) {
@@ -585,7 +755,7 @@ impl Scene for MainScene {
                         let chart_id = self.charts_remote[id as usize].info.id.as_ref().unwrap();
                         dir::downloaded_charts()?;
                         let path = format!("download/{}", chart_id);
-                        if get_data().unwrap().charts.iter().any(|it| it.path == path) {
+                        if get_data().charts.iter().any(|it| it.path == path) {
                             self.billboard.add("已经下载", tm.now() as _);
                             return Ok(());
                         }
@@ -620,29 +790,74 @@ impl Scene for MainScene {
         } else {
             self.choose_remote = None;
         }
-        if self.tab_index == 2 {
-            if self.player_name_button.touch(&touch) {
-                #[cfg(not(target_os = "android"))]
-                {
-                    get_data_mut().unwrap().config.player_name = unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default();
-                    save_data()?;
-                    self.billboard.add("从剪贴板修改成功", tm.now() as _);
+        if self.tab_index == 2 && self.account_page.task.is_none() {
+            if get_data().me.is_none() {
+                if self.account_page.register && self.account_page.email_button.touch(&touch) {
+                    self.request_input(InputState::AccountEmail, tm);
                 }
-                #[cfg(target_os = "android")]
-                unsafe {
-                    let env = crate::miniquad::native::attach_jni_env();
-                    let ctx = ndk_context::android_context().context();
-                    let class = (**env).GetObjectClass.unwrap()(env, ctx);
-                    let method = (**env).GetMethodID.unwrap()(env, class, b"inputText\0".as_ptr() as _, b"(Ljava/lang/String;)V\0".as_ptr() as _);
-                    let text = std::ffi::CString::new(get_data_mut().unwrap().config.player_name.clone()).unwrap();
-                    (**env).CallVoidMethod.unwrap()(env, ctx, method, (**env).NewStringUTF.unwrap()(env, text.as_ptr()));
+                if self.account_page.username_button.touch(&touch) {
+                    self.request_input(InputState::AccountUsername, tm);
+                }
+                if self.account_page.password_button.touch(&touch) {
+                    self.request_input(InputState::AccountPassword, tm);
+                }
+            } else if self.account_page.avatar_button.touch(&touch) {
+                self.request_file(ChooseFileState::Avatar, tm);
+            }
+            if self.account_page.left_button.touch(&touch) {
+                if get_data().me.is_none() {
+                    self.account_page.register ^= true;
+                } else {
+                    get_data_mut().me = None;
+                    save_data()?;
+                    self.billboard.add("退出登录成功", tm.now() as _);
                 }
             }
-
+            if self.account_page.right_button.touch(&touch) {
+                if get_data().me.is_none() {
+                    fn login(page: &mut AccountPage) -> Option<&'static str> {
+                        let username = page.username_input.clone();
+                        let password = page.password_input.clone();
+                        if let Some(error) = validate_username(&username) {
+                            return Some(error);
+                        }
+                        if !(6..=26).contains(&password.len()) {
+                            return Some("密码长度应介于 6-26 之间");
+                        }
+                        if page.register {
+                            let email = page.email_input.clone();
+                            const EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$").unwrap());
+                            if !EMAIL_REGEX.is_match(&email) {
+                                return Some("邮箱不合法");
+                            }
+                            page.start("注册", async move {
+                                Client::register(&email, &username, &password).await?;
+                                Ok(None)
+                            });
+                        } else {
+                            page.start("登录", async move {
+                                let user = Client::login(&username, &password).await?;
+                                Ok(Some(user))
+                            });
+                        }
+                        None
+                    }
+                    if let Some(err) = login(&mut self.account_page) {
+                        self.billboard.add(err, tm.now() as _);
+                    }
+                } else {
+                    self.request_input(InputState::EditUsername, tm);
+                }
+            }
+        }
+        if self.tab_index == 3 {
+            if self.player_name_button.touch(&touch) {
+                self.request_input(InputState::SettingsName, tm);
+            }
             for (id, button) in self.chal_buttons.iter_mut().enumerate() {
                 if button.touch(&touch) {
                     use ChallengeModeColor::*;
-                    get_data_mut().unwrap().config.challenge_color = [White, Green, Blue, Red, Golden, Rainbow][id].clone();
+                    get_data_mut().config.challenge_color = [White, Green, Blue, Red, Golden, Rainbow][id].clone();
                     save_data()?;
                 }
             }
@@ -688,11 +903,11 @@ impl Scene for MainScene {
             let res = task.1.take().unwrap();
             match res {
                 Err(err) => {
-                    warn!("Failed to download: {:?}", err);
+                    warn!("{:?}", err);
                     self.billboard.add(format!("{} 下载失败", task.0), tm.now() as f32);
                 }
                 Ok(chart) => {
-                    get_data_mut().unwrap().charts.push(chart);
+                    get_data_mut().charts.push(chart);
                     save_data()?;
                     self.charts_local = load_local(&self.tex);
                     self.billboard.add(format!("{} 下载完成", task.0), tm.now() as f32);
@@ -708,30 +923,19 @@ impl Scene for MainScene {
                 }
                 Err(err) => {
                     self.remote_first_time = true;
+                    warn!("{:?}", err);
                     self.billboard.add(format!("加载失败：{err:?}"), tm.now() as _);
                 }
             }
         }
-        if let Some(file) = CHOSEN_FILE.lock().unwrap().take() {
-            async fn import(from: String) -> Result<LocalChart> {
-                let file = NamedTempFile::new_in(dir::custom_charts()?)?.keep()?.1;
-                std::fs::copy(from, &file).context("Failed to save")?;
-                let fs = fs::fs_from_file(&std::path::Path::new(&file))?;
-                let (info, _) = fs::load_info(fs).await?;
-                Ok(LocalChart {
-                    info: BriefChartInfo { id: None, ..info.into() },
-                    path: format!("custom/{}", file.file_name().unwrap().to_str().unwrap()),
-                })
-            }
-            self.import_task = Task::new(import(file));
-        }
         if let Some(result) = self.import_task.take() {
             match result {
                 Err(err) => {
+                    warn!("{:?}", err);
                     self.billboard.add(format!("导入失败：{err:?}"), tm.now() as _);
                 }
                 Ok(chart) => {
-                    get_data_mut().unwrap().charts.push(chart);
+                    get_data_mut().charts.push(chart);
                     save_data()?;
                     self.charts_local = load_local(&self.tex);
                     self.billboard.add("导入成功", tm.now() as _);
@@ -739,9 +943,108 @@ impl Scene for MainScene {
             }
         }
         if let Some(text) = INPUT_TEXT.lock().unwrap().take() {
-            get_data_mut().unwrap().config.player_name = text;
-            save_data()?;
-            self.billboard.add("修改名称成功", tm.now() as _);
+            use InputState::*;
+            match self.input_state {
+                None => {}
+                SettingsName => {
+                    get_data_mut().config.player_name = text;
+                    save_data()?;
+                    self.billboard.add("修改名称成功", tm.now() as _);
+                }
+                AccountEmail => {
+                    self.account_page.email_input = text;
+                }
+                AccountUsername => {
+                    self.account_page.username_input = text;
+                }
+                AccountPassword => {
+                    self.account_page.password_input = text;
+                }
+                EditUsername => {
+                    if let Some(error) = validate_username(&text) {
+                        self.billboard.add(error, tm.now() as _);
+                    } else {
+                        let user = get_data().me.clone().unwrap();
+                        self.account_page.start("更新名称", async move {
+                            Client::update_user(json!({ "username": text })).await?;
+                            Ok(Some(User { name: text, ..user }))
+                        });
+                    }
+                }
+            }
+        }
+        if let Some(file) = CHOSEN_FILE.lock().unwrap().take() {
+            use ChooseFileState::*;
+            match self.choose_file_state {
+                None => {}
+                ImportChart => {
+                    async fn import(from: String) -> Result<LocalChart> {
+                        let file = NamedTempFile::new_in(dir::custom_charts()?)?.keep()?.1;
+                        std::fs::copy(from, &file).context("Failed to save")?;
+                        let fs = fs::fs_from_file(&std::path::Path::new(&file))?;
+                        let (info, _) = fs::load_info(fs).await?;
+                        Ok(LocalChart {
+                            info: BriefChartInfo {
+                                id: Option::None,
+                                ..info.into()
+                            },
+                            path: format!("custom/{}", file.file_name().unwrap().to_str().unwrap()),
+                        })
+                    }
+                    self.import_task = Task::new(import(file));
+                }
+                Avatar => {
+                    fn load(path: String, page: &mut AccountPage) -> Result<()> {
+                        let image = image::open(path).context("无法读取图片")?.resize_exact(512, 512, FilterType::CatmullRom);
+                        let mut bytes: Vec<u8> = Vec::new();
+                        image.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)?;
+                        let old_avatar = get_data().me.as_ref().unwrap().avatar.clone();
+                        let user = get_data().me.clone().unwrap();
+                        page.start("上传头像", async move {
+                            let file = Client::upload_file("avatar.png", &bytes).await.context("上传头像失败")?;
+                            if let Some(old) = old_avatar {
+                                Client::delete_file(&old.id).await.context("删除原头像失败")?;
+                            }
+                            Client::update_user(json!({ "avatar": {
+                                "id": file.id,
+                                "__type": "File"
+                            } }))
+                            .await
+                            .context("更新头像失败")?;
+                            UserManager::clear_cache(&user.id);
+                            Ok(Some(User { avatar: Some(file), ..user }))
+                        });
+                        Ok(())
+                    }
+                    if let Err(err) = load(file, &mut self.account_page) {
+                        warn!("{:?}", err);
+                        self.billboard.add("导入头像失败", tm.now() as _);
+                    }
+                }
+            }
+        }
+        if let Some(task) = self.account_page.task.as_mut() {
+            if let Some(result) = task.take() {
+                let desc = &self.account_page.task_desc;
+                match result {
+                    Err(err) => {
+                        warn!("{:?}", err);
+                        self.billboard.add(format!("{desc}失败：{err:?}"), tm.now() as _);
+                    }
+                    Ok(user) => {
+                        if let Some(user) = user {
+                            get_data_mut().me = Some(user);
+                            save_data()?;
+                        }
+                        self.billboard.add(format!("{desc}成功"), tm.now() as _);
+                        if desc == "注册" {
+                            self.billboard.add("验证信息已发送到邮箱，请验证后登录", tm.now() as _);
+                        }
+                        self.account_page.register = false;
+                    }
+                }
+                self.account_page.task = None;
+            }
         }
         Ok(())
     }
@@ -794,12 +1097,13 @@ impl Scene for MainScene {
                         } else {
                             std::fs::remove_dir_all(path)?;
                         }
-                        get_data_mut().unwrap().charts.remove(id);
+                        get_data_mut().charts.remove(id);
                         save_data()?;
                         self.charts_local.remove(id);
                         Ok(())
                     })();
                     if let Err(err) = err {
+                        warn!("{:?}", err);
                         self.billboard.add(format!("删除失败：{err:?}"), tm.now() as _);
                     } else {
                         self.billboard.add("删除成功", tm.now() as _);

@@ -8,19 +8,23 @@ crate-type = ["lib", "cdylib"]
 
 [dependencies]
 anyhow = "1.0"
+base64 = "0.20"
+chrono = { version = "0.4.23", features = ["serde"] }
 image = "*"
 lyon = "*"
 macroquad = { version = "*", default-features = false }
 # macroquad = { path = "../../macroquad", default-features = false }
+md5 = "0.7"
 once_cell = "*"
+openssl = { version = "*", features = ["vendored"] }
 prpr = { path = "../prpr" }
+regex = "1.7.0"
 reqwest = "0.11"
 serde = { version = "*", features = ["derive"] }
-openssl = { version = "*", features = ["vendored"] }
 serde_json = "*"
-# tokio = { version = "*", features = ["rt-multi-thread"] }
-tokio = "*"
 tempfile = "3.3"
+tokio = "*"
+# tokio = { version = "*", features = ["rt-multi-thread"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 nfd = "0.0.4"

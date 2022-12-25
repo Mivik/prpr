@@ -1,4 +1,4 @@
-use crate::dir;
+use crate::{dir, cloud::{Pointer, User}};
 use anyhow::Result;
 use prpr::{config::Config, info::ChartInfo};
 use serde::{Deserialize, Serialize};
@@ -8,6 +8,7 @@ use std::collections::HashSet;
 #[serde(rename_all = "camelCase")]
 pub struct BriefChartInfo {
     pub id: Option<String>,
+    pub uploader: Option<Pointer>,
     pub name: String,
     pub level: String,
     pub difficulty: f32,
@@ -22,6 +23,7 @@ impl From<ChartInfo> for BriefChartInfo {
     fn from(info: ChartInfo) -> Self {
         Self {
             id: info.id,
+            uploader: None,
             name: info.name,
             level: info.level,
             difficulty: info.difficulty,
@@ -43,6 +45,7 @@ pub struct LocalChart {
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Data {
+    pub me: Option<User>,
     pub charts: Vec<LocalChart>,
     pub config: Config,
 }
