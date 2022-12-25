@@ -1,4 +1,4 @@
-use crate::{info::ChartInfo, ext::spawn_task};
+use crate::{ext::spawn_task, info::ChartInfo};
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use concat_string::concat_string;
@@ -33,9 +33,13 @@ impl FileSystem for ExternalFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
         let path = self.0.join(path);
         #[cfg(target_arch = "wasm32")]
-        { Ok(async move { std::fs::read(path) }.await?) }
+        {
+            Ok(async move { std::fs::read(path) }.await?)
+        }
         #[cfg(not(target_arch = "wasm32"))]
-        { Ok(tokio::spawn(async move { tokio::fs::read(path).await }).await??) }
+        {
+            Ok(tokio::spawn(async move { tokio::fs::read(path).await }).await??)
+        }
     }
 }
 

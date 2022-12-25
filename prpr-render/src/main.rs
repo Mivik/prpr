@@ -1,4 +1,4 @@
-use anyhow::{bail, Result, Context};
+use anyhow::{bail, Context, Result};
 use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use macroquad::{miniquad::TextureFormat, prelude::*};
 use prpr::{

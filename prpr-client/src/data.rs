@@ -1,4 +1,7 @@
-use crate::{dir, cloud::{Pointer, User}};
+use crate::{
+    cloud::{Pointer, User},
+    dir,
+};
 use anyhow::Result;
 use prpr::{config::Config, info::ChartInfo};
 use serde::{Deserialize, Serialize};

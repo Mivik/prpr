@@ -172,7 +172,7 @@ pub struct MainScene {
 
     tab_scroll: Scroll,
     tab_index: usize,
-    tab_buttons: [RectButton; 4],
+    tab_buttons: [RectButton; 5],
     tab_start_time: f32,
     tab_from_index: usize,
 
@@ -240,7 +240,7 @@ impl MainScene {
 
             tab_scroll: Scroll::new(),
             tab_index: 0,
-            tab_buttons: [RectButton::new(); 4],
+            tab_buttons: [RectButton::new(); 5],
             tab_start_time: f32::NEG_INFINITY,
             tab_from_index: 0,
 
@@ -302,7 +302,7 @@ impl MainScene {
             let mut max_height: f32 = 0.;
             let mut from_range = (0., 0.);
             let mut current_range = (0., 0.);
-            for (id, tab) in ["本地", "在线", "账户", "设置"].into_iter().enumerate() {
+            for (id, tab) in ["本地", "在线", "账户", "设置", "关于"].into_iter().enumerate() {
                 let r = ui.text(tab).pos(dx, 0.).size(0.9).draw();
                 self.tab_buttons[id].set(ui, Rect::new(r.x, r.y, r.w, r.h + 0.01));
                 max_height = max_height.max(r.h);
@@ -352,20 +352,35 @@ impl MainScene {
                 ui.dx(content_size.0);
                 ui.scope(|ui| Self::render_account(ui, &mut self.account_page));
                 ui.dx(content_size.0);
-                if Self::render_settings(
-                    ui,
-                    &self.click_texture,
-                    self.cali_tm.now() as _,
-                    &mut self.cali_last,
-                    &mut self.emitter,
-                    &mut self.chal_buttons,
-                ) && self.tab_index == 3
+                if ui.scope(|ui| {
+                    Self::render_settings(
+                        ui,
+                        &self.click_texture,
+                        self.cali_tm.now() as _,
+                        &mut self.cali_last,
+                        &mut self.emitter,
+                        &mut self.chal_buttons,
+                    )
+                }) && self.tab_index == 3
                 {
                     let _ = self.audio.play(&self.cali_hit_clip, PlayParams::default());
                 }
+                ui.dx(content_size.0);
+                ui.scope(|ui| Self::render_about(ui));
                 (content_size.0 * 3., content_size.1)
             });
         });
+    }
+
+    fn render_about(ui: &mut Ui) {
+        const ABOUT: Lazy<String> = Lazy::new(|| String::from_utf8(base64::decode("cHJwciDmmK/kuIDmrL4gUGhpZ3JvcyDmqKHmi5/lmajvvIzml6jlnKjkuLroh6rliLbosLHmuLjnjqnmj5DkvpvkuIDkuKrnu5/kuIDljJbnmoTlubPlj7DjgILor7foh6rop4npgbXlrojnpL7nvqTnm7jlhbPopoHmsYLvvIzkuI3mgbbmhI/kvb/nlKggcHJwcu+8jOS4jemaj+aEj+WItuS9nOaIluS8oOaSreS9jui0qOmHj+S9nOWTgeOAggoKcHJwciDmmK/lvIDmupDova/ku7bvvIzpgbXlvqogR05VIEdlbmVyYWwgUHVibGljIExpY2Vuc2UgdjMuMCDljY/orq7jgIIK5rWL6K+V576k77yaNjYwNDg4Mzk2CkdpdEh1YjogaHR0cHM6Ly9naXRodWIuY29tL01pdmlrL3BycHI=").unwrap()).unwrap());
+        ui.dx(0.02);
+        ui.dy(0.01);
+        ui.text(&*ABOUT)
+            .multiline()
+            .max_width((1. - SIDE_PADDING) * 2. - 0.02)
+            .size(0.5)
+            .draw();
     }
 
     fn render_account(ui: &mut Ui, page: &mut AccountPage) {
