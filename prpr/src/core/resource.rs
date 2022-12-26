@@ -28,7 +28,7 @@ pub struct ParticleEmitter {
 }
 
 impl ParticleEmitter {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(scale: f32) -> Result<Self> {
         let colors_curve = {
             let start = WHITE;
             let mut mid = start;
@@ -37,7 +37,7 @@ impl ParticleEmitter {
             end.a = 0.;
             ColorCurve { start, mid, end }
         };
-        Ok(Self {
+        let mut res = Self {
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,
                 texture: Some(Texture2D::from_image(&load_image("hit_fx.png").await?)),
@@ -45,7 +45,6 @@ impl ParticleEmitter {
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 0.0,
                 initial_velocity: 0.0,
-                size: 1. / 5.,
                 atlas: Some(AtlasConfig::new(5, 6, ..)),
                 emitting: false,
                 colors_curve,
@@ -56,7 +55,6 @@ impl ParticleEmitter {
                 lifetime: 0.5,
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 2. * std::f32::consts::PI,
-                size: 1. / 57.,
                 size_randomness: 0.3,
                 emitting: false,
                 initial_velocity: 2.3,
@@ -65,7 +63,9 @@ impl ParticleEmitter {
                 colors_curve,
                 ..Default::default()
             }),
-        })
+        };
+        res.set_scale(scale);
+        Ok(res)
     }
 
     pub fn emit_at(&mut self, pt: Vec2, color: Color) {
@@ -78,6 +78,11 @@ impl ParticleEmitter {
     pub fn draw(&mut self, dt: f32) {
         self.emitter.draw(vec2(0., 0.), dt);
         self.emitter_square.draw(vec2(0., 0.), dt);
+    }
+
+    pub fn set_scale(&mut self, scale: f32) {
+        self.emitter.config.size = scale / 5.;
+        self.emitter_square.config.size = scale / 57.;
     }
 }
 
@@ -209,6 +214,7 @@ impl Resource {
 
         let aspect_ratio = config.aspect_ratio.unwrap_or(info.aspect_ratio);
         let note_width = config.note_scale * NOTE_WIDTH_RATIO_BASE;
+        let note_scale = config.note_scale;
         Ok(Self {
             config,
             info,
@@ -245,7 +251,7 @@ impl Resource {
             icon_resume: load_tex!("resume.png"),
             icon_proceed: load_tex!("proceed.png"),
 
-            emitter: ParticleEmitter::new().await?,
+            emitter: ParticleEmitter::new(note_scale).await?,
 
             audio,
             music,

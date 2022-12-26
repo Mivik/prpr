@@ -8,7 +8,8 @@ use crate::{
     ui::{Ui, FONT},
 };
 use anyhow::{Context, Result};
-use macroquad::{prelude::*, rand::ChooseRandom};
+use chrono::Utc;
+use macroquad::{prelude::*, rand::{ChooseRandom, srand}};
 use std::{future::Future, pin::Pin, rc::Rc};
 
 const BEFORE_TIME: f32 = 1.;
@@ -63,6 +64,7 @@ impl LoadingScene {
                 }),
             ))
         }
+        srand(Utc::now().timestamp_millis() as u64);
 
         let background = match load(&mut fs, &info.illustration).await {
             Ok((ill, bg)) => Some((ill, bg)),

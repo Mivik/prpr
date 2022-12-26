@@ -9,6 +9,7 @@ crate-type = ["lib", "cdylib"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
+chrono = "0.4.23"
 concat-string = "1.0.1"
 csv = "1.1.6"
 fastblur = "0.1.1"

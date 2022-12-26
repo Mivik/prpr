@@ -48,7 +48,6 @@ pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
 
 enum InputState {
     None,
-    SettingsName,
     AccountEmail,
     AccountUsername,
     AccountPassword,
@@ -183,7 +182,6 @@ pub struct MainScene {
     choose_file_state: ChooseFileState,
     account_page: AccountPage,
 
-    player_name_button: RectButton,
     chal_buttons: [RectButton; 6],
 
     downloading: HashMap<String, (String, Task<Result<LocalChart>>)>,
@@ -225,7 +223,7 @@ impl MainScene {
             cali_handle: None,
             cali_tm,
             cali_last: false,
-            emitter: ParticleEmitter::new().await?,
+            emitter: ParticleEmitter::new(get_data().config.note_scale).await?,
 
             billboard: BillBoard::new(),
 
@@ -251,7 +249,6 @@ impl MainScene {
             choose_file_state: ChooseFileState::None,
             account_page: AccountPage::new(),
 
-            player_name_button: RectButton::new(),
             chal_buttons: [RectButton::new(); 6],
 
             downloading: HashMap::new(),
@@ -273,11 +270,14 @@ impl MainScene {
             ui.hgrids(content_size.0, ch, ROW_NUM, charts.len() as u32, |ui, id| {
                 let chart = &mut charts[id as usize];
                 if let Some(image) = chart.illustration_task.take() {
-                    let image = image.unwrap();
-                    chart.illustration = Texture2D::from_image(&Image {
-                        width: image.width() as _,
-                        height: image.height() as _,
-                        bytes: image.into_rgba8().into_vec(),
+                    chart.illustration = (if let Ok(image) = image {
+                        Texture2D::from_image(&Image {
+                            width: image.width() as _,
+                            height: image.height() as _,
+                            bytes: image.into_rgba8().into_vec(),
+                        })
+                    } else {
+                        Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255])
                     })
                     .into();
                 }
@@ -373,14 +373,12 @@ impl MainScene {
     }
 
     fn render_about(ui: &mut Ui) {
-        const ABOUT: Lazy<String> = Lazy::new(|| String::from_utf8(base64::decode("cHJwciDmmK/kuIDmrL4gUGhpZ3JvcyDmqKHmi5/lmajvvIzml6jlnKjkuLroh6rliLbosLHmuLjnjqnmj5DkvpvkuIDkuKrnu5/kuIDljJbnmoTlubPlj7DjgILor7foh6rop4npgbXlrojnpL7nvqTnm7jlhbPopoHmsYLvvIzkuI3mgbbmhI/kvb/nlKggcHJwcu+8jOS4jemaj+aEj+WItuS9nOaIluS8oOaSreS9jui0qOmHj+S9nOWTgeOAggoKcHJwciDmmK/lvIDmupDova/ku7bvvIzpgbXlvqogR05VIEdlbmVyYWwgUHVibGljIExpY2Vuc2UgdjMuMCDljY/orq7jgIIK5rWL6K+V576k77yaNjYwNDg4Mzk2CkdpdEh1YjogaHR0cHM6Ly9naXRodWIuY29tL01pdmlrL3BycHI=").unwrap()).unwrap());
+        const ABOUT: Lazy<String> = Lazy::new(|| {
+            String::from_utf8(base64::decode("cHJwciDmmK/kuIDmrL4gUGhpZ3JvcyDmqKHmi5/lmajvvIzml6jlnKjkuLroh6rliLbosLHmuLjnjqnmj5DkvpvkuIDkuKrnu5/kuIDljJbnmoTlubPlj7DjgILor7foh6rop4npgbXlrojnpL7nvqTnm7jlhbPopoHmsYLvvIzkuI3mgbbmhI/kvb/nlKggcHJwcu+8jOS4jemaj+aEj+WItuS9nOaIluS8oOaSreS9jui0qOmHj+S9nOWTgeOAggoKcHJwciDmmK/lvIDmupDova/ku7bvvIzpgbXlvqogR05VIEdlbmVyYWwgUHVibGljIExpY2Vuc2UgdjMuMCDljY/orq7jgIIK5rWL6K+V576k77yaNjYwNDg4Mzk2CkdpdEh1YjogaHR0cHM6Ly9naXRodWIuY29tL01pdmlrL3BycHI=").unwrap()).unwrap()
+        });
         ui.dx(0.02);
         ui.dy(0.01);
-        ui.text(&*ABOUT)
-            .multiline()
-            .max_width((1. - SIDE_PADDING) * 2. - 0.02)
-            .size(0.5)
-            .draw();
+        ui.text(&*ABOUT).multiline().max_width((1. - SIDE_PADDING) * 2. - 0.02).size(0.5).draw();
     }
 
     fn render_account(ui: &mut Ui, page: &mut AccountPage) {
@@ -489,6 +487,7 @@ impl MainScene {
                 let r = ui.slider("速度", 0.8..1.2, 0.005, &mut config.speed, None);
                 ui.dy(r.h + s);
                 let r = ui.slider("音符大小", 0.8..1.2, 0.005, &mut config.note_scale, None);
+                emitter.set_scale(config.note_scale);
                 ui.dy(r.h + s);
                 let r = ui.slider("音乐音量", 0.0..2.0, 0.05, &mut config.volume_music, None);
                 ui.dy(r.h + s);
@@ -623,7 +622,7 @@ impl MainScene {
         });
     }
 
-    fn request_input(&mut self, state: InputState, tm: &TimeManager) {
+    fn request_input(&mut self, state: InputState, text: String, tm: &TimeManager) {
         self.input_state = state;
         #[cfg(not(target_os = "android"))]
         {
@@ -636,7 +635,7 @@ impl MainScene {
             let ctx = ndk_context::android_context().context();
             let class = (**env).GetObjectClass.unwrap()(env, ctx);
             let method = (**env).GetMethodID.unwrap()(env, class, b"inputText\0".as_ptr() as _, b"(Ljava/lang/String;)V\0".as_ptr() as _);
-            let text = std::ffi::CString::new(get_data_mut().config.player_name.clone()).unwrap();
+            let text = std::ffi::CString::new(text).unwrap();
             (**env).CallVoidMethod.unwrap()(env, ctx, method, (**env).NewStringUTF.unwrap()(env, text.as_ptr()));
         }
     }
@@ -808,13 +807,13 @@ impl Scene for MainScene {
         if self.tab_index == 2 && self.account_page.task.is_none() {
             if get_data().me.is_none() {
                 if self.account_page.register && self.account_page.email_button.touch(&touch) {
-                    self.request_input(InputState::AccountEmail, tm);
+                    self.request_input(InputState::AccountEmail, self.account_page.email_input.clone(), tm);
                 }
                 if self.account_page.username_button.touch(&touch) {
-                    self.request_input(InputState::AccountUsername, tm);
+                    self.request_input(InputState::AccountUsername, self.account_page.username_input.clone(), tm);
                 }
                 if self.account_page.password_button.touch(&touch) {
-                    self.request_input(InputState::AccountPassword, tm);
+                    self.request_input(InputState::AccountPassword, self.account_page.password_input.clone(), tm);
                 }
             } else if self.account_page.avatar_button.touch(&touch) {
                 self.request_file(ChooseFileState::Avatar, tm);
@@ -861,14 +860,11 @@ impl Scene for MainScene {
                         self.billboard.add(err, tm.now() as _);
                     }
                 } else {
-                    self.request_input(InputState::EditUsername, tm);
+                    self.request_input(InputState::EditUsername, get_data().me.as_ref().unwrap().name.clone(), tm);
                 }
             }
         }
         if self.tab_index == 3 {
-            if self.player_name_button.touch(&touch) {
-                self.request_input(InputState::SettingsName, tm);
-            }
             for (id, button) in self.chal_buttons.iter_mut().enumerate() {
                 if button.touch(&touch) {
                     use ChallengeModeColor::*;
@@ -961,11 +957,6 @@ impl Scene for MainScene {
             use InputState::*;
             match self.input_state {
                 None => {}
-                SettingsName => {
-                    get_data_mut().config.player_name = text;
-                    save_data()?;
-                    self.billboard.add("修改名称成功", tm.now() as _);
-                }
                 AccountEmail => {
                     self.account_page.email_input = text;
                 }
@@ -1010,7 +1001,9 @@ impl Scene for MainScene {
                 }
                 Avatar => {
                     fn load(path: String, page: &mut AccountPage) -> Result<()> {
-                        let image = image::open(path).context("无法读取图片")?.resize_exact(512, 512, FilterType::CatmullRom);
+                        let image = image::load_from_memory(&std::fs::read(path).context("无法读取图片")?)
+                            .context("无法加载图片")?
+                            .resize_exact(512, 512, FilterType::CatmullRom);
                         let mut bytes: Vec<u8> = Vec::new();
                         image.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)?;
                         let old_avatar = get_data().me.as_ref().unwrap().avatar.clone();
@@ -1033,7 +1026,7 @@ impl Scene for MainScene {
                     }
                     if let Err(err) = load(file, &mut self.account_page) {
                         warn!("{:?}", err);
-                        self.billboard.add("导入头像失败", tm.now() as _);
+                        self.billboard.add(format!("导入头像失败：{err:?}"), tm.now() as _);
                     }
                 }
             }

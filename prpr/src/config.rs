@@ -53,7 +53,7 @@ impl Default for Config {
             player_name: "Mivik".to_string(),
             player_rks: 15.,
             speed: 1.,
-            tips: vec!["Tip: 欢迎来到 prpr！".to_owned()],
+            tips: include_str!("tips.txt").split('\n').map(str::to_owned).collect(),
             volume_music: 1.,
             volume_sfx: 1.,
         }
