@@ -40,7 +40,7 @@ mod dir {
 
     fn ensure(s: &str) -> Result<String> {
         let s = format!("{}/{}", DATA_PATH.lock().unwrap().as_ref().map(|it| it.as_str()).unwrap_or("."), s);
-        if !std::fs::metadata(&s).is_ok() {
+        if std::fs::metadata(&s).is_err() {
             std::fs::create_dir_all(&s)?;
         }
         Ok(s)

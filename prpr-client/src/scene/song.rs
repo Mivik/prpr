@@ -32,7 +32,7 @@ fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
     if let Some(name) = path.strip_prefix(':') {
         fs::fs_from_assets(name)
     } else {
-        fs::fs_from_file(&std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))
+        fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))
     }
 }
 
@@ -171,7 +171,7 @@ impl SongScene {
                 match info {
                     Err(err) => {
                         warn!("{:?}", err);
-                        brief.to_full()
+                        brief.into_full()
                     }
                     Ok(ok) => ChartInfo {
                         intro: brief.intro,

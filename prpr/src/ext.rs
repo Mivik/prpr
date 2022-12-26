@@ -93,7 +93,7 @@ impl From<DynamicImage> for SafeTexture {
     }
 }
 
-pub const BLACK_TEXTURE: Lazy<SafeTexture> = Lazy::new(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]).into());
+pub static BLACK_TEXTURE: Lazy<SafeTexture> = Lazy::new(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]).into());
 
 pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f32), scale: f32, color: Color) -> Rect {
     use macroquad::prelude::*;

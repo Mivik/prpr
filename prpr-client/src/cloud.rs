@@ -32,16 +32,16 @@ async fn recv_lc(request: RequestBuilder) -> Result<String> {
 }
 
 async fn parse_lc<T: LCObject>(request: RequestBuilder) -> Result<T> {
-    Ok(serde_json::from_str(&recv_lc(request).await?).context("Failed to parse content")?)
+    serde_json::from_str(&recv_lc(request).await?).context("Failed to parse content")
 }
 
 async fn parse_lc_many<T: LCObject>(request: RequestBuilder) -> Result<Vec<T>> {
     let mut json: serde_json::Value = serde_json::from_str(&recv_lc(request).await?).context("Failed to parse content")?;
     let mut results = json["results"].take();
-    Ok(std::mem::take(results.as_array_mut().unwrap())
+    std::mem::take(results.as_array_mut().unwrap())
         .into_iter()
         .map(|it| Ok(serde_json::from_value(it)?))
-        .collect::<Result<_>>()?)
+        .collect::<Result<_>>()
 }
 
 pub trait LCObject: DeserializeOwned {

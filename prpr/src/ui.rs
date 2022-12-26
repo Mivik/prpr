@@ -605,7 +605,6 @@ impl Ui {
         }
     }
 
-    #[must_use]
     pub fn text(&mut self, text: impl Into<String>) -> DrawText<'_> {
         DrawText::new(self, text.into())
     }
@@ -685,7 +684,7 @@ impl Ui {
         let lf = r.x;
         let r = Rect::new(0.02, r.y - 0.01, params.length, r.h + 0.02);
         if if params.password {
-            self.button(&id, r, &std::iter::repeat('*').take(value.chars().count()).collect::<String>())
+            self.button(&id, r, &"*".repeat(value.chars().count()))
         } else {
             self.button(&id, r, value.as_str())
         } {

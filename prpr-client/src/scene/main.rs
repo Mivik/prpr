@@ -46,7 +46,7 @@ pub static UPDATE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
 
 pub fn illustration_task(path: String) -> Task<Result<DynamicImage>> {
     Task::new(async move {
-        let fs = fs::fs_from_file(&std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
+        let fs = fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
         let (info, mut fs) = fs::load_info(fs).await?;
         Ok(image::load_from_memory(&fs.load_file(&info.illustration).await?)?)
     })
@@ -243,7 +243,7 @@ impl MainScene {
                 let chart = &mut charts[id as usize];
                 if let Some(task) = &mut chart.illustration_task {
                     if let Some(image) = task.take() {
-                        chart.illustration = (if let Ok(image) = image { image.into() } else { BLACK_TEXTURE.clone() }).into();
+                        chart.illustration = if let Ok(image) = image { image.into() } else { BLACK_TEXTURE.clone() };
                         chart.illustration_task = None;
                     }
                 }
@@ -332,14 +332,14 @@ impl MainScene {
                     let _ = self.audio.play(&self.cali_hit_clip, PlayParams::default());
                 }
                 ui.dx(content_size.0);
-                ui.scope(|ui| Self::render_about(ui));
+                ui.scope(Self::render_about);
                 (content_size.0 * 3., content_size.1)
             });
         });
     }
 
     fn render_about(ui: &mut Ui) {
-        const ABOUT: Lazy<String> = Lazy::new(|| {
+        static ABOUT: Lazy<String> = Lazy::new(|| {
             String::from_utf8(base64::decode("cHJwciDmmK/kuIDmrL4gUGhpZ3JvcyDmqKHmi5/lmajvvIzml6jlnKjkuLroh6rliLbosLHmuLjnjqnmj5DkvpvkuIDkuKrnu5/kuIDljJbnmoTlubPlj7DjgILor7foh6rop4npgbXlrojnpL7nvqTnm7jlhbPopoHmsYLvvIzkuI3mgbbmhI/kvb/nlKggcHJwcu+8jOS4jemaj+aEj+WItuS9nOaIluS8oOaSreS9jui0qOmHj+S9nOWTgeOAggoKcHJwciDmmK/lvIDmupDova/ku7bvvIzpgbXlvqogR05VIEdlbmVyYWwgUHVibGljIExpY2Vuc2UgdjMuMCDljY/orq7jgIIK5rWL6K+V576k77yaNjYwNDg4Mzk2CkdpdEh1YjogaHR0cHM6Ly9naXRodWIuY29tL01pdmlrL3BycHI=").unwrap()).unwrap()
         });
         ui.dx(0.02);
@@ -395,7 +395,7 @@ impl MainScene {
                     }
                     if page.register {
                         let email = page.email_input.clone();
-                        const EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$").unwrap());
+                        static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$").unwrap());
                         if !EMAIL_REGEX.is_match(&email) {
                             return Some("邮箱不合法");
                         }
@@ -742,10 +742,8 @@ impl Scene for MainScene {
         } else {
             self.choose_remote = None;
         }
-        if self.tab_index == 2 && self.account_page.task.is_none() {
-            if get_data().me.is_some() && self.account_page.avatar_button.touch(&touch) {
-                request_file("avatar");
-            }
+        if self.tab_index == 2 && self.account_page.task.is_none() && get_data().me.is_some() && self.account_page.avatar_button.touch(&touch) {
+            request_file("avatar");
         }
         if self.tab_index == 3 {
             for (id, button) in self.chal_buttons.iter_mut().enumerate() {
@@ -856,7 +854,7 @@ impl Scene for MainScene {
                     async fn import(from: String) -> Result<LocalChart> {
                         let file = NamedTempFile::new_in(dir::custom_charts()?)?.keep()?.1;
                         std::fs::copy(from, &file).context("Failed to save")?;
-                        let fs = fs::fs_from_file(&std::path::Path::new(&file))?;
+                        let fs = fs::fs_from_file(std::path::Path::new(&file))?;
                         let (info, _) = fs::load_info(fs).await?;
                         Ok(LocalChart {
                             info: BriefChartInfo {

@@ -7,8 +7,8 @@ use once_cell::sync::Lazy;
 use prpr::ext::SafeTexture;
 use std::{collections::HashMap, sync::Mutex};
 
-static TASKS: Lazy<Mutex<HashMap<String, Task<Result<DynamicImage>>>>> = Lazy::new(|| Mutex::default());
-static RESULTS: Lazy<Mutex<HashMap<String, (String, Option<SafeTexture>)>>> = Lazy::new(|| Mutex::default());
+static TASKS: Lazy<Mutex<HashMap<String, Task<Result<DynamicImage>>>>> = Lazy::new(Mutex::default);
+static RESULTS: Lazy<Mutex<HashMap<String, (String, Option<SafeTexture>)>>> = Lazy::new(Mutex::default);
 
 pub struct UserManager;
 

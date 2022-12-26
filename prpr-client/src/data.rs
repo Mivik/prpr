@@ -40,7 +40,7 @@ impl From<ChartInfo> for BriefChartInfo {
 }
 
 impl BriefChartInfo {
-    pub fn to_full(self) -> ChartInfo {
+    pub fn into_full(self) -> ChartInfo {
         ChartInfo {
             id: self.id,
             name: self.name,

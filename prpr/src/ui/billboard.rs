@@ -11,6 +11,12 @@ pub struct BillBoard {
     messages: VecDeque<(String, f32)>,
 }
 
+impl Default for BillBoard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BillBoard {
     pub fn new() -> Self {
         Self { messages: VecDeque::new() }
