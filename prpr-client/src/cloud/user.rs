@@ -2,7 +2,7 @@ use super::{Client, User};
 use crate::{dir, task::Task};
 use anyhow::Result;
 use image::{DynamicImage, GenericImage, Rgba};
-use macroquad::{prelude::warn, texture::Texture2D};
+use macroquad::prelude::warn;
 use once_cell::sync::Lazy;
 use prpr::ext::SafeTexture;
 use std::{collections::HashMap, sync::Mutex};
@@ -68,8 +68,7 @@ impl UserManager {
                         warn!("Failed to fetch user info: {:?}", err);
                     }
                     Ok(image) => {
-                        RESULTS.lock().unwrap().get_mut(user_id).unwrap().1 =
-                            Some(Texture2D::from_rgba8(image.width() as _, image.height() as _, &image.into_rgba8()).into());
+                        RESULTS.lock().unwrap().get_mut(user_id).unwrap().1 = Some(image.into());
                     }
                 }
                 guard.remove(user_id);

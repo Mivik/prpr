@@ -5,16 +5,48 @@ use concat_string::concat_string;
 use macroquad::prelude::load_file;
 use miniquad::warn;
 use std::{
+    any::Any,
+    collections::HashMap,
     fs,
-    io::{Cursor, Read},
+    io::{Cursor, Read, Seek, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
-use zip::ZipArchive;
+use zip::{write::FileOptions, CompressionMethod, ZipArchive, ZipWriter};
+
+pub fn update_zip<R: Read + Seek>(zip: &mut ZipArchive<R>, patches: HashMap<String, Vec<u8>>) -> Result<Vec<u8>> {
+    let mut buffer = Vec::new();
+    let mut w = ZipWriter::new(Cursor::new(&mut buffer));
+    let options = FileOptions::default()
+        .compression_method(CompressionMethod::Deflated)
+        .unix_permissions(0o755);
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).unwrap();
+        let path = match entry.enclosed_name() {
+            Some(path) => path.to_owned(),
+            None => continue,
+        };
+        let path = path.display().to_string();
+        if entry.is_dir() {
+            w.add_directory(path, options)?;
+        } else if !patches.contains_key(&path) {
+            w.start_file(&path, options)?;
+            std::io::copy(&mut entry, &mut w)?;
+        }
+    }
+    for (path, data) in patches.into_iter() {
+        w.start_file(path, options)?;
+        w.write_all(&data)?;
+    }
+    w.finish()?;
+    drop(w);
+    Ok(buffer)
+}
 
 #[async_trait]
 pub trait FileSystem: Send {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>>;
+    fn as_any(&mut self) -> &mut dyn Any;
 }
 
 pub struct AssetsFileSystem(String);
@@ -23,6 +55,10 @@ pub struct AssetsFileSystem(String);
 impl FileSystem for AssetsFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
         Ok(load_file(&concat_string!(self.0, path)).await?)
+    }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -34,16 +70,20 @@ impl FileSystem for ExternalFileSystem {
         let path = self.0.join(path);
         #[cfg(target_arch = "wasm32")]
         {
-            Ok(async move { std::fs::read(path) }.await?)
+            unimplemented!("Cannot use external file system on wasm32")
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
             Ok(tokio::spawn(async move { tokio::fs::read(path).await }).await??)
         }
     }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
-pub struct ZipFileSystem(Arc<Mutex<ZipArchive<Cursor<Vec<u8>>>>>, String);
+pub struct ZipFileSystem(pub Arc<Mutex<ZipArchive<Cursor<Vec<u8>>>>>, String);
 
 impl ZipFileSystem {
     pub fn new(bytes: Vec<u8>) -> Result<Self> {
@@ -70,6 +110,10 @@ impl FileSystem for ZipFileSystem {
             Ok(res)
         })
         .await?
+    }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

@@ -8,7 +8,7 @@ use crate::{
     info::{ChartFormat, ChartInfo},
     judge::Judge,
     parse::{parse_pec, parse_phigros, parse_rpe},
-    time::TimeManager,
+    time::TimeManager, ui::Ui,
 };
 use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
@@ -423,7 +423,7 @@ impl Scene for GameScene {
         Ok(())
     }
 
-    fn render(&mut self, tm: &mut TimeManager) -> Result<()> {
+    fn render(&mut self, tm: &mut TimeManager, _ui: &mut Ui) -> Result<()> {
         let res = &mut self.res;
         let dim = (self.get_size_fn)();
         if res.update_size(dim) {

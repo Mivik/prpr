@@ -26,9 +26,6 @@ tempfile = "3.3"
 tokio = "*"
 # tokio = { version = "*", features = ["rt-multi-thread"] }
 
-[target.'cfg(not(target_os = "android"))'.dependencies]
-nfd = "0.0.4"
-
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.2"
 ndk-context = "0.1"

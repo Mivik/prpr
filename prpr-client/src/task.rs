@@ -27,8 +27,8 @@ impl<T: Send + 'static> Task<T> {
         Self::new(std::future::pending())
     }
 
-    pub fn inspect<R>(&self, f: impl FnOnce(Option<&T>) -> R) -> R {
-        f(self.1.lock().unwrap().as_ref())
+    pub fn ok(&self) -> bool {
+        self.1.lock().unwrap().is_some()
     }
 
     pub fn take(&mut self) -> Option<T> {

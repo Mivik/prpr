@@ -1,10 +1,17 @@
+mod billboard;
+pub use billboard::BillBoard;
+
+mod chart_info;
+pub use chart_info::*;
+
 mod scroll;
 pub use scroll::Scroll;
 
 use crate::{
-    core::{Matrix, Point, Vector},
+    core::{Matrix, Point, Tweenable, Vector},
     ext::{draw_text_aligned, make_pipeline, screen_aspect, source_of_image, RectExt, ScaleType},
     judge::Judge,
+    scene::{request_input, return_input, take_input},
 };
 use lyon::{
     lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, FillVertexConstructor, VertexBuffers},
@@ -14,7 +21,7 @@ use lyon::{
 use macroquad::prelude::*;
 use miniquad::{CompareFunc, PassAction, StencilOp};
 use once_cell::sync::{Lazy, OnceCell};
-use std::{cell::RefCell, collections::HashMap, ops::Range, sync::Mutex};
+use std::{cell::RefCell, collections::HashMap, ops::Range};
 
 pub static FONT: OnceCell<Font> = OnceCell::new();
 
@@ -202,21 +209,28 @@ impl<'a> DrawText<'a> {
 }
 
 pub struct Shading {
+    origin: (f32, f32),
     color: Color,
+    vector: (f32, f32),
+    color_end: Color,
     texture: Option<(Texture2D, Rect, Rect)>,
 }
 
 impl Shading {
     pub fn new_vertex(&self, matrix: &Matrix, x: f32, y: f32) -> Vertex {
         let p = matrix.transform_point(&Point::new(x, y));
+        let color = {
+            let (dx, dy) = (x - self.origin.0, y - self.origin.1);
+            Color::tween(&self.color, &self.color_end, dx * self.vector.0 + dy * self.vector.1)
+        };
         if let Some((_, tr, dr)) = self.texture {
             let ux = (x - dr.x) / dr.w;
             let uy = (y - dr.y) / dr.h;
             let ux = ux.max(0.).min(1.);
             let uy = uy.max(0.).min(1.);
-            Vertex::new(p.x, p.y, 0., tr.x + tr.w * ux, tr.y + tr.h * uy, self.color)
+            Vertex::new(p.x, p.y, 0., tr.x + tr.w * ux, tr.y + tr.h * uy, color)
         } else {
-            Vertex::new(p.x, p.y, 0., 0., 0., self.color)
+            Vertex::new(p.x, p.y, 0., 0., 0., color)
         }
     }
 
@@ -227,7 +241,29 @@ impl Shading {
 
 impl From<Color> for Shading {
     fn from(color: Color) -> Self {
-        Self { color, texture: None }
+        Self {
+            origin: (0., 0.),
+            color,
+            vector: (1., 0.),
+            color_end: color,
+            texture: None,
+        }
+    }
+}
+
+impl From<(Color, (f32, f32), Color, (f32, f32))> for Shading {
+    fn from((color, origin, color_end, end): (Color, (f32, f32), Color, (f32, f32))) -> Self {
+        let vector = (end.0 - origin.0, end.1 - origin.1);
+        let norm = vector.0.hypot(vector.1);
+        let vector = (vector.0 / norm, vector.1 / norm);
+        let color_end = Color::tween(&color, &color_end, 1. / norm);
+        Self {
+            origin,
+            color,
+            vector,
+            color_end,
+            texture: None,
+        }
     }
 }
 
@@ -247,8 +283,8 @@ impl From<(Texture2D, Rect, ScaleType, Color)> for Shading {
     fn from((tex, rect, scale_type, color): (Texture2D, Rect, ScaleType, Color)) -> Self {
         let source = source_of_image(&tex, rect, scale_type).unwrap_or_else(|| Rect::new(0., 0., 1., 1.));
         Self {
-            color,
             texture: Some((tex, source, rect)),
+            ..color.into()
         }
     }
 }
@@ -342,7 +378,35 @@ impl RectButton {
     }
 }
 
-static STATE: Lazy<Mutex<HashMap<String, Option<u64>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+thread_local! {
+    static STATE: RefCell<HashMap<String, Option<u64>>> = RefCell::new(HashMap::new());
+}
+
+pub struct InputParams {
+    password: bool,
+    length: f32,
+}
+
+impl From<()> for InputParams {
+    fn from(_: ()) -> Self {
+        Self {
+            password: false,
+            length: 0.3,
+        }
+    }
+}
+
+impl From<bool> for InputParams {
+    fn from(password: bool) -> Self {
+        Self { password, ..().into() }
+    }
+}
+
+impl From<f32> for InputParams {
+    fn from(length: f32) -> Self {
+        Self { length, ..().into() }
+    }
+}
 
 pub struct Ui {
     pub top: f32,
@@ -567,6 +631,8 @@ impl Ui {
                     }
                 }
             }
+        } else {
+            *entry = None;
         }
         false
     }
@@ -575,82 +641,128 @@ impl Ui {
         Color::from_rgba(0x21, 0x96, 0xf3, 0xff)
     }
 
+    pub fn button(&mut self, id: &str, rect: Rect, text: impl Into<String>) -> bool {
+        let text = text.into();
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            let entry = state.entry(id.to_owned()).or_default();
+            self.fill_rect(rect, if entry.is_some() { Color::new(1., 1., 1., 0.5) } else { WHITE });
+            let ct = rect.center();
+            self.text(text)
+                .pos(ct.x, ct.y)
+                .anchor(0.5, 0.5)
+                .max_width(rect.w)
+                .size(0.42)
+                .color(BLACK)
+                .draw();
+            self.clicked(rect, entry)
+        })
+    }
+
     pub fn checkbox(&mut self, text: impl Into<String>, value: &mut bool) -> Rect {
         let text = text.into();
-        let mut state = STATE.lock().unwrap();
-        let entry = state.entry(text.clone()).or_default();
-        let w = 0.08;
-        let s = 0.03;
-        let text = self.text(text).pos(w, 0.).size(0.5).draw();
-        let r = Rect::new(w / 2. - s, text.center().y - s, s * 2., s * 2.);
-        self.fill_rect(r, if *value { self.accent() } else { WHITE });
-        let r = Rect::new(r.x, r.y, text.right() - r.x, (text.bottom() - r.y).max(w));
-        if self.clicked(r, entry) {
-            *value ^= true;
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            let entry = state.entry(format!("chkbox#{text}")).or_default();
+            let w = 0.08;
+            let s = 0.03;
+            let text = self.text(text).pos(w, 0.).size(0.5).draw();
+            let r = Rect::new(w / 2. - s, text.center().y - s, s * 2., s * 2.);
+            self.fill_rect(r, if *value { self.accent() } else { WHITE });
+            let r = Rect::new(r.x, r.y, text.right() - r.x, (text.bottom() - r.y).max(w));
+            if self.clicked(r, entry) {
+                *value ^= true;
+            }
+            r
+        })
+    }
+
+    pub fn input(&mut self, label: impl Into<String>, value: &mut String, params: impl Into<InputParams>) -> Rect {
+        let label = label.into();
+        let params = params.into();
+        let id = format!("input#{label}");
+        let r = self.text(label).anchor(1., 0.).size(0.4).draw();
+        let lf = r.x;
+        let r = Rect::new(0.02, r.y - 0.01, params.length, r.h + 0.02);
+        if if params.password {
+            self.button(&id, r, &std::iter::repeat('*').take(value.chars().count()).collect::<String>())
+        } else {
+            self.button(&id, r, value.as_str())
+        } {
+            request_input(&id, value);
         }
-        r
+        if let Some((its_id, text)) = take_input() {
+            if its_id == id {
+                *value = text;
+            } else {
+                return_input(its_id, text);
+            }
+        }
+        Rect::new(lf, r.y, r.right() - lf, r.h)
     }
 
     pub fn slider(&mut self, text: impl Into<String>, range: Range<f32>, step: f32, value: &mut f32, length: Option<f32>) -> Rect {
         let text = text.into();
-        let mut state = STATE.lock().unwrap();
-        let entry = state.entry(text.clone()).or_default();
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            let entry = state.entry(text.clone()).or_default();
 
-        let len = length.unwrap_or(0.3);
-        let s = 0.002;
-        let tr = self.text(format!("{text}: {value:.3}")).size(0.4).draw();
-        let cy = tr.h + 0.03;
-        let r = Rect::new(0., cy - s, len, s * 2.);
-        self.fill_rect(r, WHITE);
-        let p = (*value - range.start) / (range.end - range.start);
-        let p = p.max(0.).min(1.);
-        self.fill_circle(len * p, cy, 0.015, self.accent());
-        let r = r.feather(0.015 - s);
-        let r = self.rect_to_global(r);
-        if let Some(id) = entry {
-            if let Some(touch) = self.touches.iter().rfind(|it| it.id == *id) {
-                let Vec2 { x, y } = touch.position;
-                let (x, _) = self.to_local((x, y));
-                let p = (x / len).max(0.).min(1.);
-                *value = range.start + (range.end - range.start) * p;
-                *value = (*value / step).round() * step;
-                if matches!(touch.phase, TouchPhase::Cancelled | TouchPhase::Ended) {
-                    *entry = None;
+            let len = length.unwrap_or(0.3);
+            let s = 0.002;
+            let tr = self.text(format!("{text}: {value:.3}")).size(0.4).draw();
+            let cy = tr.h + 0.03;
+            let r = Rect::new(0., cy - s, len, s * 2.);
+            self.fill_rect(r, WHITE);
+            let p = (*value - range.start) / (range.end - range.start);
+            let p = p.max(0.).min(1.);
+            self.fill_circle(len * p, cy, 0.015, self.accent());
+            let r = r.feather(0.015 - s);
+            let r = self.rect_to_global(r);
+            if let Some(id) = entry {
+                if let Some(touch) = self.touches.iter().rfind(|it| it.id == *id) {
+                    let Vec2 { x, y } = touch.position;
+                    let (x, _) = self.to_local((x, y));
+                    let p = (x / len).max(0.).min(1.);
+                    *value = range.start + (range.end - range.start) * p;
+                    *value = (*value / step).round() * step;
+                    if matches!(touch.phase, TouchPhase::Cancelled | TouchPhase::Ended) {
+                        *entry = None;
+                    }
+                }
+            } else if let Some(touch) = self.touches.iter().find(|it| r.contains(it.position)) {
+                if matches!(touch.phase, TouchPhase::Started) {
+                    *entry = Some(touch.id);
                 }
             }
-        } else if let Some(touch) = self.touches.iter().find(|it| r.contains(it.position)) {
-            if matches!(touch.phase, TouchPhase::Started) {
-                *entry = Some(touch.id);
+
+            let s = 0.025;
+            let mut x = len + 0.02;
+            let r = Rect::new(x, cy - s, s * 2., s * 2.);
+            self.fill_rect(r, WHITE);
+            self.text("-")
+                .pos(r.center().x, r.center().y)
+                .anchor(0.5, 0.5)
+                .size(0.4)
+                .color(BLACK)
+                .draw();
+            if self.clicked(r, state.entry(format!("{text}:-")).or_default()) {
+                *value = (*value - step).max(range.start);
             }
-        }
+            x += s * 2. + 0.01;
+            let r = Rect::new(x, cy - s, s * 2., s * 2.);
+            self.fill_rect(r, WHITE);
+            self.text("+")
+                .pos(r.center().x, r.center().y)
+                .anchor(0.5, 0.5)
+                .size(0.4)
+                .color(BLACK)
+                .draw();
+            if self.clicked(r, state.entry(format!("{text}:+")).or_default()) {
+                *value = (*value + step).min(range.end);
+            }
 
-        let s = 0.025;
-        let mut x = len + 0.02;
-        let r = Rect::new(x, cy - s, s * 2., s * 2.);
-        self.fill_rect(r, WHITE);
-        self.text("-")
-            .pos(r.center().x, r.center().y)
-            .anchor(0.5, 0.5)
-            .size(0.4)
-            .color(BLACK)
-            .draw();
-        if self.clicked(r, state.entry(format!("{text}:-")).or_default()) {
-            *value = (*value - step).max(range.start);
-        }
-        x += s * 2. + 0.01;
-        let r = Rect::new(x, cy - s, s * 2., s * 2.);
-        self.fill_rect(r, WHITE);
-        self.text("+")
-            .pos(r.center().x, r.center().y)
-            .anchor(0.5, 0.5)
-            .size(0.4)
-            .color(BLACK)
-            .draw();
-        if self.clicked(r, state.entry(format!("{text}:+")).or_default()) {
-            *value = (*value + step).min(range.end);
-        }
-
-        Rect::new(0., 0., x + s * 2., cy + s)
+            Rect::new(0., 0., x + s * 2., cy + s)
+        })
     }
 
     #[inline]

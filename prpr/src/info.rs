@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChartFormat {
     Rpe,
@@ -8,7 +8,7 @@ pub enum ChartFormat {
     Pgr,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 #[serde(rename_all = "camelCase")]
 pub struct ChartInfo {

@@ -1,5 +1,5 @@
 mod main;
-pub use main::{MainScene, CHOSEN_FILE, INPUT_TEXT};
+pub use main::MainScene;
 
 mod song;
 pub use song::SongScene;

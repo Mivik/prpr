@@ -143,7 +143,7 @@ impl Scroll {
         self.y_scroller.set_offset(y);
     }
 
-    pub fn touch(&mut self, touch: Touch, t: f32) -> bool {
+    pub fn touch(&mut self, touch: &Touch, t: f32) -> bool {
         let Some(matrix) = self.matrix else { return false; };
         let pt = touch.position;
         let pt = matrix.transform_point(&Point::new(pt.x, pt.y));

@@ -1,4 +1,3 @@
-mod billboard;
 mod cloud;
 mod data;
 mod scene;
@@ -181,7 +180,7 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setDpi(_: *mut std::ffi::c
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub unsafe extern "C" fn Java_quad_1native_QuadNative_setChosenFile(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, file: ndk_sys::jstring) {
-    use scene::CHOSEN_FILE;
+    use prpr::scene::CHOSEN_FILE;
 
     let env = crate::miniquad::native::attach_jni_env();
     *CHOSEN_FILE.lock().unwrap() = Some(string_from_java(env, file));
@@ -190,7 +189,7 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setChosenFile(_: *mut std:
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub unsafe extern "C" fn Java_quad_1native_QuadNative_setInputText(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, text: ndk_sys::jstring) {
-    use scene::INPUT_TEXT;
+    use prpr::scene::INPUT_TEXT;
 
     let env = crate::miniquad::native::attach_jni_env();
     *INPUT_TEXT.lock().unwrap() = Some(string_from_java(env, text));

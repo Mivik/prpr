@@ -1,6 +1,8 @@
 use crate::core::{Point, Vector};
+use image::DynamicImage;
 use macroquad::prelude::*;
 use miniquad::{BlendFactor, BlendState, BlendValue, CompareFunc, Equation, PrimitiveType, StencilFaceState, StencilOp, StencilState};
+use once_cell::sync::Lazy;
 use ordered_float::{Float, NotNan};
 use std::{
     future::Future,
@@ -84,6 +86,14 @@ impl From<Texture2D> for SafeTexture {
         Self(Arc::new(SafeTextureWrapper(tex)))
     }
 }
+
+impl From<DynamicImage> for SafeTexture {
+    fn from(image: DynamicImage) -> Self {
+        Texture2D::from_rgba8(image.width() as _, image.height() as _, &image.into_rgba8()).into()
+    }
+}
+
+pub const BLACK_TEXTURE: Lazy<SafeTexture> = Lazy::new(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]).into());
 
 pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f32), scale: f32, color: Color) -> Rect {
     use macroquad::prelude::*;

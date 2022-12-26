@@ -110,7 +110,7 @@ impl Scene for EndingScene {
         Ok(())
     }
 
-    fn render(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
+    fn render(&mut self, tm: &mut crate::time::TimeManager, ui: &mut Ui) -> Result<()> {
         let asp = screen_aspect();
         let top = 1. / asp;
         let now = tm.now() as f32;
@@ -307,7 +307,6 @@ impl Scene for EndingScene {
         );
         draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, color);
 
-        let mut ui = Ui::new();
         let ct = (1. - 0.1 + 0.043, main.center().y - 0.034 + 0.02);
         let (w, h) = (0.09 * self.challenge_texture.width() / 78., 0.04 * self.challenge_texture.height() / 38.);
         let r = Rect::new(ct.0 - w / 2., ct.1 - h / 2., w, h);

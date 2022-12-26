@@ -7,9 +7,11 @@ pub use game::GameScene;
 mod loading;
 pub use loading::LoadingScene;
 
+use std::{cell::RefCell, sync::Mutex, ops::DerefMut};
 use crate::{
     ext::{draw_image, screen_aspect, ScaleType},
     time::TimeManager,
+    ui::{BillBoard, Ui},
 };
 use anyhow::Result;
 use macroquad::prelude::{
@@ -29,6 +31,102 @@ pub enum NextScene {
     Replace(Box<dyn Scene>),
 }
 
+thread_local! {
+    static BILLBOARD: RefCell<(BillBoard, TimeManager)> = RefCell::new((BillBoard::new(), TimeManager::default()));
+}
+
+pub fn show_message(msg: impl Into<String>) {
+    BILLBOARD.with(|it| {
+        let mut guard = it.borrow_mut();
+        let t = guard.1.now() as _;
+        guard.0.add(msg, t);
+    });
+}
+
+thread_local! {
+    static CURRENT_INPUT: RefCell<String> = RefCell::default();
+    static CURRENT_CHOOSE_FILE: RefCell<String> = RefCell::default();
+}
+pub static INPUT_TEXT: Mutex<Option<String>> = Mutex::new(None);
+pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
+
+pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &str) {
+    CURRENT_INPUT.with(|it| *it.borrow_mut() = id.into());
+    #[cfg(not(target_os = "android"))]
+    {
+        *INPUT_TEXT.lock().unwrap() = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
+        show_message("从剪贴板加载成功");
+    }
+    #[cfg(target_os = "android")]
+    unsafe {
+        let env = miniquad::native::attach_jni_env();
+        let ctx = ndk_context::android_context().context();
+        let class = (**env).GetObjectClass.unwrap()(env, ctx);
+        let method = (**env).GetMethodID.unwrap()(env, class, b"inputText\0".as_ptr() as _, b"(Ljava/lang/String;)V\0".as_ptr() as _);
+        let text = std::ffi::CString::new(text.to_owned()).unwrap();
+        (**env).CallVoidMethod.unwrap()(env, ctx, method, (**env).NewStringUTF.unwrap()(env, text.as_ptr()));
+    }
+}
+
+pub fn take_input() -> Option<(String, String)> {
+    INPUT_TEXT
+        .lock()
+        .unwrap()
+        .take()
+        .map(|text| (CURRENT_INPUT.with(|it| std::mem::take(it.borrow_mut().deref_mut())), text))
+}
+
+pub fn return_input(id: String, text: String) {
+    CURRENT_INPUT.with(|it| *it.borrow_mut() = id);
+    *INPUT_TEXT.lock().unwrap() = Some(text);
+}
+
+pub fn request_file(id: impl Into<String>) {
+    CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id.into());
+    *CHOSEN_FILE.lock().unwrap() = None;
+    #[cfg(not(target_os = "android"))]
+    {
+        use nfd::Response;
+        let result = nfd::open_file_dialog(None, None);
+        let result = match result {
+            Err(err) => {
+                warn!("{:?}", err);
+                show_message(format!("选择文件失败：{err:?}"));
+                return;
+            }
+            Ok(result) => result,
+        };
+        match result {
+            Response::Okay(file_path) => {
+                *CHOSEN_FILE.lock().unwrap() = Some(file_path);
+            }
+            Response::OkayMultiple(_) => unreachable!(),
+            Response::Cancel => {}
+        }
+    }
+    #[cfg(target_os = "android")]
+    unsafe {
+        let env = miniquad::native::attach_jni_env();
+        let ctx = ndk_context::android_context().context();
+        let class = (**env).GetObjectClass.unwrap()(env, ctx);
+        let method = (**env).GetMethodID.unwrap()(env, class, b"chooseFile\0".as_ptr() as _, b"()V\0".as_ptr() as _);
+        (**env).CallVoidMethod.unwrap()(env, ctx, method);
+    }
+}
+
+pub fn take_file() -> Option<(String, String)> {
+    CHOSEN_FILE
+        .lock()
+        .unwrap()
+        .take()
+        .map(|file| (CURRENT_CHOOSE_FILE.with(|it| std::mem::take(it.borrow_mut().deref_mut())), file))
+}
+
+pub fn return_file(id: String, file: String) {
+    CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id);
+    *CHOSEN_FILE.lock().unwrap() = Some(file);
+}
+
 pub trait Scene {
     fn enter(&mut self, _tm: &mut TimeManager, _target: Option<RenderTarget>) -> Result<()> {
         Ok(())
@@ -43,7 +141,7 @@ pub trait Scene {
         Ok(())
     }
     fn update(&mut self, tm: &mut TimeManager) -> Result<()>;
-    fn render(&mut self, tm: &mut TimeManager) -> Result<()>;
+    fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()>;
     fn next_scene(&mut self, _tm: &mut TimeManager) -> NextScene {
         NextScene::None
     }
@@ -131,7 +229,14 @@ impl Main {
         if self.paused {
             return Ok(());
         }
-        self.scenes.last_mut().unwrap().render(&mut self.tm)
+        let mut ui = Ui::new();
+        ui.scope(|ui| self.scenes.last_mut().unwrap().render(&mut self.tm, ui))?;
+        BILLBOARD.with(|it| {
+            let mut guard = it.borrow_mut();
+            let t = guard.1.now() as f32;
+            guard.0.render(&mut ui, t);
+        });
+        Ok(())
     }
 
     pub fn pause(&mut self) -> Result<()> {

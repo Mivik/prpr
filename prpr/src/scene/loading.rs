@@ -1,7 +1,7 @@
 use super::{draw_background, draw_illustration, GameScene, NextScene, Scene};
 use crate::{
     config::Config,
-    ext::{draw_parallelogram, draw_text_aligned, poll_future, screen_aspect, SafeTexture},
+    ext::{draw_parallelogram, draw_text_aligned, poll_future, screen_aspect, SafeTexture, BLACK_TEXTURE},
     fs::FileSystem,
     info::ChartInfo,
     time::TimeManager,
@@ -9,7 +9,10 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
-use macroquad::{prelude::*, rand::{ChooseRandom, srand}};
+use macroquad::{
+    prelude::*,
+    rand::{srand, ChooseRandom},
+};
 use std::{future::Future, pin::Pin, rc::Rc};
 
 const BEFORE_TIME: f32 = 1.;
@@ -52,11 +55,7 @@ impl LoadingScene {
                 blurred.push(255);
             }
             Ok((
-                Texture2D::from_image(&Image {
-                    width: w as _,
-                    height: h as _,
-                    bytes: image.into_rgba8().into_raw(),
-                }),
+                Texture2D::from_rgba8(w as _, h as _, &image.into_rgba8()),
                 Texture2D::from_image(&Image {
                     width: w as _,
                     height: h as _,
@@ -73,9 +72,9 @@ impl LoadingScene {
                 None
             }
         };
-        let (illustration, background) =
-            background.unwrap_or_else(|| (Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]), Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255])));
-        let (illustration, background): (SafeTexture, SafeTexture) = (illustration.into(), background.into());
+        let (illustration, background): (SafeTexture, SafeTexture) = background
+            .map(|(ill, back)| (ill.into(), back.into()))
+            .unwrap_or_else(|| (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone()));
         let font = *FONT.get().unwrap();
         let get_size_fn = get_size_fn.unwrap_or_else(|| Rc::new(|| (screen_width() as u32, screen_height() as u32)));
         if info.tip.is_none() {
@@ -123,7 +122,7 @@ impl Scene for LoadingScene {
         Ok(())
     }
 
-    fn render(&mut self, tm: &mut TimeManager) -> Result<()> {
+    fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
         let asp = screen_aspect();
         let top = 1. / asp;
         let now = tm.now() as f32;
@@ -193,7 +192,6 @@ impl Scene for LoadingScene {
         let st = (t - 1.).max(0.).min(1.).powi(3);
         let en = 1. - (1. - t.min(1.)).powi(3);
 
-        let mut ui = Ui::new();
         let mut r = Rect::new(r.x + r.w * st, r.y, r.w * (en - st), r.h);
         ui.fill_rect(r, WHITE);
         r.x += dx;

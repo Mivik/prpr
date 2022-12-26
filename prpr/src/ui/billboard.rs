@@ -1,4 +1,6 @@
-use prpr::ui::Ui;
+use macroquad::prelude::Color;
+
+use crate::{ui::Ui, ext::RectExt};
 use std::collections::VecDeque;
 
 pub const MAX_SIZE: usize = 7;
@@ -14,11 +16,21 @@ impl BillBoard {
         Self { messages: VecDeque::new() }
     }
 
-    pub fn render(&self, ui: &mut Ui) {
+    pub fn render(&mut self, ui: &mut Ui, t: f32) {
+        while let Some(front) = self.messages.front() {
+            if t > front.1 + LAST_TIME {
+                self.messages.pop_front();
+            } else {
+                break;
+            }
+        }
         let rt = 1. - PADDING;
         let mut tp = -ui.top + PADDING;
         for msg in &self.messages {
-            let r = ui.text(&msg.0).pos(rt, tp).size(0.8).anchor(1., 0.).draw();
+            let text = ui.text(&msg.0).pos(rt, tp).size(0.8).anchor(1., 0.);
+            let r = text.measure();
+            text.ui.fill_rect(r.feather(0.01), Color::new(0., 0., 0., 0.3));
+            text.draw();
             tp += r.h + 0.02;
         }
     }
@@ -31,16 +43,6 @@ impl BillBoard {
         self.messages.push_back((msg.into(), t));
         if self.messages.len() > MAX_SIZE {
             self.messages.pop_front();
-        }
-    }
-
-    pub fn update(&mut self, t: f32) {
-        while let Some(front) = self.messages.front() {
-            if t > front.1 + LAST_TIME {
-                self.messages.pop_front();
-            } else {
-                break;
-            }
         }
     }
 }

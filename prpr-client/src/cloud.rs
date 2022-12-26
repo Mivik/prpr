@@ -1,4 +1,6 @@
 mod file;
+use std::marker::PhantomData;
+
 use file::upload_qiniu;
 
 mod structs;
@@ -10,7 +12,7 @@ pub use user::UserManager;
 use crate::get_data;
 use anyhow::{bail, Context, Result};
 use reqwest::{header, Method, RequestBuilder};
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 
 async fn recv_lc(request: RequestBuilder) -> Result<String> {
@@ -72,6 +74,32 @@ struct UploadToken {
     bucket: String,
 }
 
+#[must_use = "QueryBuilder does nothing until you 'send' it"]
+#[derive(Serialize)]
+pub struct QueryBuilder<T: LCObject> {
+    #[serde(rename = "where")]
+    where_: Option<String>,
+    order: Option<String>,
+    #[serde(skip)]
+    phantom: PhantomData<T>,
+}
+
+impl<T: LCObject> QueryBuilder<T> {
+    pub fn with_where(mut self, clause: Value) -> Self {
+        self.where_ = Some(clause.to_string());
+        self
+    }
+
+    pub fn order(mut self, order: impl Into<String>) -> Self {
+        self.order = Some(order.into());
+        self
+    }
+
+    pub async fn send(self) -> Result<Vec<T>> {
+        parse_lc_many(Client::get(format!("/classes/{}", T::CLASS_NAME)).form(&self)).await
+    }
+}
+
 pub struct Client;
 
 impl Client {
@@ -102,8 +130,17 @@ impl Client {
         parse_lc(Self::get(format!("/classes/{}/{}", T::CLASS_NAME, ptr.into().id))).await
     }
 
-    pub async fn query<T: LCObject>() -> Result<Vec<T>> {
-        parse_lc_many(Self::get(format!("/classes/{}", T::CLASS_NAME))).await
+    pub async fn create<T: LCObject + Serialize>(value: T) -> Result<T> {
+        recv_lc(Self::post(format!("/classes/{}", T::CLASS_NAME), serde_json::to_value(&value)?)).await?;
+        Ok(value)
+    }
+
+    pub fn query<T: LCObject>() -> QueryBuilder<T> {
+        QueryBuilder {
+            where_: None,
+            order: None,
+            phantom: PhantomData::default(),
+        }
     }
 
     pub async fn register(email: &str, username: &str, password: &str) -> Result<()> {
@@ -168,10 +205,7 @@ impl Client {
         if token.provider != "qiniu" {
             bail!("Unsupported prvider: {}", token.provider);
         }
-        let file = LCFile {
-            id: std::mem::take(&mut token.object_id),
-            url: std::mem::take(&mut token.url),
-        };
+        let file = LCFile::new(std::mem::take(&mut token.object_id), std::mem::take(&mut token.url));
         let token_s = token.token.clone();
         upload_qiniu(token, data).await?;
         let _ = recv_lc(Self::post(

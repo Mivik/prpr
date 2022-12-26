@@ -39,6 +39,23 @@ impl From<ChartInfo> for BriefChartInfo {
     }
 }
 
+impl BriefChartInfo {
+    pub fn to_full(self) -> ChartInfo {
+        ChartInfo {
+            id: self.id,
+            name: self.name,
+            level: self.level,
+            difficulty: self.difficulty,
+            preview_time: self.preview_time,
+            intro: self.intro,
+            tags: self.tags,
+            composer: self.composer,
+            illustrator: self.illustrator,
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct LocalChart {
     #[serde(flatten)]

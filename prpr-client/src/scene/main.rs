@@ -1,7 +1,6 @@
 use super::{song::TrashBin, SongScene};
 use crate::{
-    billboard::BillBoard,
-    cloud::{ChartItemData, Client, User, UserManager},
+    cloud::{Client, LCChartItem, User, UserManager},
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut, save_data,
     task::Task,
@@ -18,9 +17,9 @@ use prpr::{
     audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
     config::ChallengeModeColor,
     core::{ParticleEmitter, Tweenable, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
-    ext::{screen_aspect, RectExt, SafeTexture, ScaleType},
+    ext::{screen_aspect, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs,
-    scene::{NextScene, Scene},
+    scene::{request_file, request_input, return_file, return_input, show_message, take_file, take_input, NextScene, Scene},
     time::TimeManager,
     ui::{RectButton, Scroll, Ui},
 };
@@ -42,22 +41,15 @@ const CARD_PADDING: f32 = 0.02;
 const SWITCH_TIME: f32 = 0.4;
 const TRANSIT_TIME: f32 = 0.4;
 
-pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
-pub static INPUT_TEXT: Mutex<Option<String>> = Mutex::new(None);
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
+pub static UPDATE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
 
-enum InputState {
-    None,
-    AccountEmail,
-    AccountUsername,
-    AccountPassword,
-    EditUsername,
-}
-
-enum ChooseFileState {
-    None,
-    ImportChart,
-    Avatar,
+pub fn illustration_task(path: String) -> Task<Result<DynamicImage>> {
+    Task::new(async move {
+        let fs = fs::fs_from_file(&std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
+        let (info, mut fs) = fs::load_info(fs).await?;
+        Ok(image::load_from_memory(&fs.load_file(&info.illustration).await?)?)
+    })
 }
 
 fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
@@ -68,11 +60,7 @@ fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
             info: it.info.clone(),
             path: it.path.clone(),
             illustration: tex.clone(),
-            illustration_task: Task::new(async move {
-                let fs = fs::fs_from_file(&std::path::Path::new(&format!("{}/{}", dir::charts()?, it.path)))?;
-                let (info, mut fs) = fs::load_info(fs).await?;
-                Ok(image::load_from_memory(&fs.load_file(&info.illustration).await?)?)
-            }),
+            illustration_task: Some(illustration_task(it.path.clone())),
         })
         .collect()
 }
@@ -91,7 +79,7 @@ pub struct ChartItem {
     pub info: BriefChartInfo,
     pub path: String,
     pub illustration: SafeTexture,
-    pub illustration_task: Task<Result<DynamicImage>>,
+    pub illustration_task: Option<Task<Result<DynamicImage>>>,
 }
 
 pub struct AccountPage {
@@ -102,11 +90,6 @@ pub struct AccountPage {
     username_input: String,
     password_input: String,
     avatar_button: RectButton,
-    email_button: RectButton,
-    username_button: RectButton,
-    password_button: RectButton,
-    left_button: RectButton,
-    right_button: RectButton,
 }
 
 impl AccountPage {
@@ -124,11 +107,6 @@ impl AccountPage {
             username_input: String::new(),
             password_input: String::new(),
             avatar_button: RectButton::new(),
-            email_button: RectButton::new(),
-            username_button: RectButton::new(),
-            password_button: RectButton::new(),
-            left_button: RectButton::new(),
-            right_button: RectButton::new(),
         }
     }
 
@@ -147,6 +125,7 @@ pub struct MainScene {
     click_texture: SafeTexture,
     icon_back: SafeTexture,
     icon_play: SafeTexture,
+    icon_edit: SafeTexture,
     icon_delete: SafeTexture,
     icon_question: SafeTexture,
 
@@ -157,8 +136,6 @@ pub struct MainScene {
     cali_tm: TimeManager,
     cali_last: bool,
     emitter: ParticleEmitter,
-
-    billboard: BillBoard,
 
     task_load: Task<Result<Vec<ChartItem>>>,
     remote_first_time: bool,
@@ -178,8 +155,6 @@ pub struct MainScene {
     import_button: RectButton,
     import_task: Task<Result<LocalChart>>,
 
-    input_state: InputState,
-    choose_file_state: ChooseFileState,
     account_page: AccountPage,
 
     chal_buttons: [RectButton; 6],
@@ -214,6 +189,7 @@ impl MainScene {
             click_texture: load_tex!("click.png"),
             icon_back: load_tex!("back.png"),
             icon_play: load_tex!("resume.png"),
+            icon_edit: load_tex!("edit.png"),
             icon_delete: load_tex!("delete.png"),
             icon_question: load_tex!("question.png"),
 
@@ -224,8 +200,6 @@ impl MainScene {
             cali_tm,
             cali_last: false,
             emitter: ParticleEmitter::new(get_data().config.note_scale).await?,
-
-            billboard: BillBoard::new(),
 
             task_load: Task::pending(),
             remote_first_time: true,
@@ -245,8 +219,6 @@ impl MainScene {
             import_button: RectButton::new(),
             import_task: Task::pending(),
 
-            input_state: InputState::None,
-            choose_file_state: ChooseFileState::None,
             account_page: AccountPage::new(),
 
             chal_buttons: [RectButton::new(); 6],
@@ -269,17 +241,11 @@ impl MainScene {
             };
             ui.hgrids(content_size.0, ch, ROW_NUM, charts.len() as u32, |ui, id| {
                 let chart = &mut charts[id as usize];
-                if let Some(image) = chart.illustration_task.take() {
-                    chart.illustration = (if let Ok(image) = image {
-                        Texture2D::from_image(&Image {
-                            width: image.width() as _,
-                            height: image.height() as _,
-                            bytes: image.into_rgba8().into_vec(),
-                        })
-                    } else {
-                        Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255])
-                    })
-                    .into();
+                if let Some(task) = &mut chart.illustration_task {
+                    if let Some(image) = task.take() {
+                        chart.illustration = (if let Ok(image) = image { image.into() } else { BLACK_TEXTURE.clone() }).into();
+                        chart.illustration_task = None;
+                    }
                 }
                 ui.fill_path(&path, (*chart.illustration, Rect::new(0., 0., cw, ch)));
                 ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
@@ -395,30 +361,17 @@ impl MainScene {
             .size(0.8)
             .draw();
         ui.dy(r.h + 0.03);
-        let pressed = Color::new(1., 1., 1., 0.5);
         if get_data().me.is_none() {
             let r = ui.text("用户名").size(0.4).measure();
-            let rt = r.right();
-            let r = Rect::new(r.right() + 0.02, r.y - 0.01, 0.3, r.h + 0.02);
-            let ct = r.center();
-            let mut input = |label: &str, input: &str, btn: &mut RectButton| {
-                ui.text(label).pos(rt, 0.).anchor(1., 0.).size(0.4).draw();
-                btn.set(ui, r);
-                ui.fill_rect(r, if btn.touching() { pressed } else { WHITE });
-                ui.text(input)
-                    .pos(ct.x, ct.y)
-                    .anchor(0.5, 0.5)
-                    .max_width(r.w)
-                    .size(0.42)
-                    .color(BLACK)
-                    .draw();
-                ui.dy(r.h + 0.02);
-            };
+            ui.dx(r.w);
             if page.register {
-                input("邮箱", &page.email_input, &mut page.email_button);
+                let r = ui.input("邮箱", &mut page.email_input, ());
+                ui.dy(r.h + 0.02);
             }
-            input("用户名", &page.username_input, &mut page.username_button);
-            input("密码", &std::iter::repeat('*').take(page.password_input.chars().count()).collect::<String>(), &mut page.password_button);
+            let r = ui.input("用户名", &mut page.username_input, ());
+            ui.dy(r.h + 0.02);
+            let r = ui.input("密码", &mut page.password_input, true);
+            ui.dy(r.h + 0.02);
             let labels = if page.register {
                 ["返回", if page.task.is_none() { "注册" } else { "注册中…" }]
             } else {
@@ -426,27 +379,54 @@ impl MainScene {
             };
             let cx = r.right() / 2.;
             let mut r = Rect::new(0., 0., cx - 0.01, r.h);
-            page.left_button.set(ui, r);
-            ui.fill_rect(r, if page.left_button.touching() { pressed } else { WHITE });
-            let ct = r.center();
-            ui.text(labels[0]).pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.42).color(BLACK).draw();
+            if ui.button("left", r, labels[0]) {
+                page.register ^= true;
+            }
             r.x = cx + 0.01;
-            page.right_button.set(ui, r);
-            ui.fill_rect(r, if page.right_button.touching() { pressed } else { WHITE });
-            let ct = r.center();
-            ui.text(labels[1]).pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.42).color(BLACK).draw();
+            if ui.button("right", r, labels[1]) {
+                fn login(page: &mut AccountPage) -> Option<&'static str> {
+                    let username = page.username_input.clone();
+                    let password = page.password_input.clone();
+                    if let Some(error) = validate_username(&username) {
+                        return Some(error);
+                    }
+                    if !(6..=26).contains(&password.len()) {
+                        return Some("密码长度应介于 6-26 之间");
+                    }
+                    if page.register {
+                        let email = page.email_input.clone();
+                        const EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$").unwrap());
+                        if !EMAIL_REGEX.is_match(&email) {
+                            return Some("邮箱不合法");
+                        }
+                        page.start("注册", async move {
+                            Client::register(&email, &username, &password).await?;
+                            Ok(None)
+                        });
+                    } else {
+                        page.start("登录", async move {
+                            let user = Client::login(&username, &password).await?;
+                            Ok(Some(user))
+                        });
+                    }
+                    None
+                }
+                if let Some(err) = login(page) {
+                    show_message(err);
+                }
+            }
         } else {
             let cx = 0.2;
             let mut r = Rect::new(0., 0., cx - 0.01, ui.text("呃").size(0.42).measure().h + 0.02);
-            page.left_button.set(ui, r);
-            ui.fill_rect(r, if page.left_button.touching() { pressed } else { WHITE });
-            let ct = r.center();
-            ui.text("退出登录").pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.42).color(BLACK).draw();
+            if ui.button("logout", r, "退出登录") {
+                get_data_mut().me = None;
+                let _ = save_data();
+                show_message("退出登录成功");
+            }
             r.x = cx + 0.01;
-            page.right_button.set(ui, r);
-            ui.fill_rect(r, if page.right_button.touching() { pressed } else { WHITE });
-            let ct = r.center();
-            ui.text("修改名称").pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.42).color(BLACK).draw();
+            if ui.button("edit_name", r, "修改名称") {
+                request_input("edit_username", &get_data().me.as_ref().unwrap().name);
+            }
         }
     }
 
@@ -588,89 +568,44 @@ impl MainScene {
         }
     }
 
-    fn refresh_remote(&mut self, tm: &TimeManager) {
+    fn refresh_remote(&mut self) {
         if self.loading_remote {
             return;
         }
         self.charts_remote.clear();
-        self.billboard.add("正在加载", tm.now() as _);
+        show_message("正在加载");
         self.loading_remote = true;
         self.task_load = Task::new({
             let tex = self.tex.clone();
             async move {
-                let charts: Vec<ChartItemData> = Client::query().await?;
+                let charts: Vec<LCChartItem> = Client::query()
+                    .with_where(json!({
+                        "verified": true,
+                    }))
+                    .order("updatedAt")
+                    .send()
+                    .await?;
                 Ok(charts
                     .into_iter()
                     .map(|it| {
                         let url = it.illustration;
                         ChartItem {
                             info: BriefChartInfo {
-                                id: Some(it.id),
+                                id: it.id,
                                 ..it.info.clone()
                             },
                             path: it.file.url,
                             illustration: tex.clone(),
-                            illustration_task: Task::new(async move {
+                            illustration_task: Some(Task::new(async move {
                                 let bytes = reqwest::get(url.url).await?.bytes().await?;
                                 let image = image::load_from_memory(&bytes)?;
                                 Ok(image)
-                            }),
+                            })),
                         }
                     })
                     .collect::<Vec<_>>())
             }
         });
-    }
-
-    fn request_input(&mut self, state: InputState, text: String, tm: &TimeManager) {
-        self.input_state = state;
-        #[cfg(not(target_os = "android"))]
-        {
-            *INPUT_TEXT.lock().unwrap() = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
-            self.billboard.add("从剪贴板加载成功", tm.now() as _);
-        }
-        #[cfg(target_os = "android")]
-        unsafe {
-            let env = crate::miniquad::native::attach_jni_env();
-            let ctx = ndk_context::android_context().context();
-            let class = (**env).GetObjectClass.unwrap()(env, ctx);
-            let method = (**env).GetMethodID.unwrap()(env, class, b"inputText\0".as_ptr() as _, b"(Ljava/lang/String;)V\0".as_ptr() as _);
-            let text = std::ffi::CString::new(text).unwrap();
-            (**env).CallVoidMethod.unwrap()(env, ctx, method, (**env).NewStringUTF.unwrap()(env, text.as_ptr()));
-        }
-    }
-
-    fn request_file(&mut self, state: ChooseFileState, tm: &TimeManager) {
-        *CHOSEN_FILE.lock().unwrap() = None;
-        self.choose_file_state = state;
-        #[cfg(not(target_os = "android"))]
-        {
-            use nfd::Response;
-            let result = nfd::open_file_dialog(None, None);
-            let result = match result {
-                Err(err) => {
-                    warn!("{:?}", err);
-                    self.billboard.add("选择文件失败：{err:?}", tm.now() as _);
-                    return;
-                }
-                Ok(result) => result,
-            };
-            match result {
-                Response::Okay(file_path) => {
-                    *CHOSEN_FILE.lock().unwrap() = Some(file_path);
-                }
-                Response::OkayMultiple(_) => unreachable!(),
-                Response::Cancel => {}
-            }
-        }
-        #[cfg(target_os = "android")]
-        unsafe {
-            let env = crate::miniquad::native::attach_jni_env();
-            let ctx = ndk_context::android_context().context();
-            let class = (**env).GetObjectClass.unwrap()(env, ctx);
-            let method = (**env).GetMethodID.unwrap()(env, class, b"chooseFile\0".as_ptr() as _, b"()V\0".as_ptr() as _);
-            (**env).CallVoidMethod.unwrap()(env, ctx, method);
-        }
     }
 }
 
@@ -681,8 +616,7 @@ impl Scene for MainScene {
         if let Some((_, st, _, true)) = &mut self.transit {
             *st = tm.now() as _;
         } else {
-            self.billboard.clear();
-            self.billboard.add("欢迎回来", tm.now() as _);
+            show_message("欢迎回来");
         }
         Ok(())
     }
@@ -718,7 +652,7 @@ impl Scene for MainScene {
                 }
                 if tab_id == 1 && self.remote_first_time {
                     self.remote_first_time = false;
-                    self.refresh_remote(tm);
+                    self.refresh_remote();
                 }
                 if tab_id == 3 {
                     self.cali_handle = Some(self.audio.play(
@@ -741,17 +675,21 @@ impl Scene for MainScene {
             }
         }
         if self.import_button.touch(&touch) {
-            self.request_file(ChooseFileState::ImportChart, tm);
+            request_file("chart");
         }
         let t = tm.now() as _;
-        if self.tab_index == 0 && !self.scroll_local.touch(touch.clone(), t) {
+        if self.tab_index == 0 && !self.scroll_local.touch(&touch, t) {
             if let Some(pos) = self.scroll_local.position(&touch) {
                 let id = Self::get_touched(pos);
                 let trigger = Self::trigger_grid(touch.phase, &mut self.choose_local, id);
                 if trigger {
                     let id = id.unwrap();
-                    if id < self.charts_local.len() as u32 {
-                        self.transit = Some((id, tm.now() as _, Rect::default(), false));
+                    if let Some(chart) = self.charts_local.get(id as usize) {
+                        if chart.illustration_task.is_none() {
+                            self.transit = Some((id, tm.now() as _, Rect::default(), false));
+                        } else {
+                            show_message("尚未加载完成");
+                        }
                     }
                     return Ok(());
                 }
@@ -759,7 +697,7 @@ impl Scene for MainScene {
         } else {
             self.choose_local = None;
         }
-        if self.tab_index == 1 && !self.scroll_remote.touch(touch.clone(), t) {
+        if self.tab_index == 1 && !self.scroll_remote.touch(&touch, t) {
             if let Some(pos) = self.scroll_remote.position(&touch) {
                 let id = Self::get_touched(pos);
                 let trigger = Self::trigger_grid(touch.phase, &mut self.choose_remote, id);
@@ -770,14 +708,14 @@ impl Scene for MainScene {
                         dir::downloaded_charts()?;
                         let path = format!("download/{}", chart_id);
                         if get_data().charts.iter().any(|it| it.path == path) {
-                            self.billboard.add("已经下载", tm.now() as _);
+                            show_message("已经下载");
                             return Ok(());
                         }
                         if self.downloading.contains_key(chart_id) {
-                            self.billboard.add("已经在下载队列中", tm.now() as _);
+                            show_message("已经在下载队列中");
                             return Ok(());
                         }
-                        self.billboard.add("正在下载", tm.now() as _);
+                        show_message("正在下载");
                         let chart = &self.charts_remote[id as usize];
                         let url = chart.path.clone();
                         let chart = LocalChart {
@@ -805,63 +743,8 @@ impl Scene for MainScene {
             self.choose_remote = None;
         }
         if self.tab_index == 2 && self.account_page.task.is_none() {
-            if get_data().me.is_none() {
-                if self.account_page.register && self.account_page.email_button.touch(&touch) {
-                    self.request_input(InputState::AccountEmail, self.account_page.email_input.clone(), tm);
-                }
-                if self.account_page.username_button.touch(&touch) {
-                    self.request_input(InputState::AccountUsername, self.account_page.username_input.clone(), tm);
-                }
-                if self.account_page.password_button.touch(&touch) {
-                    self.request_input(InputState::AccountPassword, self.account_page.password_input.clone(), tm);
-                }
-            } else if self.account_page.avatar_button.touch(&touch) {
-                self.request_file(ChooseFileState::Avatar, tm);
-            }
-            if self.account_page.left_button.touch(&touch) {
-                if get_data().me.is_none() {
-                    self.account_page.register ^= true;
-                } else {
-                    get_data_mut().me = None;
-                    save_data()?;
-                    self.billboard.add("退出登录成功", tm.now() as _);
-                }
-            }
-            if self.account_page.right_button.touch(&touch) {
-                if get_data().me.is_none() {
-                    fn login(page: &mut AccountPage) -> Option<&'static str> {
-                        let username = page.username_input.clone();
-                        let password = page.password_input.clone();
-                        if let Some(error) = validate_username(&username) {
-                            return Some(error);
-                        }
-                        if !(6..=26).contains(&password.len()) {
-                            return Some("密码长度应介于 6-26 之间");
-                        }
-                        if page.register {
-                            let email = page.email_input.clone();
-                            const EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$").unwrap());
-                            if !EMAIL_REGEX.is_match(&email) {
-                                return Some("邮箱不合法");
-                            }
-                            page.start("注册", async move {
-                                Client::register(&email, &username, &password).await?;
-                                Ok(None)
-                            });
-                        } else {
-                            page.start("登录", async move {
-                                let user = Client::login(&username, &password).await?;
-                                Ok(Some(user))
-                            });
-                        }
-                        None
-                    }
-                    if let Some(err) = login(&mut self.account_page) {
-                        self.billboard.add(err, tm.now() as _);
-                    }
-                } else {
-                    self.request_input(InputState::EditUsername, get_data().me.as_ref().unwrap().name.clone(), tm);
-                }
+            if get_data().me.is_some() && self.account_page.avatar_button.touch(&touch) {
+                request_file("avatar");
             }
         }
         if self.tab_index == 3 {
@@ -879,9 +762,8 @@ impl Scene for MainScene {
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
         let t = tm.now() as _;
         if self.scroll_remote.y_scroller.pulled {
-            self.refresh_remote(tm);
+            self.refresh_remote();
         }
-        self.billboard.update(t);
         self.scroll_local.update(t);
         self.scroll_remote.update(t);
         let p = ((tm.now() as f32 - self.tab_start_time) / SWITCH_TIME).min(1.);
@@ -905,7 +787,7 @@ impl Scene for MainScene {
         let remove = self
             .downloading
             .iter_mut()
-            .map(|(key, (_, task))| (key, task.inspect(|it| it.is_some())))
+            .map(|(key, (_, task))| (key, task.ok()))
             .filter(|it| it.1)
             .map(|it| it.0.clone())
             .collect::<Vec<_>>();
@@ -915,13 +797,13 @@ impl Scene for MainScene {
             match res {
                 Err(err) => {
                     warn!("{:?}", err);
-                    self.billboard.add(format!("{} 下载失败", task.0), tm.now() as f32);
+                    show_message(format!("{} 下载失败", task.0));
                 }
                 Ok(chart) => {
                     get_data_mut().charts.push(chart);
                     save_data()?;
                     self.charts_local = load_local(&self.tex);
-                    self.billboard.add(format!("{} 下载完成", task.0), tm.now() as f32);
+                    show_message(format!("{} 下载完成", task.0));
                 }
             }
         }
@@ -929,13 +811,13 @@ impl Scene for MainScene {
             self.loading_remote = false;
             match charts {
                 Ok(charts) => {
-                    self.billboard.add("加载完成", tm.now() as _);
+                    show_message("加载完成");
                     self.charts_remote = charts;
                 }
                 Err(err) => {
                     self.remote_first_time = true;
                     warn!("{:?}", err);
-                    self.billboard.add(format!("加载失败：{err:?}"), tm.now() as _);
+                    show_message(format!("加载失败：{err:?}"));
                 }
             }
         }
@@ -943,47 +825,34 @@ impl Scene for MainScene {
             match result {
                 Err(err) => {
                     warn!("{:?}", err);
-                    self.billboard.add(format!("导入失败：{err:?}"), tm.now() as _);
+                    show_message(format!("导入失败：{err:?}"));
                 }
                 Ok(chart) => {
                     get_data_mut().charts.push(chart);
                     save_data()?;
                     self.charts_local = load_local(&self.tex);
-                    self.billboard.add("导入成功", tm.now() as _);
+                    show_message("导入成功");
                 }
             }
         }
-        if let Some(text) = INPUT_TEXT.lock().unwrap().take() {
-            use InputState::*;
-            match self.input_state {
-                None => {}
-                AccountEmail => {
-                    self.account_page.email_input = text;
+        if let Some((id, text)) = take_input() {
+            if id == "edit_username" {
+                if let Some(error) = validate_username(&text) {
+                    show_message(error);
+                } else {
+                    let user = get_data().me.clone().unwrap();
+                    self.account_page.start("更新名称", async move {
+                        Client::update_user(json!({ "username": text })).await?;
+                        Ok(Some(User { name: text, ..user }))
+                    });
                 }
-                AccountUsername => {
-                    self.account_page.username_input = text;
-                }
-                AccountPassword => {
-                    self.account_page.password_input = text;
-                }
-                EditUsername => {
-                    if let Some(error) = validate_username(&text) {
-                        self.billboard.add(error, tm.now() as _);
-                    } else {
-                        let user = get_data().me.clone().unwrap();
-                        self.account_page.start("更新名称", async move {
-                            Client::update_user(json!({ "username": text })).await?;
-                            Ok(Some(User { name: text, ..user }))
-                        });
-                    }
-                }
+            } else {
+                return_input(id, text);
             }
         }
-        if let Some(file) = CHOSEN_FILE.lock().unwrap().take() {
-            use ChooseFileState::*;
-            match self.choose_file_state {
-                None => {}
-                ImportChart => {
+        if let Some((id, file)) = take_file() {
+            match id.as_str() {
+                "chart" => {
                     async fn import(from: String) -> Result<LocalChart> {
                         let file = NamedTempFile::new_in(dir::custom_charts()?)?.keep()?.1;
                         std::fs::copy(from, &file).context("Failed to save")?;
@@ -999,7 +868,7 @@ impl Scene for MainScene {
                     }
                     self.import_task = Task::new(import(file));
                 }
-                Avatar => {
+                "avatar" => {
                     fn load(path: String, page: &mut AccountPage) -> Result<()> {
                         let image = image::load_from_memory(&std::fs::read(path).context("无法读取图片")?)
                             .context("无法加载图片")?
@@ -1026,9 +895,10 @@ impl Scene for MainScene {
                     }
                     if let Err(err) = load(file, &mut self.account_page) {
                         warn!("{:?}", err);
-                        self.billboard.add(format!("导入头像失败：{err:?}"), tm.now() as _);
+                        show_message(format!("导入头像失败：{err:?}"));
                     }
                 }
+                _ => return_file(id, file),
             }
         }
         if let Some(task) = self.account_page.task.as_mut() {
@@ -1037,16 +907,16 @@ impl Scene for MainScene {
                 match result {
                     Err(err) => {
                         warn!("{:?}", err);
-                        self.billboard.add(format!("{desc}失败：{err:?}"), tm.now() as _);
+                        show_message(format!("{desc}失败：{err:?}"));
                     }
                     Ok(user) => {
                         if let Some(user) = user {
                             get_data_mut().me = Some(user);
                             save_data()?;
                         }
-                        self.billboard.add(format!("{desc}成功"), tm.now() as _);
+                        show_message(format!("{desc}成功"));
                         if desc == "注册" {
-                            self.billboard.add("验证信息已发送到邮箱，请验证后登录", tm.now() as _);
+                            show_message("验证信息已发送到邮箱，请验证后登录");
                         }
                         self.account_page.register = false;
                     }
@@ -1054,19 +924,21 @@ impl Scene for MainScene {
                 self.account_page.task = None;
             }
         }
+        if let Some(tex) = UPDATE_TEXTURE.lock().unwrap().take() {
+            let Some((id, ..)) = self.transit else {unreachable!()};
+            self.charts_local[id as usize].illustration = tex;
+        }
         Ok(())
     }
 
-    fn render(&mut self, tm: &mut TimeManager) -> Result<()> {
+    fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
         set_camera(&Camera2D {
             zoom: vec2(1., -screen_aspect()),
             render_target: self.target,
             ..Default::default()
         });
         clear_background(GRAY);
-        let mut ui = Ui::new();
         ui.scope(|ui| self.ui(ui, tm.now() as f32));
-        ui.scope(|ui| self.billboard.render(ui));
         if let Some((id, st, rect, back)) = &mut self.transit {
             let t = tm.now() as f32;
             let p = ((t - *st) / TRANSIT_TIME).min(1.);
@@ -1112,9 +984,9 @@ impl Scene for MainScene {
                     })();
                     if let Err(err) = err {
                         warn!("{:?}", err);
-                        self.billboard.add(format!("删除失败：{err:?}"), tm.now() as _);
+                        show_message(format!("删除失败：{err:?}"));
                     } else {
-                        self.billboard.add("删除成功", tm.now() as _);
+                        show_message("删除成功");
                     }
                 }
                 self.transit = None;
@@ -1124,9 +996,10 @@ impl Scene for MainScene {
                         info: chart.info.clone(),
                         path: chart.path.clone(),
                         illustration: chart.illustration.clone(),
-                        illustration_task: Task::pending(),
+                        illustration_task: None,
                     },
                     chart.illustration.clone(),
+                    self.icon_edit.clone(),
                     self.icon_back.clone(),
                     self.icon_play.clone(),
                     TrashBin::new(self.icon_delete.clone(), self.icon_question.clone()),
