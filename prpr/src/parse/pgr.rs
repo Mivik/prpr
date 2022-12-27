@@ -232,5 +232,9 @@ pub fn parse_phigros(source: &str) -> Result<Chart> {
         .map(|(id, pgr)| parse_judge_line(pgr, max_time).with_context(|| format!("In judge line #{id}")))
         .collect::<Result<Vec<_>>>()?;
     process_lines(&mut lines);
-    Ok(Chart { offset: pgr.offset, lines })
+    Ok(Chart {
+        offset: pgr.offset,
+        lines,
+        effects: Vec::new(),
+    })
 }

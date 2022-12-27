@@ -6,7 +6,7 @@ mod task;
 use anyhow::Result;
 use data::Data;
 use macroquad::prelude::*;
-use prpr::{build_conf, time::TimeManager, Main, ui::Ui};
+use prpr::{build_conf, core::init_assets, time::TimeManager, ui::Ui, Main};
 use scene::MainScene;
 use std::sync::{mpsc, Mutex};
 
@@ -68,7 +68,7 @@ mod dir {
 }
 
 async fn the_main() -> Result<()> {
-    set_pc_assets_folder("assets");
+    init_assets();
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)

@@ -2,19 +2,19 @@
 use super::{process_lines, BpmList, Triple, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, Chart, ClampedTween, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, StaticTween,
-        Tweenable, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
+        Anim, AnimFloat, AnimVector, Chart, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object,
+        StaticTween, Tweenable, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use macroquad::{
     prelude::Color,
     texture::{load_image, Texture2D},
 };
 use serde::Deserialize;
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 const RPE_WIDTH: f32 = 1350.;
 const RPE_HEIGHT: f32 = 900.;
@@ -130,6 +130,23 @@ struct RPEMetadata {
 }
 
 #[derive(Deserialize)]
+#[serde(untagged)]
+enum Variable {
+    Float(Vec<RPEEvent<f32>>),
+    Color(Vec<RPEEvent<[f32; 4]>>),
+}
+
+// custom extension
+#[derive(Deserialize)]
+struct RPEEffect {
+    start: Triple,
+    end: Triple,
+    shader: String,
+    #[serde(default)]
+    vars: HashMap<String, Variable>,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RPEChart {
     #[serde(rename = "META")]
@@ -137,6 +154,7 @@ struct RPEChart {
     #[serde(rename = "BPMList")]
     bpm_list: Vec<RPEBpmItem>,
     judge_line_list: Vec<RPEJudgeLine>,
+    effects: Option<Vec<RPEEffect>>,
 }
 
 fn parse_events<T: Tweenable, V: Clone + Into<T>>(r: &mut BpmList, rpe: &[RPEEvent<V>], default: Option<T>) -> Result<Anim<T>> {
@@ -353,6 +371,26 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
     })
 }
 
+fn parse_effect(r: &mut BpmList, rpe: RPEEffect) -> Result<Effect> {
+    Effect::new(
+        r.time(&rpe.start)..r.time(&rpe.end),
+        if rpe.shader.starts_with('#') {
+            &rpe.shader
+        } else {
+            Effect::get_preset(&rpe.shader).ok_or_else(|| anyhow!("Cannot find preset shader {}", rpe.shader))?
+        },
+        rpe.vars
+            .into_iter()
+            .map(|(name, var)| -> Result<Box<dyn Uniform>> {
+                Ok(match var {
+                    Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events, None)?)),
+                    Variable::Color(events) => Box::new((name, parse_events::<Color, [f32; 4]>(r, &events, None)?)),
+                })
+            })
+            .collect::<Result<_>>()?,
+    )
+}
+
 pub async fn parse_rpe(source: &str) -> Result<Chart> {
     let rpe: RPEChart = serde_json::from_str(source).context("Failed to parse JSON")?;
     let mut r = BpmList::new(rpe.bpm_list.into_iter().map(|it| (it.start_time.beats(), it.bpm)).collect());
@@ -404,5 +442,12 @@ pub async fn parse_rpe(source: &str) -> Result<Chart> {
     Ok(Chart {
         offset: rpe.meta.offset as f32 / 1000.0,
         lines,
+        effects: rpe
+            .effects
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .map(|(id, rpe)| parse_effect(&mut r, rpe).with_context(|| format!("In effect #{id}")))
+            .collect::<Result<_>>()?,
     })
 }

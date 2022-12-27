@@ -1,10 +1,11 @@
-use super::{JudgeLine, Resource};
+use super::{JudgeLine, Resource, Effect};
 use crate::judge::JudgeStatus;
 
 #[derive(Default)]
 pub struct Chart {
     pub offset: f32,
     pub lines: Vec<JudgeLine>,
+    pub effects: Vec<Effect>,
 }
 
 impl Chart {
@@ -22,11 +23,17 @@ impl Chart {
         for line in &mut self.lines {
             line.update(res);
         }
+        for effect in &mut self.effects {
+            effect.update(res);
+        }
     }
 
     pub fn render(&self, res: &mut Resource) {
         for line in &self.lines {
             line.render(res, &self.lines);
+        }
+        for effect in &self.effects {
+            effect.render(res);
         }
     }
 }

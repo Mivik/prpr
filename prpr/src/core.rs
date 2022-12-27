@@ -18,10 +18,14 @@ pub use anim::{Anim, AnimFloat, AnimVector, Keyframe};
 mod chart;
 pub use chart::Chart;
 
+mod effect;
+pub use effect::{Effect, Uniform};
+
 mod line;
 pub use line::{JudgeLine, JudgeLineCache, JudgeLineKind};
 
 mod note;
+use macroquad::prelude::set_pc_assets_folder;
 pub use note::{BadNote, Note, NoteKind, RenderConfig};
 
 mod object;
@@ -32,3 +36,9 @@ pub use resource::{ParticleEmitter, Resource, DPI_VALUE};
 
 mod tween;
 pub use tween::{easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor, Tweenable, TWEEN_FUNCTIONS};
+
+pub fn init_assets() {
+    if let Ok(cwd) = std::env::current_dir() {
+        set_pc_assets_folder(&cwd.join("assets").display().to_string());
+    }
+}

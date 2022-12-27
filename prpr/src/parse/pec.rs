@@ -346,5 +346,6 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     Ok(Chart {
         offset: offset.unwrap(),
         lines,
+        effects: Vec::new(),
     })
 }

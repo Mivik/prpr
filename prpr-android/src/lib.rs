@@ -4,7 +4,7 @@ use macroquad::prelude::*;
 use prpr::{
     build_conf,
     config::Config,
-    core::DPI_VALUE,
+    core::{init_assets, DPI_VALUE},
     ext::poll_future,
     fs::{self, ZipFileSystem},
     scene::LoadingScene,
@@ -24,7 +24,7 @@ static CHART_PATH: Mutex<Option<String>> = Mutex::new(None);
 static CONFIG: Mutex<Option<Config>> = Mutex::new(None);
 
 async fn the_main() -> Result<()> {
-    set_pc_assets_folder("assets");
+    init_assets();
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)

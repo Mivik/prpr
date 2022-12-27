@@ -8,7 +8,7 @@ use prpr::{
     audio::AudioClip,
     build_conf,
     config::Config,
-    core::NoteKind,
+    core::{init_assets, NoteKind},
     fs::{self, PatchedFileSystem},
     scene::{GameScene, LoadingScene},
     time::TimeManager,
@@ -37,7 +37,7 @@ compile_error!("WASM target is not supported");
 
 #[macroquad::main(build_conf)]
 async fn main() -> Result<()> {
-    set_pc_assets_folder("assets");
+    init_assets();
 
     let ffmpeg = if cfg!(target_os = "windows") { "./ffmpeg" } else { "ffmpeg" };
 

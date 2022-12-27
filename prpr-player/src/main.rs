@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
-use prpr::{build_conf, fs, scene::LoadingScene, time::TimeManager, Main, ui::Ui};
+use prpr::{build_conf, core::init_assets, fs, scene::LoadingScene, time::TimeManager, ui::Ui, Main};
 
 #[macroquad::main(build_conf)]
 async fn main() -> Result<()> {
-    set_pc_assets_folder("assets");
+    init_assets();
 
     #[cfg(target_arch = "wasm32")]
     let (fs, config) = {
