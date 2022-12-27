@@ -202,7 +202,16 @@ impl Tweenable for Color {
 }
 
 impl Tweenable for String {
-    fn tween(x: &Self, _y: &Self, _t: f32) -> Self {
-        x.clone()
+    fn tween(x: &Self, y: &Self, t: f32) -> Self {
+        if x.is_empty() && y.is_empty() {
+            Self::new()
+        } else if y.is_empty() {
+            Self::tween(y, x, 1. - t)
+        } else if x.is_empty() {
+            let chars = y.chars().collect::<Vec<_>>();
+            chars[..(t * chars.len() as f32).round() as usize].into_iter().collect()
+        } else {
+            x.clone()
+        }
     }
 }
