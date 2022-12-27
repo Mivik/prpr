@@ -29,7 +29,7 @@ use std::{
     collections::HashMap,
     future::Future,
     io::Cursor,
-    sync::{atomic::AtomicBool, Mutex},
+    sync::{atomic::{AtomicBool, Ordering, AtomicU32}, Mutex},
 };
 use tempfile::NamedTempFile;
 
@@ -43,6 +43,8 @@ const TRANSIT_TIME: f32 = 0.4;
 
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
 pub static UPDATE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
+pub static UPDATE_INFO: AtomicBool = AtomicBool::new(false);
+pub static TRANSIT_ID: AtomicU32 = AtomicU32::new(0);
 
 pub fn illustration_task(path: String) -> Task<Result<DynamicImage>> {
     Task::new(async move {
@@ -618,6 +620,10 @@ impl Scene for MainScene {
         } else {
             show_message("欢迎回来");
         }
+        if UPDATE_INFO.fetch_and(false, Ordering::SeqCst) {
+            let Some((id, ..)) = self.transit else { unreachable!() };
+            self.charts_local[id as usize].info = get_data().charts[id as usize].info.clone();
+        }
         Ok(())
     }
 
@@ -687,6 +693,7 @@ impl Scene for MainScene {
                     if let Some(chart) = self.charts_local.get(id as usize) {
                         if chart.illustration_task.is_none() {
                             self.transit = Some((id, tm.now() as _, Rect::default(), false));
+                            TRANSIT_ID.store(id, Ordering::SeqCst);
                         } else {
                             show_message("尚未加载完成");
                         }
@@ -923,7 +930,7 @@ impl Scene for MainScene {
             }
         }
         if let Some(tex) = UPDATE_TEXTURE.lock().unwrap().take() {
-            let Some((id, ..)) = self.transit else {unreachable!()};
+            let Some((id, ..)) = self.transit else { unreachable!() };
             self.charts_local[id as usize].illustration = tex;
         }
         Ok(())
@@ -964,7 +971,7 @@ impl Scene for MainScene {
             ui.fill_path(&path, (*chart.illustration, rect, ScaleType::Scale));
             ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
             if *back && p <= 0. {
-                if SHOULD_DELETE.fetch_and(false, std::sync::atomic::Ordering::SeqCst) {
+                if SHOULD_DELETE.fetch_and(false, Ordering::SeqCst) {
                     let err: Result<_> = (|| {
                         let Some((id, ..)) = self.transit else {unreachable!()};
                         let id = id as usize;

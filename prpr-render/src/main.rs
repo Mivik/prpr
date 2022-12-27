@@ -9,11 +9,10 @@ use prpr::{
     build_conf,
     config::Config,
     core::NoteKind,
-    fs,
-    info::ChartInfo,
+    fs::{self, PatchedFileSystem},
     scene::{GameScene, LoadingScene},
     time::TimeManager,
-    ui::Ui,
+    ui::{ChartInfoEdit, Ui},
     Main,
 };
 use prpr::{ext::screen_aspect, scene::BILLBOARD};
@@ -30,7 +29,7 @@ use std::{
 const FPS: u32 = 60;
 const FRAME_DELTA: f32 = 1. / FPS as f32;
 
-static EDITED_INFO: Mutex<Option<ChartInfo>> = Mutex::new(None);
+static INFO_EDIT: Mutex<Option<ChartInfoEdit>> = Mutex::new(None);
 static VIDEO_RESOLUTION: Mutex<(u32, u32)> = Mutex::new((1920, 1080));
 
 #[cfg(target_arch = "wasm32")]
@@ -40,11 +39,7 @@ compile_error!("WASM target is not supported");
 async fn main() -> Result<()> {
     set_pc_assets_folder("assets");
 
-    let ffmpeg = if cfg!(target_os = "windows") {
-        "./ffmpeg"
-    } else {
-        "ffmpeg"
-    };
+    let ffmpeg = if cfg!(target_os = "windows") { "./ffmpeg" } else { "ffmpeg" };
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)
@@ -157,7 +152,7 @@ async fn main() -> Result<()> {
     clear_background(BLACK);
     next_frame().await;
 
-    let info = EDITED_INFO.lock().unwrap().take().unwrap();
+    let edit = INFO_EDIT.lock().unwrap().take().unwrap();
     let config = Config {
         autoplay: true,
         volume_music: 0.,
@@ -191,7 +186,8 @@ async fn main() -> Result<()> {
         let my_time = Rc::clone(&my_time);
         move || *(*my_time).borrow()
     }));
-    let mut main = Main::new(Box::new(LoadingScene::new(info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, target)?;
+    let fs = Box::new(PatchedFileSystem(fs, edit.to_patches().await?));
+    let mut main = Main::new(Box::new(LoadingScene::new(edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, target)?;
     main.show_billboard = false;
 
     let mut bytes = vec![0; vw as usize * vh as usize * 3];

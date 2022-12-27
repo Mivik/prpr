@@ -8,7 +8,8 @@ use crate::{
     info::{ChartFormat, ChartInfo},
     judge::Judge,
     parse::{parse_pec, parse_phigros, parse_rpe},
-    time::TimeManager, ui::Ui,
+    time::TimeManager,
+    ui::Ui,
 };
 use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
@@ -454,6 +455,9 @@ impl Scene for GameScene {
 
     fn next_scene(&mut self, tm: &mut TimeManager) -> NextScene {
         if self.should_exit {
+            if tm.paused() {
+                tm.resume();
+            }
             NextScene::Pop
         } else if let Some(scene) = self.next_scene.take() {
             tm.speed = 1.0;

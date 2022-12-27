@@ -1,8 +1,8 @@
-use super::main::{illustration_task, ChartItem, UPDATE_TEXTURE};
+use super::main::{illustration_task, ChartItem, TRANSIT_ID, UPDATE_INFO, UPDATE_TEXTURE};
 use crate::{
     cloud::{Client, LCChartItem, Pointer, UserManager},
     data::BriefChartInfo,
-    dir, get_data,
+    dir, get_data, get_data_mut, save_data,
     task::Task,
 };
 use anyhow::{bail, Context, Result};
@@ -380,25 +380,35 @@ impl SongScene {
                 {
                     if self.chart.path.starts_with(':') {
                         show_message("不能更改内置谱面");
-                    } else if let Some(edit) = &self.info_edit {
-                        self.chart_info = Some(self.info_edit.as_ref().unwrap().info.clone());
-                        let path = self.chart.path.clone();
-                        let edit = edit.clone();
-                        self.save_task = Some(Task::new(async move {
-                            let mut fs = fs_from_path(&path)?;
-                            let patches = edit.to_patches().await.context("加载文件失败")?;
-                            if let Some(zip) = fs.as_any().downcast_mut::<ZipFileSystem>() {
-                                let bytes = update_zip(&mut zip.0.lock().unwrap(), patches).context("写入配置文件失败")?;
-                                std::fs::write(format!("{}/{}", dir::charts()?, path), bytes).context("保存文件失败")?;
-                            } else {
-                                unreachable!()
-                            }
-                            Ok(())
-                        }));
+                    } else {
+                        if let Some(edit) = &self.info_edit {
+                            self.chart_info = Some(edit.info.clone());
+                            let path = self.chart.path.clone();
+                            let edit = edit.clone();
+                            self.save_task = Some(Task::new(async move {
+                                let mut fs = fs_from_path(&path)?;
+                                let patches = edit.to_patches().await.context("加载文件失败")?;
+                                if let Some(zip) = fs.as_any().downcast_mut::<ZipFileSystem>() {
+                                    let bytes = update_zip(&mut zip.0.lock().unwrap(), patches).context("写入配置文件失败")?;
+                                    std::fs::write(format!("{}/{}", dir::charts()?, path), bytes).context("保存文件失败")?;
+                                } else {
+                                    unreachable!()
+                                }
+                                Ok(())
+                            }));
+                        }
+                        self.update_chart_info(self.chart_info.clone().unwrap().into());
                     }
                 }
             });
         }
+    }
+
+    fn update_chart_info(&mut self, info: BriefChartInfo) {
+        self.chart.info = info.clone();
+        get_data_mut().charts[TRANSIT_ID.load(Ordering::SeqCst) as usize].info = info;
+        let _ = save_data();
+        UPDATE_INFO.store(true, Ordering::SeqCst);
     }
 }
 
@@ -484,6 +494,7 @@ impl Scene for SongScene {
         }
         if let Some(task) = &mut self.info_task {
             if let Some(info) = task.take() {
+                self.update_chart_info(info.clone().into());
                 self.chart_info = Some(info);
                 self.info_task = None;
             }

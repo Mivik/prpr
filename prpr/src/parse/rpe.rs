@@ -83,8 +83,13 @@ struct RPETextEvent {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RPEColorEvent {
-    #[serde(rename = "start")]
-    color: (u8, u8, u8),
+    #[serde(default = "f32_zero")]
+    easing_left: f32,
+    #[serde(default = "f32_one")]
+    easing_right: f32,
+    easing_type: u8,
+    start: (u8, u8, u8),
+    end: (u8, u8, u8),
     start_time: Triple,
     end_time: Triple,
 }
@@ -287,7 +292,19 @@ fn parse_color_events(r: &mut BpmList, rpe: &[RPEColorEvent]) -> Result<Anim<Col
         kfs.push(Keyframe::new(0.0, JUDGE_LINE_PERFECT_COLOR, 0));
     }
     for e in rpe {
-        kfs.push(Keyframe::new(r.time(&e.start_time), Color::from_rgba(e.color.0, e.color.1, e.color.2, 0), 0));
+        kfs.push(Keyframe {
+            time: r.time(&e.start_time),
+            value: Color::from_rgba(e.start.0, e.start.1, e.start.2, 0),
+            tween: {
+                let tween = TWEEN_MAP[e.easing_type as usize];
+                if e.easing_left.abs() < EPS && (e.easing_right - 1.0).abs() < EPS {
+                    StaticTween::get_rc(tween)
+                } else {
+                    Rc::new(ClampedTween::new(tween, e.easing_left..e.easing_right))
+                }
+            },
+        });
+        kfs.push(Keyframe::new(r.time(&e.end_time), Color::from_rgba(e.end.0, e.end.1, e.end.2, 0), 0));
     }
     Ok(Anim::new(kfs))
 }

@@ -60,7 +60,7 @@ impl FileSystem for AssetsFileSystem {
     }
 
     fn clone_box(&mut self) -> Box<dyn FileSystem> {
-        Box::new(Self(self.0.clone()))
+        Box::new(self.clone())
     }
 
     fn as_any(&mut self) -> &mut dyn Any {
@@ -86,7 +86,7 @@ impl FileSystem for ExternalFileSystem {
     }
 
     fn clone_box(&mut self) -> Box<dyn FileSystem> {
-        Box::new(Self(self.0.clone()))
+        Box::new(self.clone())
     }
 
     fn as_any(&mut self) -> &mut dyn Any {
@@ -125,7 +125,28 @@ impl FileSystem for ZipFileSystem {
     }
 
     fn clone_box(&mut self) -> Box<dyn FileSystem> {
-        Box::new(Self(self.0.clone(), self.1.clone()))
+        Box::new(self.clone())
+    }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+pub struct PatchedFileSystem(pub Box<dyn FileSystem>, pub HashMap<String, Vec<u8>>);
+
+#[async_trait]
+impl FileSystem for PatchedFileSystem {
+     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
+        if let Some(data) = self.1.get(path) {
+            Ok(data.clone())
+        } else {
+            self.0.load_file(path).await
+        }
+    }
+
+    fn clone_box(&mut self) -> Box<dyn FileSystem> {
+        unimplemented!()
     }
 
     fn as_any(&mut self) -> &mut dyn Any {

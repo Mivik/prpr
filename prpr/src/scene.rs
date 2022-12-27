@@ -45,11 +45,9 @@ pub fn show_message(msg: impl Into<String>) {
 
 thread_local! {
     static CURRENT_INPUT: RefCell<String> = RefCell::default();
-    #[cfg(feature = "file")]
     static CURRENT_CHOOSE_FILE: RefCell<String> = RefCell::default();
 }
 pub static INPUT_TEXT: Mutex<Option<String>> = Mutex::new(None);
-#[cfg(feature = "file")]
 pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &str) {
@@ -83,29 +81,12 @@ pub fn return_input(id: String, text: String) {
     *INPUT_TEXT.lock().unwrap() = Some(text);
 }
 
-#[cfg(feature = "file")]
 pub fn request_file(id: impl Into<String>) {
     CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id.into());
     *CHOSEN_FILE.lock().unwrap() = None;
     #[cfg(not(target_os = "android"))]
     {
-        use nfd::Response;
-        let result = nfd::open_file_dialog(None, None);
-        let result = match result {
-            Err(err) => {
-                warn!("{:?}", err);
-                show_message(format!("选择文件失败：{err:?}"));
-                return;
-            }
-            Ok(result) => result,
-        };
-        match result {
-            Response::Okay(file_path) => {
-                *CHOSEN_FILE.lock().unwrap() = Some(file_path);
-            }
-            Response::OkayMultiple(_) => unreachable!(),
-            Response::Cancel => {}
-        }
+        *CHOSEN_FILE.lock().unwrap() = rfd::FileDialog::new().pick_file().map(|it| it.display().to_string());
     }
     #[cfg(target_os = "android")]
     unsafe {
@@ -117,7 +98,6 @@ pub fn request_file(id: impl Into<String>) {
     }
 }
 
-#[cfg(feature = "file")]
 pub fn take_file() -> Option<(String, String)> {
     CHOSEN_FILE
         .lock()
@@ -126,7 +106,6 @@ pub fn take_file() -> Option<(String, String)> {
         .map(|file| (CURRENT_CHOOSE_FILE.with(|it| std::mem::take(it.borrow_mut().deref_mut())), file))
 }
 
-#[cfg(feature = "file")]
 pub fn return_file(id: String, file: String) {
     CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id);
     *CHOSEN_FILE.lock().unwrap() = Some(file);

@@ -1,10 +1,10 @@
-use crate::{EDITED_INFO, VIDEO_RESOLUTION};
+use crate::{INFO_EDIT, VIDEO_RESOLUTION};
 use anyhow::{bail, Result};
 use macroquad::prelude::*;
 use prpr::{
     config::Config,
     ext::{poll_future, screen_aspect},
-    fs::FileSystem,
+    fs::{FileSystem, PatchedFileSystem},
     info::ChartInfo,
     scene::{show_message, LoadingScene, NextScene, Scene},
     time::TimeManager,
@@ -106,11 +106,14 @@ impl Scene for MainScene {
                 let info = self.edit.info.clone();
                 let config = self.config.clone();
                 let fs = self.fs.clone_box();
-                self.future_to_loading = Some(Box::pin(async move { LoadingScene::new(info, config, fs, None, None).await }));
+                let edit = self.edit.clone();
+                self.future_to_loading = Some(Box::pin(async move {
+                    LoadingScene::new(info, config, Box::new(PatchedFileSystem(fs, edit.to_patches().await?)), None, None).await
+                }));
             }
             r.x += dx;
             if ui.button("render", r, "渲染") {
-                *EDITED_INFO.lock().unwrap() = Some(self.edit.info.clone());
+                *INFO_EDIT.lock().unwrap() = Some(self.edit.clone());
                 self.next_scene = Some(NextScene::Exit);
             }
         });

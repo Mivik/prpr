@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
-use prpr::{build_conf, fs, scene::LoadingScene, time::TimeManager, Main};
+use prpr::{build_conf, fs, scene::LoadingScene, time::TimeManager, Main, ui::Ui};
 
 #[macroquad::main(build_conf)]
 async fn main() -> Result<()> {
@@ -67,7 +67,7 @@ async fn main() -> Result<()> {
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;
-        main.render()?;
+        main.render(&mut Ui::new())?;
         if main.should_exit() {
             break 'app;
         }
