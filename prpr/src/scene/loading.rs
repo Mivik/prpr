@@ -78,7 +78,7 @@ impl LoadingScene {
         let font = *FONT.get().unwrap();
         let get_size_fn = get_size_fn.unwrap_or_else(|| Rc::new(|| (screen_width() as u32, screen_height() as u32)));
         if info.tip.is_none() {
-            info.tip = Some(config.tips.choose().cloned().unwrap());
+            info.tip = Some(crate::config::TIPS.choose().cloned().unwrap());
         }
         let future = Box::pin(GameScene::new(info.clone(), config, fs, player, background.clone(), illustration.clone(), font, get_size_fn));
         Ok(Self {

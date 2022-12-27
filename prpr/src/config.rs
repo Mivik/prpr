@@ -1,4 +1,7 @@
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+
+pub static TIPS: Lazy<Vec<String>> = Lazy::new(|| include_str!("tips.txt").split('\n').map(str::to_owned).collect());
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,7 +33,6 @@ pub struct Config {
     pub player_name: String,
     pub player_rks: f32,
     pub speed: f32,
-    pub tips: Vec<String>,
     pub volume_music: f32,
     pub volume_sfx: f32,
 }
@@ -53,7 +55,6 @@ impl Default for Config {
             player_name: "Mivik".to_string(),
             player_rks: 15.,
             speed: 1.,
-            tips: include_str!("tips.txt").split('\n').map(str::to_owned).collect(),
             volume_music: 1.,
             volume_sfx: 1.,
         }
