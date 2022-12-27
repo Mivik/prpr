@@ -216,7 +216,7 @@ impl Scene for EndingScene {
         {
             let dy = 0.025;
             let dy2 = 0.015;
-            let bg = 0.64;
+            let bg = 0.57;
             let sm = 0.26;
             let draw_count = |ratio: f32, name: &str, count: u32| {
                 let r = draw_text_aligned(self.font, name, s2.x + s2.w * ratio, s2.bottom() - dy, (0.5, 1.), sm, WHITE);
