@@ -307,13 +307,16 @@ impl SongScene {
                 ui.fill_rect(r, (Color::default(), (r.x, r.y), BLACK, (r.right(), r.y)));
                 let r = Rect::new(0., 0., 1. - lf, ui.top * 2.);
                 ui.fill_rect(r, BLACK);
-                let h = 0.09;
-                self.edit_scroll.size((EDIT_CHART_INFO_WIDTH, ui.top * 2. - h));
+                let h = 0.11;
+                let pad = 0.03;
+                let width = EDIT_CHART_INFO_WIDTH - pad;
+                self.edit_scroll.size((width, ui.top * 2. - h));
                 self.edit_scroll
-                    .render(ui, |ui| render_chart_info(ui, self.info_edit.as_mut().unwrap(), EDIT_CHART_INFO_WIDTH));
-                let pad = 0.01;
-                let dx = EDIT_CHART_INFO_WIDTH / 3.;
-                let mut r = Rect::new(pad, ui.top * 2. - h + pad, dx - pad * 2., h - pad * 2.);
+                    .render(ui, |ui| render_chart_info(ui, self.info_edit.as_mut().unwrap(), width));
+                let vpad = 0.02;
+                let hpad = 0.01;
+                let dx = width / 3.;
+                let mut r = Rect::new(hpad, ui.top * 2. - h + vpad, dx - hpad * 2., h - vpad * 2.);
                 if ui.button("cancel", r, "取消") {
                     self.edit_enter_time = -t;
                 }

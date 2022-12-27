@@ -466,7 +466,7 @@ impl MainScene {
             ui.scope(|ui| {
                 let r = ui.slider("偏移(s)", -0.5..0.5, 0.005, &mut config.offset, None);
                 ui.dy(r.h + s);
-                let r = ui.slider("速度", 0.8..1.2, 0.005, &mut config.speed, None);
+                let r = ui.slider("速度", 0.5..2.0, 0.005, &mut config.speed, None);
                 ui.dy(r.h + s);
                 let r = ui.slider("音符大小", 0.8..1.2, 0.005, &mut config.note_scale, None);
                 emitter.set_scale(config.note_scale);
