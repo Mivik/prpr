@@ -9,7 +9,7 @@ pub use scroll::Scroll;
 
 use crate::{
     core::{Matrix, Point, Tweenable, Vector},
-    ext::{draw_text_aligned, make_pipeline, screen_aspect, source_of_image, RectExt, ScaleType},
+    ext::{draw_text_aligned, make_pipeline, screen_aspect, source_of_image, RectExt, ScaleType, get_viewport},
     judge::Judge,
     scene::{request_input, return_input, take_input},
 };
@@ -446,6 +446,10 @@ impl Ui {
         }
     }
 
+    pub fn mutate_touches(&mut self, f: impl FnMut(&mut Touch)) {
+        self.touches.iter_mut().for_each(f)
+    }
+
     pub fn builder(&self, shading: impl Into<Shading>) -> VertexBuilder {
         VertexBuilder::new(self.get_matrix(), shading.into())
     }
@@ -591,13 +595,7 @@ impl Ui {
         let gl = igl.quad_gl;
         if let Some(rect) = rect {
             let rect = self.rect_to_global(rect);
-            let vp = gl
-                .get_active_render_pass()
-                .map(|it| {
-                    let tex = it.texture(igl.quad_context);
-                    (0, 0, tex.width as i32, tex.height as i32)
-                })
-                .unwrap_or_else(|| gl.get_viewport());
+            let vp = get_viewport();
             let pt = (vp.0 as f32 + (rect.x + 1.) / 2. * vp.2 as f32, vp.1 as f32 + (rect.y * vp.2 as f32 / vp.3 as f32 + 1.) / 2. * vp.3 as f32);
             gl.scissor(Some((pt.0 as _, pt.1 as _, (rect.w * vp.2 as f32 / 2.) as _, (rect.h * vp.2 as f32 / 2.) as _)));
         } else {

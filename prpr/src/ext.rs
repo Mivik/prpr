@@ -95,9 +95,20 @@ impl From<DynamicImage> for SafeTexture {
 
 pub static BLACK_TEXTURE: Lazy<SafeTexture> = Lazy::new(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]).into());
 
+pub fn get_viewport() -> (i32, i32, i32, i32) {
+    let gl = unsafe { get_internal_gl() };
+    gl.quad_gl
+        .get_active_render_pass()
+        .map(|it| {
+            let tex = it.texture(gl.quad_context);
+            (0, 0, tex.width as i32, tex.height as i32)
+        })
+        .unwrap_or_else(|| gl.quad_gl.get_viewport())
+}
+
 pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f32), scale: f32, color: Color) -> Rect {
     use macroquad::prelude::*;
-    let size = (screen_width() / 23. * scale) as u16;
+    let size = (get_viewport().2 as f32 / 23. * scale) as u16;
     let scale = 0.08 * scale / size as f32;
     let dim = measure_text(text, Some(font), size, scale);
     let rect = Rect::new(x - dim.width * anchor.0, y - dim.offset_y * anchor.1, dim.width, dim.offset_y);

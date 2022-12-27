@@ -16,15 +16,20 @@ use prpr::{
     info::ChartInfo,
     scene::{show_message, LoadingScene, NextScene, Scene},
     time::TimeManager,
-    ui::{render_chart_info, ChartInfoEdit, RectButton, Scroll, Ui, EDIT_CHART_INFO_WIDTH},
+    ui::{render_chart_info, ChartInfoEdit, RectButton, Scroll, Ui},
 };
-use std::{future::Future, pin::Pin, sync::{atomic::Ordering, Mutex}};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{atomic::Ordering, Mutex},
+};
 
 const FADEIN_TIME: f32 = 0.3;
 const EDIT_TRANSIT: f32 = 0.32;
 const UPLOAD_CONFIRM: f32 = 1.;
 const IMAGE_LIMIT: usize = 2 * 1024 * 1024;
 const CHART_LIMIT: usize = 10 * 1024 * 1024;
+const EDIT_CHART_INFO_WIDTH: f32 = 0.7;
 
 static UPLOAD_STATUS: Mutex<Option<String>> = Mutex::new(None);
 
@@ -304,7 +309,8 @@ impl SongScene {
                 ui.fill_rect(r, BLACK);
                 let h = 0.09;
                 self.edit_scroll.size((EDIT_CHART_INFO_WIDTH, ui.top * 2. - h));
-                self.edit_scroll.render(ui, |ui| render_chart_info(ui, self.info_edit.as_mut().unwrap()));
+                self.edit_scroll
+                    .render(ui, |ui| render_chart_info(ui, self.info_edit.as_mut().unwrap(), EDIT_CHART_INFO_WIDTH));
                 let pad = 0.01;
                 let dx = EDIT_CHART_INFO_WIDTH / 3.;
                 let mut r = Rect::new(pad, ui.top * 2. - h + pad, dx - pad * 2., h - pad * 2.);

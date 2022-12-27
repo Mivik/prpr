@@ -7,7 +7,6 @@ pub use game::GameScene;
 mod loading;
 pub use loading::LoadingScene;
 
-use std::{cell::RefCell, sync::Mutex, ops::DerefMut};
 use crate::{
     ext::{draw_image, screen_aspect, ScaleType},
     time::TimeManager,
@@ -19,6 +18,7 @@ use macroquad::prelude::{
     *,
 };
 use miniquad::EventHandler;
+use std::{cell::RefCell, ops::DerefMut, sync::Mutex};
 
 #[derive(Default)]
 pub enum NextScene {
@@ -32,7 +32,7 @@ pub enum NextScene {
 }
 
 thread_local! {
-    static BILLBOARD: RefCell<(BillBoard, TimeManager)> = RefCell::new((BillBoard::new(), TimeManager::default()));
+    pub static BILLBOARD: RefCell<(BillBoard, TimeManager)> = RefCell::new((BillBoard::new(), TimeManager::default()));
 }
 
 pub fn show_message(msg: impl Into<String>) {
@@ -45,9 +45,11 @@ pub fn show_message(msg: impl Into<String>) {
 
 thread_local! {
     static CURRENT_INPUT: RefCell<String> = RefCell::default();
+    #[cfg(feature = "file")]
     static CURRENT_CHOOSE_FILE: RefCell<String> = RefCell::default();
 }
 pub static INPUT_TEXT: Mutex<Option<String>> = Mutex::new(None);
+#[cfg(feature = "file")]
 pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &str) {
@@ -81,6 +83,7 @@ pub fn return_input(id: String, text: String) {
     *INPUT_TEXT.lock().unwrap() = Some(text);
 }
 
+#[cfg(feature = "file")]
 pub fn request_file(id: impl Into<String>) {
     CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id.into());
     *CHOSEN_FILE.lock().unwrap() = None;
@@ -114,6 +117,7 @@ pub fn request_file(id: impl Into<String>) {
     }
 }
 
+#[cfg(feature = "file")]
 pub fn take_file() -> Option<(String, String)> {
     CHOSEN_FILE
         .lock()
@@ -122,6 +126,7 @@ pub fn take_file() -> Option<(String, String)> {
         .map(|file| (CURRENT_CHOOSE_FILE.with(|it| std::mem::take(it.borrow_mut().deref_mut())), file))
 }
 
+#[cfg(feature = "file")]
 pub fn return_file(id: String, file: String) {
     CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id);
     *CHOSEN_FILE.lock().unwrap() = Some(file);
@@ -148,7 +153,7 @@ pub trait Scene {
 }
 
 pub struct Main {
-    scenes: Vec<Box<dyn Scene>>,
+    pub scenes: Vec<Box<dyn Scene>>,
     times: Vec<f64>,
     target: Option<RenderTarget>,
     tm: TimeManager,
@@ -156,6 +161,7 @@ pub struct Main {
     paused: bool,
     last_update_time: f64,
     should_exit: bool,
+    pub show_billboard: bool,
 }
 
 impl Main {
@@ -172,6 +178,7 @@ impl Main {
             paused: false,
             last_update_time,
             should_exit: false,
+            show_billboard: true,
         })
     }
 
@@ -225,17 +232,18 @@ impl Main {
         self.scenes.last_mut().unwrap().update(&mut self.tm)
     }
 
-    pub fn render(&mut self) -> Result<()> {
+    pub fn render(&mut self, ui: &mut Ui) -> Result<()> {
         if self.paused {
             return Ok(());
         }
-        let mut ui = Ui::new();
         ui.scope(|ui| self.scenes.last_mut().unwrap().render(&mut self.tm, ui))?;
-        BILLBOARD.with(|it| {
-            let mut guard = it.borrow_mut();
-            let t = guard.1.now() as f32;
-            guard.0.render(&mut ui, t);
-        });
+        if self.show_billboard {
+            BILLBOARD.with(|it| {
+                let mut guard = it.borrow_mut();
+                let t = guard.1.now() as f32;
+                guard.0.render(ui, t);
+            });
+        }
         Ok(())
     }
 

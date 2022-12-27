@@ -46,9 +46,11 @@ pub fn update_zip<R: Read + Seek>(zip: &mut ZipArchive<R>, patches: HashMap<Stri
 #[async_trait]
 pub trait FileSystem: Send {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>>;
+    fn clone_box(&mut self) -> Box<dyn FileSystem>;
     fn as_any(&mut self) -> &mut dyn Any;
 }
 
+#[derive(Clone)]
 pub struct AssetsFileSystem(String);
 
 #[async_trait]
@@ -57,11 +59,16 @@ impl FileSystem for AssetsFileSystem {
         Ok(load_file(&concat_string!(self.0, path)).await?)
     }
 
+    fn clone_box(&mut self) -> Box<dyn FileSystem> {
+        Box::new(Self(self.0.clone()))
+    }
+
     fn as_any(&mut self) -> &mut dyn Any {
         self
     }
 }
 
+#[derive(Clone)]
 pub struct ExternalFileSystem(PathBuf);
 
 #[async_trait]
@@ -78,11 +85,16 @@ impl FileSystem for ExternalFileSystem {
         }
     }
 
+    fn clone_box(&mut self) -> Box<dyn FileSystem> {
+        Box::new(Self(self.0.clone()))
+    }
+
     fn as_any(&mut self) -> &mut dyn Any {
         self
     }
 }
 
+#[derive(Clone)]
 pub struct ZipFileSystem(pub Arc<Mutex<ZipArchive<Cursor<Vec<u8>>>>>, String);
 
 impl ZipFileSystem {
@@ -110,6 +122,10 @@ impl FileSystem for ZipFileSystem {
             Ok(res)
         })
         .await?
+    }
+
+    fn clone_box(&mut self) -> Box<dyn FileSystem> {
+        Box::new(Self(self.0.clone(), self.1.clone()))
     }
 
     fn as_any(&mut self) -> &mut dyn Any {

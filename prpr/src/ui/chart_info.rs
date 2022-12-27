@@ -2,14 +2,11 @@ use super::Ui;
 use crate::{
     ext::RectExt,
     info::ChartInfo,
-    scene::{request_file, request_input, return_file, return_input, show_message, take_file, take_input},
+    scene::{request_input, return_input, show_message, take_input},
 };
 use anyhow::Result;
-use macroquad::prelude::Rect;
 use miniquad::warn;
 use std::collections::HashMap;
-
-pub const EDIT_CHART_INFO_WIDTH: f32 = 0.7;
 
 #[derive(Clone)]
 pub struct ChartInfoEdit {
@@ -45,7 +42,7 @@ impl ChartInfoEdit {
     }
 }
 
-pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit) -> (f32, f32) {
+pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (f32, f32) {
     let mut sy = 0.02;
     ui.scope(|ui| {
         let s = 0.01;
@@ -62,7 +59,7 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit) -> (f32, f32) {
         dy!(r.h + 0.04);
         let rt = ui.text("显示难度").size(0.4).measure().w;
         ui.dx(rt);
-        let len = 0.5;
+        let len = width - 0.2;
         let info = &mut edit.info;
         let r = ui.input("谱面名", &mut info.name, len);
         dy!(r.h + s);
@@ -77,7 +74,7 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit) -> (f32, f32) {
         dy!(r.h + s);
 
         ui.dx(-rt);
-        let r = ui.slider("难度", 0.0..20.0, 0.1, &mut info.difficulty, Some(EDIT_CHART_INFO_WIDTH - 0.2));
+        let r = ui.slider("难度", 0.0..20.0, 0.1, &mut info.difficulty, Some(width - 0.2));
         dy!(r.h + s + 0.01);
         ui.dx(rt);
 
@@ -116,36 +113,41 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit) -> (f32, f32) {
             ui.text("注：").anchor(1., 0.).size(0.35).draw();
             ui.text("宽高比可以直接填小数，也可以是 w:h 的形式（英文半角冒号）")
                 .size(0.35)
-                .max_width(0.5)
+                .max_width(len)
                 .multiline()
                 .draw()
                 .h
                 + 0.03
         }));
 
-        let mut choose_file = |id: &str, label: &str, value: &str| {
-            let r = ui.text(label).size(0.4).anchor(1., 0.).draw();
-            let r = Rect::new(0.02, r.y - 0.01, len, r.h + 0.02);
-            if ui.button(id, r, value) {
-                request_file(id);
-            }
-            dy!(r.h + s);
-        };
-        choose_file("file_chart", "谱面文件", &info.chart);
-        choose_file("file_music", "音乐文件", &info.music);
-        choose_file("file_illustration", "插图文件", &info.illustration);
-        if let Some((id, file)) = take_file() {
-            match id.as_str() {
-                "file_chart" => {
-                    edit.chart = Some(file);
+        #[cfg(feature = "file")]
+        {
+            use crate::scene::{request_file, return_file, take_file};
+            use macroquad::prelude::Rect;
+            let mut choose_file = |id: &str, label: &str, value: &str| {
+                let r = ui.text(label).size(0.4).anchor(1., 0.).draw();
+                let r = Rect::new(0.02, r.y - 0.01, len, r.h + 0.02);
+                if ui.button(id, r, value) {
+                    request_file(id);
                 }
-                "file_music" => {
-                    edit.music = Some(file);
+                dy!(r.h + s);
+            };
+            choose_file("file_chart", "谱面文件", &info.chart);
+            choose_file("file_music", "音乐文件", &info.music);
+            choose_file("file_illustration", "插图文件", &info.illustration);
+            if let Some((id, file)) = take_file() {
+                match id.as_str() {
+                    "file_chart" => {
+                        edit.chart = Some(file);
+                    }
+                    "file_music" => {
+                        edit.music = Some(file);
+                    }
+                    "file_illustration" => {
+                        edit.illustration = Some(file);
+                    }
+                    _ => return_file(id, file),
                 }
-                "file_illustration" => {
-                    edit.illustration = Some(file);
-                }
-                _ => return_file(id, file),
             }
         }
 
@@ -159,7 +161,7 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit) -> (f32, f32) {
 
         let r = ui.text("标签").anchor(1., 0.).size(0.4).draw();
         ui.dx(0.02);
-        let max = 0.6;
+        let max = width - 0.1;
         let mut cx = 0.;
         let mut line_height = r.h;
         let pad = 0.01;
@@ -199,5 +201,5 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit) -> (f32, f32) {
         }
         ui.dx(-0.02);
     });
-    (EDIT_CHART_INFO_WIDTH, sy)
+    (width, sy)
 }

@@ -1,6 +1,6 @@
 use crate::{
     core::{BadNote, Chart, NoteKind, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
-    ext::NotNanExt,
+    ext::{NotNanExt, get_viewport},
 };
 use macroquad::prelude::{
     utils::{register_input_subscriber, repeat_all_miniquad_input},
@@ -245,7 +245,7 @@ impl Judge {
 
     pub fn get_touches() -> Vec<Touch> {
         let touches = Self::touches_raw();
-        let vp = unsafe { get_internal_gl() }.quad_gl.get_viewport();
+        let vp = get_viewport();
         touches
             .into_iter()
             .map(|mut touch| {

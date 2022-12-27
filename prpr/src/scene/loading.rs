@@ -164,7 +164,7 @@ impl Scene for LoadingScene {
         let mut ct = sub.center();
         ct.x += sub.w * 0.02;
         draw_parallelogram(sub, None, WHITE, true);
-        draw_text_aligned(self.font, &(self.info.difficulty.round() as u32).to_string(), ct.x, ct.y + sub.h * 0.05, (0.5, 1.), 0.88, BLACK);
+        draw_text_aligned(self.font, &(self.info.difficulty as u32).to_string(), ct.x, ct.y + sub.h * 0.05, (0.5, 1.), 0.88, BLACK);
         draw_text_aligned(
             self.font,
             self.info.level.split_whitespace().next().unwrap_or_default(),

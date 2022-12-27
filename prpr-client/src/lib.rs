@@ -6,7 +6,7 @@ mod task;
 use anyhow::Result;
 use data::Data;
 use macroquad::prelude::*;
-use prpr::{build_conf, time::TimeManager, Main};
+use prpr::{build_conf, time::TimeManager, Main, ui::Ui};
 use scene::MainScene;
 use std::sync::{mpsc, Mutex};
 
@@ -105,7 +105,7 @@ async fn the_main() -> Result<()> {
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;
-        main.render()?;
+        main.render(&mut Ui::new())?;
         if let Ok(paused) = rx.try_recv() {
             if paused {
                 main.pause()?;
