@@ -16,7 +16,6 @@ use prpr::{
     Main,
 };
 use prpr::{ext::screen_aspect, scene::BILLBOARD};
-use std::fmt::Write as _;
 use std::{
     cell::RefCell,
     io::{BufWriter, Cursor, Write},
@@ -26,6 +25,7 @@ use std::{
     sync::Mutex,
     time::Instant,
 };
+use std::{fmt::Write as _, path::Path};
 
 #[derive(Clone)]
 struct VideoConfig {
@@ -54,12 +54,8 @@ compile_error!("WASM target is not supported");
 async fn main() -> Result<()> {
     init_assets();
 
-    let Ok(exe) = std::env::current_exe() else {
-        bail!("找不到当前可执行程序");
-    };
-    let exe_dir = exe.parent().unwrap();
     let ffmpeg = if cfg!(target_os = "windows") {
-        let local = exe_dir.join("ffmpeg.exe");
+        let local = Path::new("ffmpeg.exe");
         if local.exists() {
             local.display().to_string()
         } else {
@@ -83,19 +79,14 @@ async fn main() -> Result<()> {
         let Some(path) = args.next() else {
             bail!("请将谱面文件或文件夹拖动到该软件上！");
         };
-        let config = match (|| -> Result<Config> {
-            Ok(serde_yaml::from_str(
-                &std::fs::read_to_string(exe_dir.join("conf.yml"))
-                    .or_else(|_| std::fs::read_to_string("conf.yml"))
-                    .context("无法加载配置文件")?,
-            )?)
-        })() {
-            Err(err) => {
-                warn!("无法加载配置文件：{:?}", err);
-                Config::default()
-            }
-            Ok(config) => config,
-        };
+        let config =
+            match (|| -> Result<Config> { Ok(serde_yaml::from_str(&std::fs::read_to_string("conf.yml").context("无法加载配置文件")?)?) })() {
+                Err(err) => {
+                    warn!("无法加载配置文件：{:?}", err);
+                    Config::default()
+                }
+                Ok(config) => config,
+            };
         (path, config)
     };
 

@@ -39,11 +39,7 @@ pub use tween::{easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, 
 
 pub fn init_assets() {
     if let Ok(exe) = std::env::current_exe() {
-        let assets = exe.parent().unwrap().join("assets");
-        if assets.exists() {
-            set_pc_assets_folder(&assets.display().to_string());
-            return;
-        }
+        std::env::set_current_dir(exe.parent().unwrap()).unwrap();
     }
     set_pc_assets_folder("assets");
 }
