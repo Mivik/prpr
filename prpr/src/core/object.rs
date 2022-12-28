@@ -35,9 +35,12 @@ impl Object {
         Rotation2::new(self.rotation.now().to_radians()).to_homogeneous().append_translation(&tr)
     }
 
+    pub fn now_alpha(&self) -> f32 {
+        self.alpha.now_opt().unwrap_or(1.0).max(0.)
+    }
+
     pub fn now_color(&self) -> Color {
-        let alpha = self.alpha.now_opt().unwrap_or(1.0);
-        Color::new(1.0, 1.0, 1.0, alpha.max(0.0))
+        Color::new(1.0, 1.0, 1.0, self.now_alpha())
     }
 
     pub fn now_scale(&self) -> Matrix {

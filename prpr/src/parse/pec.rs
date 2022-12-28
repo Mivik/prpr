@@ -164,6 +164,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
         parent: None,
         z_index: 0,
         show_below: false,
+        attach_ui: None,
 
         cache,
     })

@@ -1,4 +1,4 @@
-use crate::core::{Point, Vector};
+use crate::core::{Matrix, Point, Vector};
 use image::DynamicImage;
 use macroquad::prelude::*;
 use miniquad::{BlendFactor, BlendState, BlendValue, CompareFunc, Equation, PrimitiveType, StencilFaceState, StencilOp, StencilState};
@@ -95,6 +95,18 @@ impl From<DynamicImage> for SafeTexture {
 
 pub static BLACK_TEXTURE: Lazy<SafeTexture> = Lazy::new(|| Texture2D::from_rgba8(1, 1, &[0, 0, 0, 255]).into());
 
+pub fn nalgebra_to_glm(mat: &Matrix) -> Mat4 {
+    /*
+        [11] [12]  0  [13]
+        [21] [22]  0  [23]
+          0    0   1    0
+        [31] [32]  0  [33]
+    */
+    Mat4::from_cols_array(&[
+        mat.m11, mat.m21, 0., mat.m31, mat.m12, mat.m22, 0., mat.m32, 0., 0., 1., 0., mat.m13, mat.m23, 0., mat.m33,
+    ])
+}
+
 pub fn get_viewport() -> (i32, i32, i32, i32) {
     let gl = unsafe { get_internal_gl() };
     gl.quad_gl
@@ -124,6 +136,31 @@ pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f
             ..Default::default()
         },
     );
+    rect
+}
+
+pub fn draw_text_aligned_scale(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f32), font_size: f32, color: Color, scale_mat: Matrix) -> Rect {
+    use macroquad::prelude::*;
+    let size = (get_viewport().2 as f32 / 23. * font_size) as u16;
+    let scale = 0.08 * font_size / size as f32;
+    let dim = measure_text(text, Some(font), size, scale);
+    let rect = Rect::new(x - dim.width * anchor.0, y - dim.offset_y * anchor.1, dim.width, dim.offset_y);
+    let gl = unsafe { get_internal_gl() }.quad_gl;
+    let ct = rect.center();
+    gl.push_model_matrix(nalgebra_to_glm(&scale_mat.prepend_translation(&Vector::new(ct.x, ct.y + dim.offset_y))));
+    draw_text_ex(
+        text,
+        -rect.w / 2.,
+        -rect.h / 2.,
+        TextParams {
+            font,
+            font_size: size,
+            font_scale: scale,
+            color,
+            ..Default::default()
+        },
+    );
+    gl.pop_model_matrix();
     rect
 }
 

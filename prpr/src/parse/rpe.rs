@@ -3,7 +3,7 @@ use super::{process_lines, BpmList, Triple, TWEEN_MAP};
 use crate::{
     core::{
         Anim, AnimFloat, AnimVector, Chart, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object,
-        StaticTween, Tweenable, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
+        StaticTween, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -122,6 +122,8 @@ struct RPEJudgeLine {
     notes: Option<Vec<RPENote>>,
     is_cover: u8,
     z_order: i32,
+    #[serde(rename = "attachUI")]
+    attach_ui: Option<UIElement>,
 }
 
 #[derive(Deserialize)]
@@ -368,6 +370,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
         },
         z_index: rpe.z_order,
         show_below: rpe.is_cover != 1,
+        attach_ui: rpe.attach_ui,
 
         cache,
     })

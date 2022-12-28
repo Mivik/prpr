@@ -22,7 +22,7 @@ mod effect;
 pub use effect::{Effect, Uniform};
 
 mod line;
-pub use line::{JudgeLine, JudgeLineCache, JudgeLineKind};
+pub use line::{JudgeLine, JudgeLineCache, JudgeLineKind, UIElement};
 
 mod note;
 use macroquad::prelude::set_pc_assets_folder;

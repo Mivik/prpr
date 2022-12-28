@@ -2,7 +2,7 @@ use super::{Matrix, Point, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE};
 use crate::{
     audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
-    ext::SafeTexture,
+    ext::{SafeTexture, nalgebra_to_glm},
     fs::FileSystem,
     info::ChartInfo,
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
@@ -196,7 +196,7 @@ impl Resource {
         };
         let camera = Camera2D {
             target: vec2(0., 0.),
-            zoom: vec2(1., config.aspect_ratio.unwrap_or(info.aspect_ratio)),
+            zoom: vec2(1., -config.aspect_ratio.unwrap_or(info.aspect_ratio)),
             ..Default::default()
         };
 
@@ -270,7 +270,7 @@ impl Resource {
             return;
         }
         let pt = self.world_to_screen(Point::default());
-        self.emitter.emit_at(vec2(pt.x, pt.y), color);
+        self.emitter.emit_at(vec2(pt.x, -pt.y), color);
     }
 
     pub fn update_size(&mut self, dim: (u32, u32)) -> bool {
@@ -297,7 +297,7 @@ impl Resource {
             self.camera.viewport = Some(viewport(aspect_ratio, dim));
         } else {
             self.aspect_ratio = aspect_ratio.min(dim.0 as f32 / dim.1 as f32);
-            self.camera.zoom = vec2(1., self.aspect_ratio);
+            self.camera.zoom = vec2(1., -self.aspect_ratio);
             self.camera_matrix = self.camera.matrix();
             self.camera.viewport = Some(viewport(self.aspect_ratio, dim));
         };
@@ -334,24 +334,14 @@ impl Resource {
     }
 
     #[inline]
-    pub fn apply_model(&self, f: impl FnOnce()) {
-        self.apply_model_of(self.model_stack.last().unwrap(), f);
+    pub fn apply_model(&mut self, f: impl FnOnce(&mut Self)) {
+        self.apply_model_of(&self.model_stack.last().unwrap().clone(), f);
     }
 
     #[inline]
-    pub fn apply_model_of(&self, mat: &Matrix, f: impl FnOnce()) {
-        unsafe { get_internal_gl() }.quad_gl.push_model_matrix({
-            /*
-                [11] [12]  0  [13]
-                [21] [22]  0  [23]
-                  0    0   1    0
-                [31] [32]  0  [33]
-            */
-            Mat4::from_cols_array(&[
-                mat.m11, mat.m21, 0., mat.m31, mat.m12, mat.m22, 0., mat.m32, 0., 0., 1., 0., mat.m13, mat.m23, 0., mat.m33,
-            ])
-        });
-        f();
+    pub fn apply_model_of(&mut self, mat: &Matrix, f: impl FnOnce(&mut Self)) {
+        unsafe { get_internal_gl() }.quad_gl.push_model_matrix(nalgebra_to_glm(mat));
+        f(self);
         unsafe { get_internal_gl() }.quad_gl.pop_model_matrix();
     }
 }

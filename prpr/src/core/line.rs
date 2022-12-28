@@ -4,6 +4,20 @@ use crate::{
     judge::JudgeStatus,
 };
 use macroquad::prelude::*;
+use serde::Deserialize;
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[repr(usize)]
+pub enum UIElement {
+    Bar,
+    Pause,
+    ComboNumber,
+    Combo,
+    Score,
+    Name,
+    Level,
+}
 
 #[derive(Default)]
 pub enum JudgeLineKind {
@@ -51,6 +65,7 @@ pub struct JudgeLine {
     pub parent: Option<usize>,
     pub z_index: i32,
     pub show_below: bool,
+    pub attach_ui: Option<UIElement>,
 
     pub cache: JudgeLineCache,
 }
@@ -88,7 +103,7 @@ impl JudgeLine {
             },
             |res| {
                 res.with_model(self.object.now_scale(), |res| {
-                    res.apply_model(|| match &self.kind {
+                    res.apply_model(|res| match &self.kind {
                         JudgeLineKind::Normal => {
                             let mut color = color.unwrap_or(res.judge_line_color);
                             color.a = alpha.max(0.0);
@@ -116,7 +131,7 @@ impl JudgeLine {
                             let mut color = color.unwrap_or(WHITE);
                             color.a = alpha.max(0.0);
                             let now = anim.now();
-                            res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1., -1.)), || {
+                            res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1., -1.)), |res| {
                                 draw_text_aligned(res.font, &now, 0., 0., (0.5, 0.5), 1., color);
                             });
                         }

@@ -9,7 +9,7 @@ pub use scroll::Scroll;
 
 use crate::{
     core::{Matrix, Point, Tweenable, Vector},
-    ext::{draw_text_aligned, make_pipeline, screen_aspect, source_of_image, RectExt, ScaleType, get_viewport},
+    ext::{draw_text_aligned_scale, get_viewport, make_pipeline, screen_aspect, source_of_image, RectExt, ScaleType, nalgebra_to_glm},
     judge::Judge,
     scene::{request_input, return_input, take_input},
 };
@@ -104,6 +104,7 @@ pub struct DrawText<'a> {
     color: Color,
     max_width: Option<f32>,
     multiline: bool,
+    scale: Matrix,
 }
 
 impl<'a> DrawText<'a> {
@@ -118,6 +119,7 @@ impl<'a> DrawText<'a> {
             color: WHITE,
             max_width: None,
             multiline: false,
+            scale: Matrix::identity(),
         }
     }
 
@@ -156,6 +158,11 @@ impl<'a> DrawText<'a> {
         self
     }
 
+    pub fn scale(mut self, scale: Matrix) -> Self {
+        self.scale = scale;
+        self
+    }
+
     pub fn measure(&self) -> Rect {
         let size = (screen_width() / 23. * self.size) as u16;
         let scale = 0.08 * self.size / size as f32;
@@ -183,7 +190,7 @@ impl<'a> DrawText<'a> {
             }
         }
         let mut res = self.ui.apply(|| {
-            draw_text_aligned(
+            draw_text_aligned_scale(
                 self.font.unwrap_or_else(|| *FONT.get().unwrap()),
                 &self.text,
                 self.pos.0,
@@ -191,6 +198,7 @@ impl<'a> DrawText<'a> {
                 self.anchor,
                 self.size,
                 self.color,
+                self.scale,
             )
         });
         if self.multiline {
@@ -561,17 +569,7 @@ impl Ui {
 
     #[inline]
     fn apply_model_of<R>(&self, mat: &Matrix, f: impl FnOnce() -> R) -> R {
-        unsafe { get_internal_gl() }.quad_gl.push_model_matrix({
-            /*
-                [11] [12]  0  [13]
-                [21] [22]  0  [23]
-                  0    0   1    0
-                [31] [32]  0  [33]
-            */
-            Mat4::from_cols_array(&[
-                mat.m11, mat.m21, 0., mat.m31, mat.m12, mat.m22, 0., mat.m32, 0., 0., 1., 0., mat.m13, mat.m23, 0., mat.m33,
-            ])
-        });
+        unsafe { get_internal_gl() }.quad_gl.push_model_matrix(nalgebra_to_glm(mat));
         let res = f();
         unsafe { get_internal_gl() }.quad_gl.pop_model_matrix();
         res

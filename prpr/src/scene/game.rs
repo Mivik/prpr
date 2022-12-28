@@ -2,7 +2,7 @@ use super::{draw_background, EndingScene, NextScene, Scene};
 use crate::{
     audio::{Audio, AudioHandle, PlayParams},
     config::Config,
-    core::{BadNote, Chart, Matrix, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
+    core::{BadNote, Chart, Matrix, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
     ext::{draw_text_aligned, screen_aspect, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
@@ -178,31 +178,75 @@ impl GameScene {
             res.audio.pause(&mut self.audio_handle)?;
             tm.pause();
         }
-        res.with_model(Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
-            res.apply_model(|| {
-                let margin = 0.03;
-                draw_text_aligned(res.font, &format!("{:07}", self.judge.score()), 1. - margin, top + eps * 2.8, (1., 0.), 0.8, c);
-                draw_rectangle(pause_w * 2.2 - 1., top + eps * 3.5, pause_w, pause_h, c);
-                draw_rectangle(pause_w * 4.2 - 1., top + eps * 3.5, pause_w, pause_h, c);
-                if self.judge.combo >= 3 {
-                    let rect = draw_text_aligned(res.font, &self.judge.combo.to_string(), 0., top + eps * 2.6, (0.5, 0.), 1., c);
-                    draw_text_aligned(
-                        res.font,
-                        if res.config.autoplay { "AUTOPLAY" } else { "COMBO" },
-                        0.,
-                        rect.y + rect.h + eps * 1.1,
-                        (0.5, 0.),
-                        0.4,
-                        c,
-                    );
-                }
-                draw_text_aligned(res.font, &res.info.name, -1. + margin, -top - eps * 2.8, (0., 1.), 0.5, c);
-                draw_text_aligned(res.font, &res.info.level, 1. - margin, -top - eps * 2.8, (1., 1.), 0.5, c);
-                let hw = 0.003;
-                let height = eps * 1.2;
-                let dest = 2. * res.time / res.track_length;
-                draw_rectangle(-1., top, dest, height, Color::new(1., 1., 1., 0.6 * res.alpha));
-                draw_rectangle(-1. + dest - hw, top, hw * 2., height, c);
+        let margin = 0.03;
+        let mut ui = Ui::new();
+
+        self.chart.with_element(&mut ui, res, UIElement::Score, |ui, alpha, scale| {
+            ui.text(format!("{:07}", self.judge.score()))
+                .pos(1. - margin, top + eps * 2.8)
+                .anchor(1., 0.)
+                .size(0.8)
+                .color(Color { a: c.a * alpha, ..c })
+                .scale(scale)
+                .draw();
+        });
+        self.chart.with_element(&mut ui, res, UIElement::ComboNumber, |ui, alpha, scale| {
+            let mut r = Rect::new(pause_w * 2.2 - 1., top + eps * 3.5, pause_w, pause_h);
+            let ct = Vector::new(r.x + pause_w, r.y + r.h / 2.);
+            let c = Color { a: c.a * alpha, ..c };
+            ui.with(scale.prepend_translation(&ct).append_translation(&-ct), |ui| {
+                ui.fill_rect(r, c);
+                r.x += pause_w * 2.;
+                ui.fill_rect(r, c);
+            });
+        });
+        if self.judge.combo >= 3 {
+            self.chart.with_element(&mut ui, res, UIElement::ComboNumber, |ui, alpha, scale| {
+                ui.text(self.judge.combo.to_string())
+                    .pos(0., top + eps * 2.6)
+                    .anchor(0.5, 0.)
+                    .color(Color { a: c.a * alpha, ..c })
+                    .scale(scale)
+                    .draw();
+            });
+            self.chart.with_element(&mut ui, res, UIElement::Combo, |ui, alpha, scale| {
+                ui.text(if res.config.autoplay { "AUTOPLAY" } else { "COMBO" })
+                    .pos(0., top + 0.09 + eps * 1.1)
+                    .anchor(0.5, 0.)
+                    .size(0.4)
+                    .color(Color { a: c.a * alpha, ..c })
+                    .scale(scale)
+                    .draw();
+            });
+        }
+        let lf = -1. + margin;
+        let bt = -top - eps * 2.8;
+        self.chart.with_element(&mut ui, res, UIElement::Name, |ui, alpha, scale| {
+            ui.text(&res.info.name)
+                .pos(lf, bt)
+                .anchor(0., 1.)
+                .size(0.5)
+                .color(Color { a: c.a * alpha, ..c })
+                .scale(scale)
+                .draw();
+        });
+        self.chart.with_element(&mut ui, res, UIElement::Level, |ui, alpha, scale| {
+            ui.text(&res.info.level)
+                .pos(-lf, bt)
+                .anchor(1., 1.)
+                .size(0.5)
+                .color(Color { a: c.a * alpha, ..c })
+                .scale(scale)
+                .draw();
+        });
+        let hw = 0.003;
+        let height = eps * 1.2;
+        let dest = 2. * res.time / res.track_length;
+        self.chart.with_element(&mut ui, res, UIElement::Bar, |ui, alpha, scale| {
+            let ct = Vector::new(0., top + height / 2.);
+            ui.with(scale.prepend_translation(&ct).append_translation(&-ct), |ui| {
+                ui.fill_rect(Rect::new(-1., top, dest, height), Color::new(1., 1., 1., 0.6 * res.alpha * alpha));
+                ui.fill_rect(Rect::new(-1. + dest - hw, top, hw * 2., height), Color { a: c.a * alpha, ..c });
             });
         });
         if tm.paused() {
@@ -289,7 +333,7 @@ impl GameScene {
                 let h = 1. / res.aspect_ratio;
                 draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., a));
                 res.with_model(Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
-                    res.apply_model(|| {
+                    res.apply_model(|res| {
                         draw_text_aligned(res.font, &t.to_string(), 0., 0., (0.5, 0.5), 1., c);
                     })
                 });
