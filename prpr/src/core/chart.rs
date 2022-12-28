@@ -67,9 +67,9 @@ impl Chart {
             for id in &self.order {
                 self.lines[*id].render(res, &self.lines);
             }
+            for effect in &self.effects {
+                effect.render(res);
+            }
         });
-        for effect in &self.effects {
-            effect.render(res);
-        }
     }
 }
