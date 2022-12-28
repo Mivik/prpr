@@ -39,7 +39,7 @@ impl Default for VideoConfig {
         Self {
             fps: 60,
             resolution: (1920, 1080),
-            hardware_accel: true,
+            hardware_accel: false,
         }
     }
 }
