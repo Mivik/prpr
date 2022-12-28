@@ -59,12 +59,13 @@ impl Effect {
     }
 
     pub fn new(time_range: Range<f32>, shader: &str, uniforms: Vec<Box<dyn Uniform>>) -> Result<Self> {
+        let version_line = "#version 130\n";
         Ok(Self {
             time_range,
             t: f32::NEG_INFINITY,
             material: load_material(
-                VERTEX_SHADER,
-                shader,
+                if cfg!(target_os = "android") { VERTEX_SHADER.strip_prefix(version_line).unwrap() } else { VERTEX_SHADER },
+                if cfg!(target_os = "android") { shader.strip_prefix(version_line).unwrap() } else { shader },
                 MaterialParams {
                     uniforms: uniforms
                         .iter()

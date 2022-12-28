@@ -1,4 +1,4 @@
-use crate::{INFO_EDIT, VIDEO_RESOLUTION};
+use crate::{INFO_EDIT, VIDEO_CONFIG, VideoConfig};
 use anyhow::{bail, Result};
 use macroquad::prelude::*;
 use prpr::{
@@ -20,6 +20,7 @@ pub struct MainScene {
     config: Config,
     fs: Box<dyn FileSystem>,
     next_scene: Option<NextScene>,
+    v_config: VideoConfig,
 
     future_to_loading: Option<Pin<Box<dyn Future<Output = Result<LoadingScene>>>>>,
 }
@@ -34,6 +35,8 @@ impl MainScene {
             config,
             fs,
             next_scene: None,
+            v_config: VideoConfig::default(),
+
             future_to_loading: None,
         }
     }
@@ -77,9 +80,8 @@ impl Scene for MainScene {
                     ui.dy(h);
                     let width = ui.text("一二三四").size(0.4).measure().w;
                     ui.dx(width);
-                    let res = VIDEO_RESOLUTION.lock().unwrap();
+                    let res = self.v_config.resolution;
                     let mut string = format!("{}x{}", res.0, res.1);
-                    drop(res);
                     let r = ui.input("分辨率", &mut string, 0.8);
                     match || -> Result<(u32, u32)> {
                         if let Some((w, h)) = string.split_once(&['x', 'X', '×', '*']) {
@@ -93,9 +95,29 @@ impl Scene for MainScene {
                             show_message("输入非法");
                         }
                         Ok(value) => {
-                            *VIDEO_RESOLUTION.lock().unwrap() = value;
+                            self.v_config.resolution = value;
                         }
                     }
+                    ui.dy(r.h + pad);
+                    h += r.h;
+                    let mut string=  self.v_config.fps.to_string();
+                    let old = string.clone();
+                    let r = ui.input("FPS", &mut string, 0.8);
+                    if string != old {
+                        match string.parse::<u32>() {
+                            Err(err) => {
+                                warn!("{:?}", err);
+                                show_message("输入非法");
+                            }
+                            Ok(value) => {
+                                self.v_config.fps = value;
+                            }
+                        }
+                    }
+                    ui.dy(r.h + pad);
+                    h += r.h;
+                    let r = ui.checkbox("启用硬件加速", &mut self.v_config.hardware_accel);
+                    ui.dy(r.h + pad);
                     h += r.h;
                 });
                 (w, h)
@@ -114,6 +136,7 @@ impl Scene for MainScene {
             r.x += dx;
             if ui.button("render", r, "渲染") {
                 *INFO_EDIT.lock().unwrap() = Some(self.edit.clone());
+                *VIDEO_CONFIG.lock().unwrap() = Some(self.v_config.clone());
                 self.next_scene = Some(NextScene::Exit);
             }
         });

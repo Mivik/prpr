@@ -38,7 +38,12 @@ mod tween;
 pub use tween::{easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor, Tweenable, TWEEN_FUNCTIONS};
 
 pub fn init_assets() {
-    if let Ok(cwd) = std::env::current_dir() {
-        set_pc_assets_folder(&cwd.join("assets").display().to_string());
+    if let Ok(exe) = std::env::current_exe() {
+        let assets = exe.parent().unwrap().join("assets");
+        if assets.exists() {
+            set_pc_assets_folder(&assets.display().to_string());
+            return;
+        }
     }
+    set_pc_assets_folder("assets");
 }

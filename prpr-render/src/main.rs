@@ -16,6 +16,7 @@ use prpr::{
     Main,
 };
 use prpr::{ext::screen_aspect, scene::BILLBOARD};
+use std::fmt::Write as _;
 use std::{
     cell::RefCell,
     io::{BufWriter, Cursor, Write},
@@ -26,11 +27,25 @@ use std::{
     time::Instant,
 };
 
-const FPS: u32 = 60;
-const FRAME_DELTA: f32 = 1. / FPS as f32;
+#[derive(Clone)]
+struct VideoConfig {
+    fps: u32,
+    resolution: (u32, u32),
+    hardware_accel: bool,
+}
+
+impl Default for VideoConfig {
+    fn default() -> Self {
+        Self {
+            fps: 60,
+            resolution: (1920, 1080),
+            hardware_accel: true,
+        }
+    }
+}
 
 static INFO_EDIT: Mutex<Option<ChartInfoEdit>> = Mutex::new(None);
-static VIDEO_RESOLUTION: Mutex<(u32, u32)> = Mutex::new((1920, 1080));
+static VIDEO_CONFIG: Mutex<Option<VideoConfig>> = Mutex::new(None);
 
 #[cfg(target_arch = "wasm32")]
 compile_error!("WASM target is not supported");
@@ -39,7 +54,20 @@ compile_error!("WASM target is not supported");
 async fn main() -> Result<()> {
     init_assets();
 
-    let ffmpeg = if cfg!(target_os = "windows") { "./ffmpeg" } else { "ffmpeg" };
+    let Ok(exe) = std::env::current_exe() else {
+        bail!("找不到当前可执行程序");
+    };
+    let exe_dir = exe.parent().unwrap();
+    let ffmpeg = if cfg!(target_os = "windows") {
+        let local = exe_dir.join("ffmpeg.exe");
+        if local.exists() {
+            local.display().to_string()
+        } else {
+            "ffmpeg".to_owned()
+        }
+    } else {
+        "ffmpeg".to_owned()
+    };
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)
@@ -55,14 +83,15 @@ async fn main() -> Result<()> {
         let Some(path) = args.next() else {
             bail!("请将谱面文件或文件夹拖动到该软件上！");
         };
-        let config =
-            match (|| -> Result<Config> { Ok(serde_yaml::from_str(&std::fs::read_to_string("conf.yml").context("无法加载配置文件")?)?) })() {
-                Err(err) => {
-                    warn!("无法加载配置文件：{:?}", err);
-                    Config::default()
-                }
-                Ok(config) => config,
-            };
+        let config = match (|| -> Result<Config> {
+            Ok(serde_yaml::from_str(&std::fs::read_to_string(exe_dir.join("conf.yml")).context("无法加载配置文件")?)?)
+        })() {
+            Err(err) => {
+                warn!("无法加载配置文件：{:?}", err);
+                Config::default()
+            }
+            Ok(config) => config,
+        };
         (path, config)
     };
 
@@ -160,7 +189,8 @@ async fn main() -> Result<()> {
         ..config
     };
 
-    let (vw, vh) = VIDEO_RESOLUTION.lock().unwrap().clone();
+    let v_config = VIDEO_CONFIG.lock().unwrap().take().unwrap();
+    let (vw, vh) = v_config.resolution;
 
     let texture = miniquad::Texture::new_render_texture(
         gl.quad_context,
@@ -195,19 +225,47 @@ async fn main() -> Result<()> {
     const O: f64 = LoadingScene::TOTAL_TIME as f64 + GameScene::BEFORE_TIME as f64;
     const A: f64 = 0.7 + 0.3 + 0.4;
 
-    let mut proc = Command::new(ffmpeg)
-        .args(format!("-y -f rawvideo -vcodec rawvideo -s {vw}x{vh} -r {FPS} -pix_fmt rgb24 -i - -threads 8 -c:v libx264 -preset ultrafast -qp 0 -vf vflip t_video.mp4").split_whitespace())
+    let fps = v_config.fps;
+    let frame_delta = 1. / fps as f32;
+    let length = track_length - chart.offset.min(0.) as f64 + 1.;
+    let video_length = O + length + A + ending.duration().as_secs_f64();
+
+    let output = Command::new(&ffmpeg).arg("-codecs").output().context("无法执行 ffmpeg")?;
+    let codecs = String::from_utf8(output.stdout)?;
+    let use_cuda = v_config.hardware_accel && codecs.contains("h264_nvenc");
+    let has_qsv = v_config.hardware_accel && codecs.contains("h264_qsv");
+
+    let mut args = "-y -f rawvideo -vcodec rawvideo".to_owned();
+    if use_cuda {
+        args += " -hwaccel_output_format cuda";
+    }
+    write!(
+        &mut args,
+        " -s {vw}x{vh} -r {fps} -pix_fmt rgb24 -i - -c:v {} -qp 0 -vf vflip t_video.mp4",
+        if use_cuda {
+            "h264_nvenc"
+        } else if has_qsv {
+            "h264_qsv"
+        } else if v_config.hardware_accel {
+            bail!("不支持硬件加速！");
+        } else {
+            "libx264"
+        }
+    )?;
+
+    let mut proc = Command::new(&ffmpeg)
+        .args(args.split_whitespace())
         .stdin(Stdio::piped())
         .stderr(Stdio::null())
-        .spawn()?;
+        .spawn()
+        .context("无法执行 ffmpeg")?;
     let input = proc.stdin.as_mut().unwrap();
 
-    let length = track_length - chart.offset.min(0.) as f64 + 1.;
     let offset = chart.offset.max(0.);
-    let frames = ((O + length + A + ending.frames.len() as f64 / ending.sample_rate as f64) / FRAME_DELTA as f64).ceil() as u64;
+    let frames = (video_length / frame_delta as f64).ceil() as u64;
     let start_time = Instant::now();
     for frame in 0..frames {
-        *my_time.borrow_mut() = (frame as f32 * FRAME_DELTA).max(0.) as f64;
+        *my_time.borrow_mut() = (frame as f32 * frame_delta).max(0.) as f64;
         main.update()?;
         main.render(&mut Ui::new())?;
         gl.flush();
@@ -226,7 +284,7 @@ async fn main() -> Result<()> {
     assert_eq!(sample_rate, sfx_click.sample_rate);
     assert_eq!(sample_rate, sfx_drag.sample_rate);
     assert_eq!(sample_rate, sfx_flick.sample_rate);
-    let mut output = vec![0.; ((O + length + A + ending.frames.len() as f64 / sample_rate as f64) * sample_rate as f64).ceil() as usize * 2];
+    let mut output = vec![0.; (video_length * sample_rate as f64).ceil() as usize * 2];
     {
         let pos = O - chart.offset.min(0.) as f64;
         let count = (music.duration().as_secs_f64() * sample_rate as f64) as usize;
@@ -272,7 +330,8 @@ async fn main() -> Result<()> {
         )
         .stdin(Stdio::piped())
         .stderr(Stdio::inherit())
-        .spawn()?;
+        .spawn()
+        .context("无法执行 ffmpeg")?;
     let input = proc.stdin.as_mut().unwrap();
     let mut writer = BufWriter::new(input);
     for sample in output.into_iter() {
