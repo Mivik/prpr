@@ -45,9 +45,11 @@ pub fn show_message(msg: impl Into<String>) {
 
 thread_local! {
     static CURRENT_INPUT: RefCell<String> = RefCell::default();
+    #[cfg(not(target_arch = "wasm32"))]
     static CURRENT_CHOOSE_FILE: RefCell<String> = RefCell::default();
 }
 pub static INPUT_TEXT: Mutex<Option<String>> = Mutex::new(None);
+#[cfg(not(target_arch = "wasm32"))]
 pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &str) {
@@ -81,6 +83,7 @@ pub fn return_input(id: String, text: String) {
     *INPUT_TEXT.lock().unwrap() = Some(text);
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn request_file(id: impl Into<String>) {
     CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id.into());
     *CHOSEN_FILE.lock().unwrap() = None;
@@ -98,6 +101,7 @@ pub fn request_file(id: impl Into<String>) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn take_file() -> Option<(String, String)> {
     CHOSEN_FILE
         .lock()
@@ -106,6 +110,7 @@ pub fn take_file() -> Option<(String, String)> {
         .map(|file| (CURRENT_CHOOSE_FILE.with(|it| std::mem::take(it.borrow_mut().deref_mut())), file))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn return_file(id: String, file: String) {
     CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id);
     *CHOSEN_FILE.lock().unwrap() = Some(file);

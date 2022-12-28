@@ -2,7 +2,7 @@ use super::{draw_background, EndingScene, NextScene, Scene};
 use crate::{
     audio::{Audio, AudioHandle, PlayParams},
     config::Config,
-    core::{BadNote, Chart, Matrix, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
+    core::{BadNote, Chart, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
     ext::{draw_text_aligned, screen_aspect, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
@@ -332,11 +332,7 @@ impl GameScene {
                 let a = (1. - dt as f32 / 3.) * 1.;
                 let h = 1. / res.aspect_ratio;
                 draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., a));
-                res.with_model(Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
-                    res.apply_model(|res| {
-                        draw_text_aligned(res.font, &t.to_string(), 0., 0., (0.5, 0.5), 1., c);
-                    })
-                });
+                draw_text_aligned(res.font, &t.to_string(), 0., 0., (0.5, 0.5), 1., c);
             }
         }
         Ok(())

@@ -2,10 +2,9 @@ use super::Ui;
 use crate::{
     ext::RectExt,
     info::ChartInfo,
-    scene::{request_file, request_input, return_file, return_input, show_message, take_file, take_input},
+    scene::{request_input, return_input, show_message, take_input},
 };
 use anyhow::Result;
-use macroquad::prelude::Rect;
 use miniquad::warn;
 use std::collections::HashMap;
 
@@ -30,14 +29,17 @@ impl ChartInfoEdit {
     pub async fn to_patches(&self) -> Result<HashMap<String, Vec<u8>>> {
         let mut res = HashMap::new();
         res.insert("info.yml".to_owned(), serde_json::to_string(&self.info)?.into_bytes());
-        if let Some(chart) = &self.chart {
-            res.insert(self.info.chart.clone(), tokio::fs::read(chart).await?);
-        }
-        if let Some(music) = &self.music {
-            res.insert(self.info.music.clone(), tokio::fs::read(music).await?);
-        }
-        if let Some(illustration) = &self.illustration {
-            res.insert(self.info.illustration.clone(), tokio::fs::read(illustration).await?);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Some(chart) = &self.chart {
+                res.insert(self.info.chart.clone(), tokio::fs::read(chart).await?);
+            }
+            if let Some(music) = &self.music {
+                res.insert(self.info.music.clone(), tokio::fs::read(music).await?);
+            }
+            if let Some(illustration) = &self.illustration {
+                res.insert(self.info.illustration.clone(), tokio::fs::read(illustration).await?);
+            }
         }
         Ok(res)
     }
@@ -121,29 +123,34 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
                 + 0.03
         }));
 
-        let mut choose_file = |id: &str, label: &str, value: &str| {
-            let r = ui.text(label).size(0.4).anchor(1., 0.).draw();
-            let r = Rect::new(0.02, r.y - 0.01, len, r.h + 0.02);
-            if ui.button(id, r, value) {
-                request_file(id);
-            }
-            dy!(r.h + s);
-        };
-        choose_file("file_chart", "谱面文件", &info.chart);
-        choose_file("file_music", "音乐文件", &info.music);
-        choose_file("file_illustration", "插图文件", &info.illustration);
-        if let Some((id, file)) = take_file() {
-            match id.as_str() {
-                "file_chart" => {
-                    edit.chart = Some(file);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use crate::scene::{request_file, return_file, take_file};
+            use macroquad::prelude::Rect;
+            let mut choose_file = |id: &str, label: &str, value: &str| {
+                let r = ui.text(label).size(0.4).anchor(1., 0.).draw();
+                let r = Rect::new(0.02, r.y - 0.01, len, r.h + 0.02);
+                if ui.button(id, r, value) {
+                    request_file(id);
                 }
-                "file_music" => {
-                    edit.music = Some(file);
+                dy!(r.h + s);
+            };
+            choose_file("file_chart", "谱面文件", &info.chart);
+            choose_file("file_music", "音乐文件", &info.music);
+            choose_file("file_illustration", "插图文件", &info.illustration);
+            if let Some((id, file)) = take_file() {
+                match id.as_str() {
+                    "file_chart" => {
+                        edit.chart = Some(file);
+                    }
+                    "file_music" => {
+                        edit.music = Some(file);
+                    }
+                    "file_illustration" => {
+                        edit.illustration = Some(file);
+                    }
+                    _ => return_file(id, file),
                 }
-                "file_illustration" => {
-                    edit.illustration = Some(file);
-                }
-                _ => return_file(id, file),
             }
         }
 

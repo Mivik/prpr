@@ -381,7 +381,7 @@ pub fn make_pipeline(write_color: bool, pass_op: StencilOp, test_func: CompareFu
 }
 
 mod shader {
-    pub const VERTEX: &str = r#"#version 130
+    pub const VERTEX: &str = r#"#version 100
 attribute vec3 position;
 attribute vec2 texcoord;
 attribute vec4 color0;
@@ -398,7 +398,7 @@ void main() {
     uv = texcoord;
 }"#;
 
-    pub const FRAGMENT: &str = r#"#version 130
+    pub const FRAGMENT: &str = r#"#version 100
 varying lowp vec4 color;
 varying lowp vec2 uv;
 

@@ -1,9 +1,11 @@
 use super::{Anim, Resource, Tweenable};
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use macroquad::prelude::*;
 use miniquad::UniformType;
+use once_cell::sync::Lazy;
 use phf::phf_map;
-use std::ops::Range;
+use regex::Regex;
+use std::{collections::HashSet, ops::Range};
 
 static SHADERS: phf::Map<&'static str, &'static str> = phf_map! {
     "chromatic" => include_str!("shaders/chromatic.glsl"),
@@ -14,12 +16,16 @@ static SHADERS: phf::Map<&'static str, &'static str> = phf_map! {
     "radialBlur" => include_str!("shaders/radial_blur.glsl"),
 };
 
-pub trait UniformValue: Tweenable + Default {
+pub trait UniformValue: Clone + Default {
     const UNIFORM_TYPE: UniformType;
 }
 
 impl UniformValue for f32 {
     const UNIFORM_TYPE: UniformType = UniformType::Float1;
+}
+
+impl UniformValue for Vec2 {
+    const UNIFORM_TYPE: UniformType = UniformType::Float2;
 }
 
 impl UniformValue for Color {
@@ -32,7 +38,19 @@ pub trait Uniform {
     fn apply(&self, material: &Material);
 }
 
-impl<T: UniformValue> Uniform for (String, Anim<T>) {
+impl<T: UniformValue> Uniform for (String, T) {
+    fn uniform_pair(&self) -> (String, UniformType) {
+        (self.0.clone(), T::UNIFORM_TYPE)
+    }
+
+    fn set_time(&mut self, _t: f32) {}
+
+    fn apply(&self, material: &Material) {
+        material.set_uniform(&self.0, self.1.clone());
+    }
+}
+
+impl<T: UniformValue + Tweenable> Uniform for (String, Anim<T>) {
     fn uniform_pair(&self) -> (String, UniformType) {
         (self.0.clone(), T::UNIFORM_TYPE)
     }
@@ -50,6 +68,7 @@ pub struct Effect {
     time_range: Range<f32>,
     t: f32,
     material: Material,
+    defaults: Vec<Box<dyn Uniform>>,
     uniforms: Vec<Box<dyn Uniform>>,
 }
 
@@ -59,19 +78,54 @@ impl Effect {
     }
 
     pub fn new(time_range: Range<f32>, shader: &str, uniforms: Vec<Box<dyn Uniform>>) -> Result<Self> {
-        let version_line = "#version 130\n";
+        static DEF_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"uniform\s+(\w+)\s+(\w+);\s+//\s+%([^%]+)%").unwrap());
+        let defaults = DEF_REGEX
+            .captures_iter(shader)
+            .map(|caps| -> Result<Box<dyn Uniform>> {
+                let type_name = caps.get(1).unwrap().as_str();
+                let name = caps.get(2).unwrap().as_str().to_owned();
+                let value = caps.get(3).unwrap().as_str();
+                Ok(match type_name {
+                    "float" => Box::new((name, value.parse::<f32>()?)),
+                    "vec2" => Box::new((name, {
+                        let (x, y) = value.split_once(',').ok_or_else(|| anyhow!("Expected x,y"))?;
+                        vec2(x.trim().parse()?, y.trim().parse()?)
+                    })),
+                    "vec4" => Box::new((name, {
+                        let values: Vec<_> = value.split(',').collect();
+                        if values.len() != 4 {
+                            bail!("Expected r,g,b,a");
+                        }
+                        Color::new(values[0].parse()?, values[1].parse()?, values[2].parse()?, values[3].parse()?)
+                    })),
+                    _ => bail!("Unknown type: {type_name}"),
+                })
+            })
+            .collect::<Result<Vec<Box<dyn Uniform>>>>()?;
+        let mut ocurred_uniforms = HashSet::new();
+        let mut new_uniforms = Vec::new();
+        let mut add_uniform = |(name, its_type): (String, UniformType)| {
+            if ocurred_uniforms.insert(name.clone()) {
+                new_uniforms.push((name, its_type));
+            }
+        };
+        for def in &defaults {
+            add_uniform(def.uniform_pair());
+        }
+        add_uniform(("time".to_owned(), UniformType::Float1));
+        add_uniform(("screenSize".to_owned(), UniformType::Float2));
+        for u in &uniforms {
+            add_uniform(u.uniform_pair());
+        }
         Ok(Self {
             time_range,
             t: f32::NEG_INFINITY,
+            defaults,
             material: load_material(
-                if cfg!(target_os = "android") { VERTEX_SHADER.strip_prefix(version_line).unwrap() } else { VERTEX_SHADER },
-                if cfg!(target_os = "android") { shader.strip_prefix(version_line).unwrap() } else { shader },
+                VERTEX_SHADER,
+                shader,
                 MaterialParams {
-                    uniforms: uniforms
-                        .iter()
-                        .map(|it| it.uniform_pair())
-                        .chain(std::iter::once(("time".to_owned(), UniformType::Float1)))
-                        .collect(),
+                    uniforms: new_uniforms,
                     ..Default::default()
                 },
             )?,
@@ -93,11 +147,14 @@ impl Effect {
         if !self.time_range.contains(&self.t) {
             return;
         }
+        for def in &self.defaults {
+            def.apply(&self.material);
+        }
         for uniform in &self.uniforms {
             uniform.apply(&self.material);
         }
-        self.material
-            .set_uniform("time", self.t);
+        self.material.set_uniform("time", self.t);
+        self.material.set_uniform("screenSize", vec2(screen_width(), screen_height()));
 
         gl_use_material(self.material);
         let top = 1. / res.aspect_ratio;
@@ -112,12 +169,12 @@ impl Drop for Effect {
     }
 }
 
-const VERTEX_SHADER: &str = r#"#version 130
+const VERTEX_SHADER: &str = r#"#version 100
 attribute vec3 position;
 attribute vec2 texcoord;
 attribute vec4 color0;
 
-varying lowp vec2 uv;
+varying vec2 uv;
 
 uniform mat4 Model;
 uniform mat4 Projection;

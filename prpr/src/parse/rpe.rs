@@ -121,6 +121,7 @@ struct RPEJudgeLine {
     extended: Option<RPEExtendedEvents>,
     notes: Option<Vec<RPENote>>,
     is_cover: u8,
+    #[serde(default)]
     z_order: i32,
     #[serde(rename = "attachUI")]
     attach_ui: Option<UIElement>,

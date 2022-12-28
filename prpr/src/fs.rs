@@ -74,13 +74,13 @@ pub struct ExternalFileSystem(PathBuf);
 #[async_trait]
 impl FileSystem for ExternalFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
-        let path = self.0.join(path);
         #[cfg(target_arch = "wasm32")]
         {
             unimplemented!("Cannot use external file system on wasm32")
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
+            let path = self.0.join(path);
             Ok(tokio::spawn(async move { tokio::fs::read(path).await }).await??)
         }
     }
