@@ -121,6 +121,7 @@ struct RPEJudgeLine {
     extended: Option<RPEExtendedEvents>,
     notes: Option<Vec<RPENote>>,
     is_cover: u8,
+    z_order: i32,
 }
 
 #[derive(Deserialize)]
@@ -365,6 +366,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
                 Some(parent as usize)
             }
         },
+        z_index: rpe.z_order,
         show_below: rpe.is_cover != 1,
 
         cache,
@@ -439,15 +441,14 @@ pub async fn parse_rpe(source: &str) -> Result<Chart> {
         );
     }
     process_lines(&mut lines);
-    Ok(Chart {
-        offset: rpe.meta.offset as f32 / 1000.0,
+    Ok(Chart::new(
+        rpe.meta.offset as f32 / 1000.0,
         lines,
-        effects: rpe
-            .effects
+        rpe.effects
             .into_iter()
             .flatten()
             .enumerate()
             .map(|(id, rpe)| parse_effect(&mut r, rpe).with_context(|| format!("In effect #{id}")))
             .collect::<Result<_>>()?,
-    })
+    ))
 }

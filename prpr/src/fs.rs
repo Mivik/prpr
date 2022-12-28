@@ -172,6 +172,7 @@ fn infer_diff(info: &mut ChartInfo, level: &str) {
 fn info_from_kv<'a>(it: impl Iterator<Item = (&'a str, String)>) -> Result<ChartInfo> {
     let mut info = ChartInfo::default();
     for (key, value) in it {
+        let key = key.trim();
         if key == "Path" {
             continue;
         }

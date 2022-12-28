@@ -49,6 +49,7 @@ pub struct JudgeLine {
     pub notes: Vec<Note>,
     pub color: Anim<Color>,
     pub parent: Option<usize>,
+    pub z_index: i32,
     pub show_below: bool,
 
     pub cache: JudgeLineCache,

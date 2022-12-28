@@ -6,9 +6,21 @@ pub struct Chart {
     pub offset: f32,
     pub lines: Vec<JudgeLine>,
     pub effects: Vec<Effect>,
+    pub order: Vec<usize>,
 }
 
 impl Chart {
+    pub fn new(offset: f32, lines: Vec<JudgeLine>, effects: Vec<Effect>) -> Self {
+        let mut order = (0..lines.len()).collect::<Vec<_>>();
+        order.sort_by_key(|it| (lines[*it].z_index, *it));
+        Self {
+            offset,
+            lines,
+            effects,
+            order,
+        }
+    }
+
     pub fn reset(&mut self) {
         self.lines
             .iter_mut()
@@ -29,8 +41,8 @@ impl Chart {
     }
 
     pub fn render(&self, res: &mut Resource) {
-        for line in &self.lines {
-            line.render(res, &self.lines);
+        for id in &self.order {
+            self.lines[*id].render(res, &self.lines);
         }
         for effect in &self.effects {
             effect.render(res);

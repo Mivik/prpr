@@ -162,6 +162,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
         notes: pec.notes,
         color: Anim::default(),
         parent: None,
+        z_index: 0,
         show_below: false,
 
         cache,
@@ -343,9 +344,5 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
         .map(|(id, line)| parse_judge_line(line, id, max_time).with_context(|| format!("In judge line #{id}")))
         .collect::<Result<Vec<_>>>()?;
     process_lines(&mut lines);
-    Ok(Chart {
-        offset: offset.unwrap(),
-        lines,
-        effects: Vec::new(),
-    })
+    Ok(Chart::new(offset.unwrap(), lines, Vec::new()))
 }
