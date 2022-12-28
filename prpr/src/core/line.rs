@@ -1,6 +1,6 @@
 use super::{Anim, AnimFloat, Matrix, Note, Object, Point, RenderConfig, Resource, Vector, EPS};
 use crate::{
-    ext::{draw_text_aligned, NotNanExt},
+    ext::{draw_text_aligned, NotNanExt, SafeTexture},
     judge::JudgeStatus,
 };
 use macroquad::prelude::*;
@@ -23,7 +23,7 @@ pub enum UIElement {
 pub enum JudgeLineKind {
     #[default]
     Normal,
-    Texture(Texture2D),
+    Texture(SafeTexture),
     Text(Anim<String>),
 }
 
@@ -116,7 +116,7 @@ impl JudgeLine {
                             let hw = texture.width() / 2.;
                             let hh = texture.height() / 2.;
                             draw_texture_ex(
-                                *texture,
+                                **texture,
                                 -hw,
                                 -hh,
                                 color,

@@ -6,13 +6,11 @@ use crate::{
         StaticTween, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
+    fs::FileSystem,
     judge::JudgeStatus,
 };
 use anyhow::{anyhow, bail, Context, Result};
-use macroquad::{
-    prelude::Color,
-    texture::{load_image, Texture2D},
-};
+use macroquad::prelude::Color;
 use serde::Deserialize;
 use std::{collections::HashMap, rc::Rc};
 
@@ -298,7 +296,7 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
         .collect()
 }
 
-async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> Result<JudgeLine> {
+async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs: &mut dyn FileSystem) -> Result<JudgeLine> {
     let event_layers: Vec<_> = rpe.event_layers.into_iter().flatten().collect();
     fn events_with_factor(
         r: &mut BpmList,
@@ -350,11 +348,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
                 JudgeLineKind::Normal
             }
         } else {
-            JudgeLineKind::Texture(Texture2D::from_image(
-                &load_image(&format!("texture/{}", rpe.texture))
-                    .await
-                    .with_context(|| format!("Failed to load texture {}", rpe.texture))?,
-            ))
+            JudgeLineKind::Texture(image::load_from_memory(&fs.load_file(&rpe.texture).await?)?.into())
         },
         color: if let Some(events) = rpe.extended.as_ref().and_then(|e| e.color_events.as_ref()) {
             parse_events(r, events, Some(JUDGE_LINE_PERFECT_COLOR)).context("Failed to parse color events")?
@@ -397,7 +391,7 @@ fn parse_effect(r: &mut BpmList, rpe: RPEEffect) -> Result<Effect> {
     )
 }
 
-pub async fn parse_rpe(source: &str) -> Result<Chart> {
+pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
     let rpe: RPEChart = serde_json::from_str(source).context("Failed to parse JSON")?;
     let mut r = BpmList::new(rpe.bpm_list.into_iter().map(|it| (it.start_time.beats(), it.bpm)).collect());
     fn vec<T>(v: &Option<Vec<T>>) -> impl Iterator<Item = &T> {
@@ -439,7 +433,7 @@ pub async fn parse_rpe(source: &str) -> Result<Chart> {
     for (id, rpe) in rpe.judge_line_list.into_iter().enumerate() {
         let name = rpe.name.clone();
         lines.push(
-            parse_judge_line(&mut r, rpe, max_time)
+            parse_judge_line(&mut r, rpe, max_time, fs)
                 .await
                 .with_context(move || format!("In judge line #{id} ({})", name))?,
         );

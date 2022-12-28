@@ -14,7 +14,7 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
 use macroquad::{prelude::*, window::InternalGlContext};
-use std::rc::Rc;
+use std::{rc::Rc, ops::DerefMut};
 
 const WAIT_TIME: f32 = 0.5;
 const AFTER_TIME: f32 = 0.7;
@@ -96,7 +96,7 @@ impl GameScene {
             }
         });
         match format {
-            ChartFormat::Rpe => parse_rpe(&text).await,
+            ChartFormat::Rpe => parse_rpe(&text, fs.deref_mut()).await,
             ChartFormat::Pgr => parse_phigros(&text),
             ChartFormat::Pec => parse_pec(&text),
         }
@@ -194,7 +194,7 @@ impl GameScene {
             let mut r = Rect::new(pause_w * 2.2 - 1., top + eps * 3.5, pause_w, pause_h);
             let ct = Vector::new(r.x + pause_w, r.y + r.h / 2.);
             let c = Color { a: c.a * alpha, ..c };
-            ui.with(scale.prepend_translation(&ct).append_translation(&-ct), |ui| {
+            ui.with(scale.prepend_translation(&-ct).append_translation(&ct), |ui| {
                 ui.fill_rect(r, c);
                 r.x += pause_w * 2.;
                 ui.fill_rect(r, c);
@@ -244,7 +244,7 @@ impl GameScene {
         let dest = 2. * res.time / res.track_length;
         self.chart.with_element(&mut ui, res, UIElement::Bar, |ui, alpha, scale| {
             let ct = Vector::new(0., top + height / 2.);
-            ui.with(scale.prepend_translation(&ct).append_translation(&-ct), |ui| {
+            ui.with(scale.prepend_translation(&-ct).append_translation(&ct), |ui| {
                 ui.fill_rect(Rect::new(-1., top, dest, height), Color::new(1., 1., 1., 0.6 * res.alpha * alpha));
                 ui.fill_rect(Rect::new(-1. + dest - hw, top, hw * 2., height), Color { a: c.a * alpha, ..c });
             });
