@@ -36,10 +36,12 @@ fn process_lines(v: &mut [crate::core::JudgeLine]) {
     }
     times.sort();
     let mut mt = Vec::new();
-    for i in 0..(times.len() - 1) {
-        // since times are generated in the same way, theoretically we can compare them directly
-        if times[i] == times[i + 1] && (i == 0 || times[i - 1] != times[i]) {
-            mt.push(*times[i]);
+    if !times.is_empty() {
+        for i in 0..(times.len() - 1) {
+            // since times are generated in the same way, theoretically we can compare them directly
+            if times[i] == times[i + 1] && (i == 0 || times[i - 1] != times[i]) {
+                mt.push(*times[i]);
+            }
         }
     }
     for (line, idx) in v.iter_mut().zip(sorts.iter()) {
