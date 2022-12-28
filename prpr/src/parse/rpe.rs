@@ -320,7 +320,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32) -> 
     let cache = JudgeLineCache::new(&mut notes);
     Ok(JudgeLine {
         object: Object {
-            alpha: events_with_factor(r, &event_layers, |it| &it.alpha_events, |v| if v >= 0.0 { v / 255. } else { v }, "alpha")?,
+            alpha: events_with_factor(r, &event_layers, |it| &it.alpha_events, |v| v / 255., "alpha")?,
             rotation: events_with_factor(r, &event_layers, |it| &it.rotate_events, |v| -v, "rotate")?,
             translation: AnimVector(
                 events_with_factor(r, &event_layers, |it| &it.move_x_events, |v| v * 2. / RPE_WIDTH, "move X")?,
