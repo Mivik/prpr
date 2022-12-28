@@ -253,7 +253,7 @@ async fn main() -> Result<()> {
         } else if v_config.hardware_accel {
             bail!("不支持硬件加速！");
         } else {
-            "libx264"
+            "libx264 -preset ultrafast"
         }
     )?;
 
