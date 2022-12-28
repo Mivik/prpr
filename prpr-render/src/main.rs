@@ -84,7 +84,11 @@ async fn main() -> Result<()> {
             bail!("请将谱面文件或文件夹拖动到该软件上！");
         };
         let config = match (|| -> Result<Config> {
-            Ok(serde_yaml::from_str(&std::fs::read_to_string(exe_dir.join("conf.yml")).context("无法加载配置文件")?)?)
+            Ok(serde_yaml::from_str(
+                &std::fs::read_to_string(exe_dir.join("conf.yml"))
+                    .or_else(|_| std::fs::read_to_string("conf.yml"))
+                    .context("无法加载配置文件")?,
+            )?)
         })() {
             Err(err) => {
                 warn!("无法加载配置文件：{:?}", err);
@@ -324,7 +328,7 @@ async fn main() -> Result<()> {
     info!("[3] 合并 & 压缩…");
     let mut proc = Command::new(ffmpeg)
         .args(
-            "-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -af loudnorm -vf format=yuv420p -c:a mp3 -map 0:v:0 -map 1:a:0 out.mp4"
+            "-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -vf format=yuv420p -c:a mp3 -map 0:v:0 -map 1:a:0 out.mp4"
                 .to_string()
                 .split_whitespace(),
         )

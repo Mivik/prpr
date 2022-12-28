@@ -106,6 +106,12 @@ impl Effect {
     }
 }
 
+impl Drop for Effect {
+    fn drop(&mut self) {
+        self.material.delete();
+    }
+}
+
 const VERTEX_SHADER: &str = r#"#version 130
 attribute vec3 position;
 attribute vec2 texcoord;
