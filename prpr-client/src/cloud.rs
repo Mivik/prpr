@@ -96,7 +96,7 @@ impl<T: LCObject> QueryBuilder<T> {
     }
 
     pub async fn send(self) -> Result<Vec<T>> {
-        parse_lc_many(Client::get(format!("/classes/{}", T::CLASS_NAME)).form(&self)).await
+        parse_lc_many(Client::get(format!("/classes/{}", T::CLASS_NAME)).form(&self).with_session()).await
     }
 }
 
