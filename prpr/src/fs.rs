@@ -4,6 +4,8 @@ use async_trait::async_trait;
 use concat_string::concat_string;
 use macroquad::prelude::load_file;
 use miniquad::warn;
+use serde::Deserialize;
+use serde_json::Value;
 use std::{
     any::Any,
     collections::HashMap,
@@ -46,7 +48,9 @@ pub fn update_zip<R: Read + Seek>(zip: &mut ZipArchive<R>, patches: HashMap<Stri
 #[async_trait]
 pub trait FileSystem: Send {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>>;
-    fn clone_box(&mut self) -> Box<dyn FileSystem>;
+    async fn exists(&mut self, path: &str) -> Result<bool>;
+    fn list_root(&self) -> Result<Vec<String>>;
+    fn clone_box(&self) -> Box<dyn FileSystem>;
     fn as_any(&mut self) -> &mut dyn Any;
 }
 
@@ -59,7 +63,16 @@ impl FileSystem for AssetsFileSystem {
         Ok(load_file(&concat_string!(self.0, path)).await?)
     }
 
-    fn clone_box(&mut self) -> Box<dyn FileSystem> {
+    async fn exists(&mut self, path: &str) -> Result<bool> {
+        // unlikely to be called
+        Ok(load_file(&concat_string!(self.0, path)).await.is_ok())
+    }
+
+    fn list_root(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    fn clone_box(&self) -> Box<dyn FileSystem> {
         Box::new(self.clone())
     }
 
@@ -85,7 +98,17 @@ impl FileSystem for ExternalFileSystem {
         }
     }
 
-    fn clone_box(&mut self) -> Box<dyn FileSystem> {
+    async fn exists(&mut self, path: &str) -> Result<bool> {
+        Ok(self.0.join(path).exists())
+    }
+
+    fn list_root(&self) -> Result<Vec<String>> {
+        Ok(std::fs::read_dir(&self.0)?
+            .filter_map(|res| Some(res.ok()?.file_name().into_string().ok()?))
+            .collect())
+    }
+
+    fn clone_box(&self) -> Box<dyn FileSystem> {
         Box::new(self.clone())
     }
 
@@ -124,7 +147,22 @@ impl FileSystem for ZipFileSystem {
         .await?
     }
 
-    fn clone_box(&mut self) -> Box<dyn FileSystem> {
+    async fn exists(&mut self, path: &str) -> Result<bool> {
+        Ok(self.0.lock().unwrap().by_name(path).is_ok())
+    }
+
+    fn list_root(&self) -> Result<Vec<String>> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .file_names()
+            .filter(|it| !it.contains('/'))
+            .map(str::to_owned)
+            .collect())
+    }
+
+    fn clone_box(&self) -> Box<dyn FileSystem> {
         Box::new(self.clone())
     }
 
@@ -137,7 +175,7 @@ pub struct PatchedFileSystem(pub Box<dyn FileSystem>, pub HashMap<String, Vec<u8
 
 #[async_trait]
 impl FileSystem for PatchedFileSystem {
-     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
+    async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
         if let Some(data) = self.1.get(path) {
             Ok(data.clone())
         } else {
@@ -145,7 +183,18 @@ impl FileSystem for PatchedFileSystem {
         }
     }
 
-    fn clone_box(&mut self) -> Box<dyn FileSystem> {
+    async fn exists(&mut self, path: &str) -> Result<bool> {
+        Ok(self.0.exists(path).await? || self.1.contains_key(path))
+    }
+
+    fn list_root(&self) -> Result<Vec<String>> {
+        let mut res = self.0.list_root()?;
+        res.extend(self.1.keys().map(|s| s.clone()));
+        res.dedup();
+        Ok(res)
+    }
+
+    fn clone_box(&self) -> Box<dyn FileSystem> {
         unimplemented!()
     }
 
@@ -240,7 +289,86 @@ fn info_from_csv(bytes: Vec<u8>) -> Result<ChartInfo> {
     )
 }
 
-pub async fn load_info(mut fs: Box<dyn FileSystem>) -> Result<(ChartInfo, Box<dyn FileSystem>)> {
+pub async fn fix_info(fs: &mut dyn FileSystem, info: &mut ChartInfo) -> Result<()> {
+    enum FileStatus {
+        None,
+        One(String),
+        Multiple,
+    }
+    async fn get(fs: &mut dyn FileSystem, path: &mut String) -> Result<Option<String>> {
+        Ok(if fs.exists(path).await? { Some(std::mem::take(path)) } else { None })
+    }
+    let mut chart = get(fs, &mut info.chart).await?;
+    let mut music = get(fs, &mut info.music).await?;
+    let mut illustration = get(fs, &mut info.illustration).await?;
+    fn put(desc: &str, status: &mut Option<String>, value: String) {
+        if status.is_some() {
+            warn!("Found multiple {}, using the first one", desc);
+        } else {
+            *status = Some(value);
+        }
+    }
+    for file in fs.list_root().context("Cannot list files")? {
+        if let Some((_, ext)) = file.rsplit_once('.') {
+            match ext.to_ascii_lowercase().as_str() {
+                "json" | "pec" => {
+                    put("charts", &mut chart, file);
+                }
+                "mp3" | "ogg" | "wav" | "flac" | "aac" => {
+                    put("music files", &mut music, file);
+                }
+                "png" | "jpg" | "jpeg" | "bmp" | "gif" | "webp" | "avif" | "ppm" => {
+                    put("illustrations", &mut illustration, file);
+                }
+                _ => {}
+            }
+        }
+    }
+    if let Some(chart) = chart {
+        info.chart = chart;
+        if let Ok(s) = String::from_utf8(fs.load_file(&info.chart).await?) {
+            if let Ok(mut value) = serde_json::from_str::<Value>(&s) {
+                #[derive(Deserialize)]
+                struct RPEMeta {
+                    name: String,
+                    level: String,
+                    background: String,
+                    charter: String,
+                    composer: Option<String>,
+                    illustrator: Option<String>,
+                    song: String,
+                }
+                if let Ok(meta) = serde_json::from_value::<RPEMeta>(value["META"].take()) {
+                    info.name = meta.name;
+                    infer_diff(info, &meta.level);
+                    info.level = meta.level;
+                    info.illustration = meta.background;
+                    info.charter = meta.charter;
+                    if let Some(val) = meta.composer {
+                        info.composer = val;
+                    }
+                    if let Some(val) = meta.illustrator {
+                        info.illustrator = val;
+                    }
+                    info.music = meta.song;
+                    music = None;
+                    illustration = None;
+                }
+            }
+        }
+    } else {
+        bail!("Cannot find chart");
+    }
+    if let Some(music) = music {
+        info.music = music;
+    }
+    if let Some(illustration) = illustration {
+        info.illustration = illustration;
+    }
+    Ok(())
+}
+
+pub async fn load_info(fs: &mut dyn FileSystem) -> Result<ChartInfo> {
     let info = if let Ok(bytes) = fs.load_file("info.yml").await {
         serde_yaml::from_str(&String::from_utf8(bytes)?)?
     } else if let Ok(bytes) = fs.load_file("info.txt").await {
@@ -248,9 +376,12 @@ pub async fn load_info(mut fs: Box<dyn FileSystem>) -> Result<(ChartInfo, Box<dy
     } else if let Ok(bytes) = fs.load_file("info.csv").await {
         info_from_csv(bytes)?
     } else {
-        bail!("None of info.yml, info.txt and info.csv is found");
+        warn!("None of info.yml, info.txt and info.csv is found, inferring");
+        let mut info = ChartInfo::default();
+        fix_info(fs, &mut info).await?;
+        info
     };
-    Ok((info, fs))
+    Ok(info)
 }
 
 pub fn fs_from_file(path: &Path) -> Result<Box<dyn FileSystem>> {

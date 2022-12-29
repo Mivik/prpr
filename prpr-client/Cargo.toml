@@ -17,6 +17,7 @@ macroquad = { version = "*", default-features = false }
 md5 = "0.7"
 once_cell = "*"
 openssl = { version = "*", features = ["vendored"] }
+pollster = "0.2.5"
 prpr = { path = "../prpr" }
 regex = "1.7.0"
 reqwest = "0.11"

@@ -1,3 +1,5 @@
+use std::ops::DerefMut;
+
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
 use prpr::{build_conf, core::init_assets, fs, scene::LoadingScene, time::TimeManager, ui::Ui, Main};
@@ -7,7 +9,7 @@ async fn main() -> Result<()> {
     init_assets();
 
     #[cfg(target_arch = "wasm32")]
-    let (fs, config) = {
+    let (mut fs, config) = {
         fn js_err(err: wasm_bindgen::JsValue) -> anyhow::Error {
             anyhow::Error::msg(format!("{err:?}"))
         }
@@ -22,9 +24,9 @@ async fn main() -> Result<()> {
         )
     };
     #[cfg(any(target_os = "android", target_os = "ios"))]
-    let (fs, config) = (fs::fs_from_assets("moment")?, None);
+    let (mut fs, config) = (fs::fs_from_assets("moment")?, None);
     #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))]
-    let (fs, config) = {
+    let (mut fs, config) = {
         let mut args = std::env::args();
         let program = args.next().unwrap();
         let Some(path) = args.next() else {
@@ -56,7 +58,7 @@ async fn main() -> Result<()> {
 
     let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
 
-    let (info, fs) = fs::load_info(fs).await?;
+    let info = fs::load_info(fs.deref_mut()).await?;
     let config = config.unwrap_or_default();
 
     let mut fps_time = -1;

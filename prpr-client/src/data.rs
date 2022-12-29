@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Result;
 use prpr::{config::Config, info::ChartInfo};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::DerefMut};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -84,9 +84,9 @@ impl Data {
                 continue;
             }
             let path = entry.path();
-            let fs = prpr::fs::fs_from_file(&path)?;
-            let result = prpr::fs::load_info(fs).await;
-            if let Ok((info, _)) = result {
+            let mut fs = prpr::fs::fs_from_file(&path)?;
+            let result = prpr::fs::load_info(fs.deref_mut()).await;
+            if let Ok(info) = result {
                 self.charts.push(LocalChart {
                     info: BriefChartInfo { id: None, ..info.into() },
                     path: filename,

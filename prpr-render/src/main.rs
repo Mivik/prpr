@@ -19,7 +19,7 @@ use prpr::{ext::screen_aspect, scene::BILLBOARD};
 use std::{
     cell::RefCell,
     io::{BufWriter, Cursor, Write},
-    ops::Deref,
+    ops::{Deref, DerefMut},
     process::{Command, Stdio},
     rc::Rc,
     sync::Mutex,
@@ -90,7 +90,8 @@ async fn main() -> Result<()> {
         (path, config)
     };
 
-    let (info, mut fs) = fs::load_info(fs::fs_from_file(std::path::Path::new(&path))?).await?;
+    let mut fs = fs::fs_from_file(std::path::Path::new(&path))?;
+    let info = fs::load_info(fs.deref_mut()).await?;
 
     let chart = GameScene::load_chart(&mut fs, &info).await?;
     macro_rules! ld {

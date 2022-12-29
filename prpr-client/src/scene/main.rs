@@ -29,7 +29,7 @@ use std::{
     collections::HashMap,
     future::Future,
     io::Cursor,
-    sync::{atomic::{AtomicBool, Ordering, AtomicU32}, Mutex},
+    sync::{atomic::{AtomicBool, Ordering, AtomicU32}, Mutex}, ops::DerefMut,
 };
 use tempfile::NamedTempFile;
 
@@ -48,8 +48,8 @@ pub static TRANSIT_ID: AtomicU32 = AtomicU32::new(0);
 
 pub fn illustration_task(path: String) -> Task<Result<DynamicImage>> {
     Task::new(async move {
-        let fs = fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
-        let (info, mut fs) = fs::load_info(fs).await?;
+        let mut fs = fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
+        let info = fs::load_info(fs.deref_mut()).await?;
         Ok(image::load_from_memory(&fs.load_file(&info.illustration).await?)?)
     })
 }
@@ -861,8 +861,8 @@ impl Scene for MainScene {
                     async fn import(from: String) -> Result<LocalChart> {
                         let file = NamedTempFile::new_in(dir::custom_charts()?)?.keep()?.1;
                         std::fs::copy(from, &file).context("Failed to save")?;
-                        let fs = fs::fs_from_file(std::path::Path::new(&file))?;
-                        let (info, _) = fs::load_info(fs).await?;
+                        let mut fs = fs::fs_from_file(std::path::Path::new(&file))?;
+                        let info = fs::load_info(fs.deref_mut()).await?;
                         Ok(LocalChart {
                             info: BriefChartInfo {
                                 id: Option::None,

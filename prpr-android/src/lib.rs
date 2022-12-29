@@ -13,7 +13,7 @@ use prpr::{
 };
 use std::{
     ffi::CString,
-    sync::{mpsc, Mutex},
+    sync::{mpsc, Mutex}, ops::DerefMut,
 };
 
 #[cfg(not(target_os = "android"))]
@@ -43,7 +43,7 @@ async fn the_main() -> Result<()> {
         fs::fs_from_file(&std::path::Path::new(&path))?
     };
 
-    let (info, fs) = fs::load_info(fs).await?;
+    let info = fs::load_info(fs.deref_mut()).await?;
 
     let config = CONFIG.lock().unwrap().take().unwrap_or_default();
 
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_getChartName(
         let mut future = Box::pin(tokio::spawn(fs::load_info(Box::new(ZipFileSystem::new(vec).context("Failed to load the zip")?))));
         loop {
             if let Some(info) = poll_future(future.as_mut()) {
-                break Ok(info??.0.name);
+                break Ok(info??.name);
             }
             std::thread::yield_now();
         }

@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use image::DynamicImage;
 use macroquad::prelude::*;
+use pollster::FutureExt;
 use prpr::{
     config::Config,
     core::Tweenable,
@@ -20,6 +21,7 @@ use prpr::{
 };
 use std::{
     future::Future,
+    ops::DerefMut,
     pin::Pin,
     sync::{atomic::Ordering, Mutex},
 };
@@ -169,8 +171,8 @@ impl SongScene {
 
             info_task: Some(Task::new(async move {
                 let info: Result<ChartInfo> = async {
-                    let fs = fs_from_path(&path)?;
-                    Ok(fs::load_info(fs).await?.0)
+                    let mut fs = fs_from_path(&path)?;
+                    Ok(fs::load_info(fs.deref_mut()).await?)
                 }
                 .await;
                 match info {
@@ -311,8 +313,24 @@ impl SongScene {
                 let pad = 0.03;
                 let width = EDIT_CHART_INFO_WIDTH - pad;
                 self.edit_scroll.size((width, ui.top * 2. - h));
-                self.edit_scroll
-                    .render(ui, |ui| render_chart_info(ui, self.info_edit.as_mut().unwrap(), width));
+                self.edit_scroll.render(ui, |ui| {
+                    let (w, mut h) = render_chart_info(ui, self.info_edit.as_mut().unwrap(), width);
+                    ui.dx(0.02);
+                    ui.dy(h);
+                    let r = Rect::new(0., 0., EDIT_CHART_INFO_WIDTH - 0.2, 0.06);
+                    if ui.button("fix", r, "自动修复谱面") {
+                        if let Err(err) =
+                            fs::fix_info(fs_from_path(&self.chart.path).unwrap().deref_mut(), &mut self.info_edit.as_mut().unwrap().info).block_on()
+                        {
+                            warn!("{:?}", err);
+                            show_message(format!("修复失败：{err:?}"));
+                        } else {
+                            show_message("修复成功");
+                        }
+                    }
+                    h += r.h + s;
+                    (w, h)
+                });
                 let vpad = 0.02;
                 let hpad = 0.01;
                 let dx = width / 3.;
