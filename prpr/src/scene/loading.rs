@@ -148,15 +148,17 @@ impl Scene for LoadingScene {
         let h = r.h / 3.6;
         let main = Rect::new(-0.88, vo - h / 2. - top / 10., 0.78, h);
         draw_parallelogram(main, None, Color::new(0., 0., 0., 0.7), true);
-        draw_text_aligned(
-            self.font,
-            &self.info.name,
-            main.x + main.w * 0.09,
-            main.y + main.h * 0.36,
-            (0., 0.5),
-            if self.info.name.len() > 9 { 0.6 } else { 0.84 },
-            WHITE,
-        );
+        let mut size = 0.84;
+        let p = (main.x + main.w * 0.09, main.y + main.h * 0.36);
+        loop {
+            let text = ui.text(&self.info.name).pos(p.0, p.1).anchor(0., 0.5).size(size);
+            if text.measure().w > main.w * 0.6 {
+                size *= 0.93;
+            } else {
+                text.draw();
+                break;
+            }
+        }
         draw_text_aligned(self.font, &self.info.composer, main.x + main.w * 0.09, main.y + main.h * 0.73, (0., 0.5), 0.36, WHITE);
 
         let ext = 0.06;
