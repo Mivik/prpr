@@ -114,6 +114,7 @@ impl Effect {
         }
         add_uniform(("time".to_owned(), UniformType::Float1));
         add_uniform(("screenSize".to_owned(), UniformType::Float2));
+        add_uniform(("UVScale".to_owned(), UniformType::Float2));
         for u in &uniforms {
             add_uniform(u.uniform_pair());
         }
@@ -154,7 +155,10 @@ impl Effect {
             uniform.apply(&self.material);
         }
         self.material.set_uniform("time", self.t);
-        self.material.set_uniform("screenSize", vec2(screen_width(), screen_height()));
+        let screen_dim = vec2(screen_width(), screen_height());
+        self.material.set_uniform("screenSize", screen_dim);
+        let vp = res.camera.viewport.unwrap();
+        self.material.set_uniform("UVScale", vec2(vp.2 as _, vp.3 as _) / screen_dim);
 
         gl_use_material(self.material);
         let top = 1. / res.aspect_ratio;
@@ -178,8 +182,9 @@ varying vec2 uv;
 
 uniform mat4 Model;
 uniform mat4 Projection;
+uniform vec2 UVScale;
 
 void main() {
     gl_Position = Projection * Model * vec4(position, 1);
-    uv = texcoord;
+    uv = (texcoord - vec2(0.5)) * UVScale + vec2(0.5);
 }"#;
