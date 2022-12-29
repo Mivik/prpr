@@ -39,10 +39,7 @@ pub use tween::{easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, 
 
 pub fn init_assets() {
     if let Ok(mut exe) = std::env::current_exe() {
-        loop {
-            if !exe.pop() {
-                panic!("Cannot find assets");
-            }
+        while exe.pop() {
             if exe.join("assets").exists() {
                 std::env::set_current_dir(exe).unwrap();
                 break;
