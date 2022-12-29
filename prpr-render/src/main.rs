@@ -32,6 +32,7 @@ struct VideoConfig {
     fps: u32,
     resolution: (u32, u32),
     hardware_accel: bool,
+    ending_length: f64,
 }
 
 impl Default for VideoConfig {
@@ -40,6 +41,7 @@ impl Default for VideoConfig {
             fps: 60,
             resolution: (1920, 1080),
             hardware_accel: false,
+            ending_length: 27.5,
         }
     }
 }
@@ -224,7 +226,7 @@ async fn main() -> Result<()> {
     let fps = v_config.fps;
     let frame_delta = 1. / fps as f32;
     let length = track_length - chart.offset.min(0.) as f64 + 1.;
-    let video_length = O + length + A + ending.duration().as_secs_f64();
+    let video_length = O + length + A + v_config.ending_length;
 
     let output = Command::new(&ffmpeg).arg("-codecs").output().context("无法执行 ffmpeg")?;
     let codecs = String::from_utf8(output.stdout)?;
@@ -296,9 +298,11 @@ async fn main() -> Result<()> {
     }
     let mut place = |pos: f64, clip: &AudioClip| {
         let position = (pos * sample_rate as f64).round() as usize * 2;
-        let mut it = output[position..].iter_mut();
+        let slice = &mut output[position..];
+        let len = (slice.len() / 2).min(clip.frames.len());
+        let mut it = slice.iter_mut();
         // TODO optimize?
-        for frame in clip.frames.iter() {
+        for frame in clip.frames[..len].iter() {
             let dst = it.next().unwrap();
             *dst += frame.left;
             let dst = it.next().unwrap();

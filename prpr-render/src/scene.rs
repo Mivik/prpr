@@ -1,4 +1,4 @@
-use crate::{INFO_EDIT, VIDEO_CONFIG, VideoConfig};
+use crate::{VideoConfig, INFO_EDIT, VIDEO_CONFIG};
 use anyhow::{bail, Result};
 use macroquad::prelude::*;
 use prpr::{
@@ -100,7 +100,8 @@ impl Scene for MainScene {
                     }
                     ui.dy(r.h + pad);
                     h += r.h;
-                    let mut string=  self.v_config.fps.to_string();
+
+                    let mut string = self.v_config.fps.to_string();
                     let old = string.clone();
                     let r = ui.input("FPS", &mut string, 0.8);
                     if string != old {
@@ -116,6 +117,27 @@ impl Scene for MainScene {
                     }
                     ui.dy(r.h + pad);
                     h += r.h;
+
+                    let mut string = format!("{:.2}", self.v_config.ending_length);
+                    let old = string.clone();
+                    let r = ui.input("结算时间", &mut string, 0.8);
+                    if string != old {
+                        match string.parse::<f64>() {
+                            Err(err) => {
+                                warn!("{:?}", err);
+                                show_message("输入非法");
+                            }
+                            Ok(value) => {
+                                if !value.is_finite() || value < 0. {
+                                    show_message("输入非法");
+                                }
+                                self.v_config.ending_length = value;
+                            }
+                        }
+                    }
+                    ui.dy(r.h + pad);
+                    h += r.h;
+
                     let r = ui.checkbox("启用硬件加速", &mut self.v_config.hardware_accel);
                     ui.dy(r.h + pad);
                     h += r.h;
