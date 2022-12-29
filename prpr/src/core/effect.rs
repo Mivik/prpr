@@ -155,7 +155,12 @@ impl Effect {
             uniform.apply(&self.material);
         }
         self.material.set_uniform("time", self.t);
-        let screen_dim = vec2(screen_width(), screen_height());
+        let screen_dim = if let Some(pass) = unsafe { get_internal_gl() }.quad_gl.get_active_render_pass() {
+            let tex = pass.texture(unsafe { get_internal_gl() }.quad_context);
+            vec2(tex.width as _, tex.height as _)
+        } else {
+            vec2(screen_width(), screen_height())
+        };
         self.material.set_uniform("screenSize", screen_dim);
         let vp = res.camera.viewport.unwrap();
         self.material.set_uniform("UVScale", vec2(vp.2 as _, vp.3 as _) / screen_dim);
