@@ -1,4 +1,4 @@
-use super::{AnimFloat, AnimVector, Color, Matrix, Resource};
+use super::{AnimFloat, AnimVector, Color, Matrix, Resource, Vector};
 use macroquad::prelude::*;
 use nalgebra::Rotation2;
 
@@ -30,19 +30,32 @@ impl Object {
     }
 
     pub fn now(&self, res: &Resource) -> Matrix {
-        let mut tr = self.translation.now();
-        tr.y /= res.aspect_ratio;
-        Rotation2::new(self.rotation.now().to_radians()).to_homogeneous().append_translation(&tr)
+        self.now_rotation().append_translation(&self.now_translation(res))
     }
 
+    #[inline]
+    pub fn now_rotation(&self) -> Matrix {
+        Rotation2::new(self.rotation.now().to_radians()).to_homogeneous()
+    }
+
+    #[inline]
+    pub fn now_translation(&self, res: &Resource) -> Vector {
+        let mut tr = self.translation.now();
+        tr.y /= res.aspect_ratio;
+        tr
+    }
+
+    #[inline]
     pub fn now_alpha(&self) -> f32 {
         self.alpha.now_opt().unwrap_or(1.0).max(0.)
     }
 
+    #[inline]
     pub fn now_color(&self) -> Color {
         Color::new(1.0, 1.0, 1.0, self.now_alpha())
     }
 
+    #[inline]
     pub fn now_scale(&self) -> Matrix {
         Matrix::identity().append_nonuniform_scaling(&self.scale.now_with_def(1.0, 1.0))
     }

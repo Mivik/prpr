@@ -4,6 +4,7 @@ use crate::{
     judge::JudgeStatus,
 };
 use macroquad::prelude::*;
+use nalgebra::Rotation2;
 use serde::Deserialize;
 
 #[derive(Clone, Copy, Deserialize)]
@@ -96,8 +97,10 @@ impl JudgeLine {
         let color = self.color.now_opt();
         res.with_model(
             if let Some(parent) = self.parent {
-                // TODO currently we're only resolving one layer
-                lines[parent].object.now(res) * self.object.now(res)
+                let po = &lines[parent].object;
+                let mut tr = Rotation2::new(po.rotation.now().to_radians()) * self.object.now_translation(res);
+                tr += po.now_translation(res);
+                self.object.now_rotation().append_translation(&tr)
             } else {
                 self.object.now(res)
             },
