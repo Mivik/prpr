@@ -506,13 +506,14 @@ impl Scene for GameScene {
             render_target: res.camera.render_target,
             ..Default::default()
         });
+        let top = 1. / screen_aspect();
         draw_texture_ex(
             res.chart_target.0.as_ref().unwrap().texture,
             -1.,
-            -h,
+            -top,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(2., h * 2.)),
+                dest_size: Some(vec2(2., top * 2.)),
                 flip_y: true,
                 ..Default::default()
             },
