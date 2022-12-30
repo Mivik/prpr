@@ -1,6 +1,6 @@
 use crate::{
     core::{BadNote, Chart, NoteKind, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
-    ext::{NotNanExt, get_viewport},
+    ext::{get_viewport, NotNanExt},
 };
 use macroquad::prelude::{
     utils::{register_input_subscriber, repeat_all_miniquad_input},
@@ -308,14 +308,11 @@ impl Judge {
         }
         let touches: Vec<Touch> = touches.into_values().collect();
         // pos[line][touch]
-        let mut index = 0;
-        let pos: Vec<Vec<Option<Point>>> = chart
-            .lines
-            .iter_mut()
-            .map(|line| {
-                index += 1;
-                line.object.set_time(t);
-                let inv = line.object.now(res).try_inverse().unwrap();
+        let mut pos = Vec::<Vec<Option<Point>>>::with_capacity(chart.lines.len());
+        for id in 0..pos.len() {
+            chart.lines[id].object.set_time(t);
+            let inv = chart.lines[id].now_transform(res, &chart.lines).try_inverse().unwrap();
+            pos.push(
                 touches
                     .iter()
                     .map(|touch| {
@@ -330,9 +327,9 @@ impl Judge {
                             None
                         }
                     })
-                    .collect()
-            })
-            .collect();
+                    .collect(),
+            );
+        }
         let mut judgements = Vec::new();
         // clicks & flicks
         for (id, touch) in touches.iter().enumerate() {
@@ -540,6 +537,7 @@ impl Judge {
             chart.lines[line_id].notes[id as usize].object.set_time(t);
             let line = &chart.lines[line_id];
             let note = &line.notes[id as usize];
+            let line_tr = line.now_transform(res, &chart.lines);
             self.commit(
                 judgement,
                 if matches!(judgement, Judgement::Good | Judgement::Bad) {
@@ -553,11 +551,11 @@ impl Judge {
             }
             if match judgement {
                 Judgement::Perfect => {
-                    res.with_model(line.object.now(res) * note.object.now(res), |res| res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR));
+                    res.with_model(line_tr * note.object.now(res), |res| res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR));
                     true
                 }
                 Judgement::Good => {
-                    res.with_model(line.object.now(res) * note.object.now(res), |res| res.emit_at_origin(JUDGE_LINE_GOOD_COLOR));
+                    res.with_model(line_tr * note.object.now(res), |res| res.emit_at_origin(JUDGE_LINE_GOOD_COLOR));
                     true
                 }
                 Judgement::Bad => {
@@ -566,7 +564,7 @@ impl Judge {
                             time: t,
                             kind: note.kind.clone(),
                             matrix: {
-                                let mut mat = line.object.now(res);
+                                let mut mat = line_tr;
                                 if !note.above {
                                     mat.append_nonuniform_scaling_mut(&Vector::new(1., -1.));
                                 }
@@ -638,12 +636,17 @@ impl Judge {
         }
         for (line_id, id) in judgements.into_iter() {
             self.commit(Judgement::Perfect, None);
-            let line = &mut chart.lines[line_id];
-            let note = &mut line.notes[id as usize];
-            line.object.set_time(t);
-            note.object.set_time(t);
-            res.with_model(line.object.now(res) * note.object.now(res), |res| res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR));
-            if let Some(sfx) = match note.kind {
+            let (note_transform, note_kind) = {
+                let line = &mut chart.lines[line_id];
+                let note = &mut line.notes[id as usize];
+                line.object.set_time(t);
+                note.object.set_time(t);
+                (note.object.now(res), note.kind.clone())
+            };
+            res.with_model(chart.lines[line_id].now_transform(res, &chart.lines) * note_transform, |res| {
+                res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR)
+            });
+            if let Some(sfx) = match note_kind {
                 NoteKind::Click => Some(&res.sfx_click),
                 NoteKind::Drag => Some(&res.sfx_drag),
                 NoteKind::Flick => Some(&res.sfx_flick),
