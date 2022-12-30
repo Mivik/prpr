@@ -2,13 +2,14 @@ use super::{Matrix, Point, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE};
 use crate::{
     audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
-    ext::{SafeTexture, nalgebra_to_glm},
+    ext::{nalgebra_to_glm, SafeTexture},
     fs::FileSystem,
     info::ChartInfo,
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
 };
 use anyhow::Result;
 use macroquad::prelude::*;
+use miniquad::TextureFormat;
 use std::sync::atomic::AtomicU32;
 
 pub static DPI_VALUE: AtomicU32 = AtomicU32::new(250);
@@ -125,7 +126,30 @@ pub struct Resource {
     pub sfx_drag: AudioClip,
     pub sfx_flick: AudioClip,
 
+    pub chart_target: (Option<RenderTarget>, Option<RenderTarget>),
+
     pub model_stack: Vec<Matrix>,
+}
+
+pub fn new_render_target() -> Option<RenderTarget> {
+    let gl = unsafe { get_internal_gl() };
+    let texture = miniquad::Texture::new_render_texture(
+        gl.quad_context,
+        miniquad::TextureParams {
+            width: screen_width() as u32,
+            height: screen_height() as u32,
+            format: TextureFormat::RGB8,
+            ..Default::default()
+        },
+    );
+    let target = Some({
+        let render_pass = miniquad::RenderPass::new(gl.quad_context, texture, None);
+        RenderTarget {
+            texture: Texture2D::from_miniquad_texture(texture),
+            render_pass,
+        }
+    });
+    target
 }
 
 impl Resource {
@@ -215,6 +239,7 @@ impl Resource {
         let aspect_ratio = config.aspect_ratio.unwrap_or(info.aspect_ratio);
         let note_width = config.note_scale * NOTE_WIDTH_RATIO_BASE;
         let note_scale = config.note_scale;
+
         Ok(Self {
             config,
             info,
@@ -261,6 +286,8 @@ impl Resource {
             sfx_drag,
             sfx_flick,
 
+            chart_target: (None, None),
+
             model_stack: vec![Matrix::identity()],
         })
     }
@@ -277,6 +304,11 @@ impl Resource {
         if self.last_screen_size == dim {
             return false;
         }
+        if let (Some(a), Some(b)) = self.chart_target {
+            a.delete();
+            b.delete();
+        }
+        self.chart_target = (new_render_target(), new_render_target());
         fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {
             let w = w as f32;
             let h = h as f32;

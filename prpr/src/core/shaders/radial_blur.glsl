@@ -3,7 +3,7 @@
 precision mediump float;
 
 varying lowp vec2 uv;
-uniform sampler2D _ScreenTexture;
+uniform sampler2D screenTexture;
 
 uniform float centerX; // %0.5%
 uniform float centerY; // %0.5%
@@ -17,7 +17,7 @@ void main() {
   vec2 screen_uv = uv / 2.0 + vec2(0.5, 0.5);
   for (float i = 0.0; i < 64.0; ++i) {
     if (i >= sampleCount) break;
-    c += texture2D(_ScreenTexture, uv - power * direction * i).rgb * f;
+    c += texture2D(screenTexture, uv - power * direction * i).rgb * f;
   }
   gl_FragColor.rgb = c;
 }

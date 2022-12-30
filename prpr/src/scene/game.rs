@@ -14,7 +14,7 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
 use macroquad::{prelude::*, window::InternalGlContext};
-use std::{rc::Rc, ops::DerefMut};
+use std::{ops::DerefMut, rc::Rc};
 
 const WAIT_TIME: f32 = 0.5;
 const AFTER_TIME: f32 = 0.7;
@@ -470,6 +470,35 @@ impl Scene for GameScene {
         if res.update_size(dim) {
             set_camera(&res.camera);
         }
+
+        let old_pass = self.gl.quad_gl.get_active_render_pass();
+        self.gl.quad_gl.render_pass(res.chart_target.0.map(|it| it.render_pass));
+
+        push_camera_state();
+        self.gl.quad_gl.viewport(None);
+        set_camera(&Camera2D {
+            zoom: vec2(1., -screen_aspect()),
+            render_target: res.chart_target.0,
+            ..Default::default()
+        });
+        draw_background(*res.background);
+        set_camera(&Camera2D {
+            zoom: vec2(1., -screen_aspect()),
+            render_target: res.chart_target.1,
+            ..Default::default()
+        });
+        draw_background(*res.background);
+        pop_camera_state();
+        self.gl.quad_gl.viewport(res.camera.viewport);
+
+        let h = 1. / res.aspect_ratio;
+        draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
+
+        self.chart.render(res);
+        self.gl.flush();
+        self.gl.quad_gl.render_pass(old_pass);
+
+        // render the texture onto screen
         push_camera_state();
         self.gl.quad_gl.viewport(None);
         set_camera(&Camera2D {
@@ -477,13 +506,20 @@ impl Scene for GameScene {
             render_target: res.camera.render_target,
             ..Default::default()
         });
-        draw_background(*res.background);
+        draw_texture_ex(
+            res.chart_target.0.as_ref().unwrap().texture,
+            -1.,
+            -h,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(2., h * 2.)),
+                flip_y: true,
+                ..Default::default()
+            },
+        );
         pop_camera_state();
-
         self.gl.quad_gl.viewport(res.camera.viewport);
-        let h = 1. / res.aspect_ratio;
-        draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
-        self.chart.render(res);
+
         self.bad_notes.retain(|dummy| dummy.render(res));
         let t = tm.real_time();
         let dt = (t - std::mem::replace(&mut self.last_update_time, t)) as f32;

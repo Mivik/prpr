@@ -12,8 +12,8 @@ base64 = "0.20"
 chrono = { version = "0.4.23", features = ["serde"] }
 image = "*"
 lyon = "*"
-# macroquad = { version = "*", default-features = false }
-macroquad = { path = "../../macroquad", default-features = false }
+macroquad = { version = "*", default-features = false }
+# # macroquad = { path = "../../macroquad", default-features = false }
 md5 = "0.7"
 once_cell = "*"
 openssl = { version = "*", features = ["vendored"] }

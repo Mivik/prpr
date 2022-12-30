@@ -3,7 +3,7 @@
 precision highp float;
 
 varying lowp vec2 uv;
-uniform sampler2D _ScreenTexture;
+uniform sampler2D screenTexture;
 uniform float time;
 
 uniform float power; // %0.03%
@@ -26,15 +26,15 @@ void main() {
   vec2 fixed_uv = uv;
   fixed_uv.x += (random((trunc(uv.y * blockSize) / blockSize) + time) - 0.5) * power * enable_shift;
 
-  vec4 pixel_color = texture2D(_ScreenTexture, fixed_uv);
+  vec4 pixel_color = texture2D(screenTexture, fixed_uv);
   pixel_color.r = mix(
     pixel_color.r,
-    texture2D(_ScreenTexture, fixed_uv + vec2(colorRate, 0.0)).r,
+    texture2D(screenTexture, fixed_uv + vec2(colorRate, 0.0)).r,
     enable_shift
   );
   pixel_color.b = mix(
     pixel_color.b,
-    texture2D(_ScreenTexture, fixed_uv + vec2(-colorRate, 0.0)).b,
+    texture2D(screenTexture, fixed_uv + vec2(-colorRate, 0.0)).b,
     enable_shift
   );
   gl_FragColor = pixel_color;

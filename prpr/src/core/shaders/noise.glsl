@@ -3,7 +3,7 @@
 precision mediump float;
 
 varying lowp vec2 uv;
-uniform sampler2D _ScreenTexture;
+uniform sampler2D screenTexture;
 
 uniform float seed; // %81.0%
 uniform float power; // %0.03% 0..1
@@ -14,5 +14,5 @@ vec2 random(vec2 pos) {
 
 void main() {
   vec2 new_uv = uv + (random(uv + vec2(seed, 0.0)) - vec2(0.5, 0.5)) * power;
-  gl_FragColor = texture2D(_ScreenTexture, new_uv);
+  gl_FragColor = texture2D(screenTexture, new_uv);
 }

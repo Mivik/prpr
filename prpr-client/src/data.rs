@@ -84,7 +84,9 @@ impl Data {
                 continue;
             }
             let path = entry.path();
-            let mut fs = prpr::fs::fs_from_file(&path)?;
+            let Ok(mut fs) = prpr::fs::fs_from_file(&path) else {
+                continue;
+            };
             let result = prpr::fs::load_info(fs.deref_mut()).await;
             if let Ok(info) = result {
                 self.charts.push(LocalChart {

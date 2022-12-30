@@ -3,7 +3,7 @@
 precision mediump float;
 
 varying lowp vec2 uv;
-uniform sampler2D _ScreenTexture;
+uniform sampler2D screenTexture;
 
 uniform float levels; // %3%
 uniform float power; // %0.01%
@@ -25,7 +25,7 @@ void main() {
     slice = max(slice, 0.0);
     sum += slice;
     vec2 slice_offset = (t - 1.0) * power * offset;
-    c += slice * texture2D(_ScreenTexture, uv + slice_offset).rgb;
+    c += slice * texture2D(screenTexture, uv + slice_offset).rgb;
   }
   gl_FragColor.rgb = c / sum;
 }

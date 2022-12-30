@@ -14,6 +14,7 @@ static SHADERS: phf::Map<&'static str, &'static str> = phf_map! {
     "noise" => include_str!("shaders/noise.glsl"),
     "pixel" => include_str!("shaders/pixel.glsl"),
     "radialBlur" => include_str!("shaders/radial_blur.glsl"),
+    "shockwave" => include_str!("shaders/shockwave.glsl"),
 };
 
 pub trait UniformValue: Clone + Default {
@@ -127,6 +128,7 @@ impl Effect {
                 shader,
                 MaterialParams {
                     uniforms: new_uniforms,
+                    textures: vec!["screenTexture".to_owned()],
                     ..Default::default()
                 },
             )?,
@@ -144,10 +146,12 @@ impl Effect {
         }
     }
 
-    pub fn render(&self, res: &Resource) {
+    pub fn render(&self, res: &mut Resource) {
         if !self.time_range.contains(&self.t) {
             return;
         }
+        unsafe { get_internal_gl() }.flush();
+
         for def in &self.defaults {
             def.apply(&self.material);
         }
@@ -164,6 +168,13 @@ impl Effect {
         self.material.set_uniform("screenSize", screen_dim);
         let vp = res.camera.viewport.unwrap();
         self.material.set_uniform("UVScale", vec2(vp.2 as _, vp.3 as _) / screen_dim);
+
+        std::mem::swap(&mut res.chart_target.0, &mut res.chart_target.1);
+        let old_tex = res.chart_target.1.as_ref().unwrap().texture;
+        self.material.set_texture("screenTexture", old_tex);
+        unsafe { get_internal_gl() }
+            .quad_gl
+            .render_pass(res.chart_target.0.map(|it| it.render_pass));
 
         gl_use_material(self.material);
         let top = 1. / res.aspect_ratio;
