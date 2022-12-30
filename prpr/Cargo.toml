@@ -17,8 +17,8 @@ image = "0.24"
 lyon = "1.0.1"
 macroquad = { version = "0.3.25", default-features = false }
 miniquad = "*"
-# # macroquad = { path = "../../macroquad", default-features = false }
-# # miniquad = { path = "../../miniquad" }
+# macroquad = { path = "../../macroquad", default-features = false }
+# miniquad = { path = "../../miniquad" }
 nalgebra = "*"
 once_cell = "1.16.0"
 ordered-float = "3.4.0"
