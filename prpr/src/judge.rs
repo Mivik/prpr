@@ -309,7 +309,7 @@ impl Judge {
         let touches: Vec<Touch> = touches.into_values().collect();
         // pos[line][touch]
         let mut pos = Vec::<Vec<Option<Point>>>::with_capacity(chart.lines.len());
-        for id in 0..pos.len() {
+        for id in 0..pos.capacity() {
             chart.lines[id].object.set_time(t);
             let inv = chart.lines[id].now_transform(res, &chart.lines).try_inverse().unwrap();
             pos.push(
@@ -426,7 +426,7 @@ impl Judge {
             {
                 let note = &mut chart.lines[line_id].notes[id as usize];
                 let dt = (t - note.time).abs();
-                if dt <= LIMIT_BAD {
+                if dt <= if matches!(note.kind, NoteKind::Click) { LIMIT_BAD } else { LIMIT_GOOD } {
                     match note.kind {
                         NoteKind::Click => {
                             note.judge = JudgeStatus::Judged;
