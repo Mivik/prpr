@@ -9,9 +9,10 @@ use crate::{
 };
 use anyhow::Result;
 use macroquad::prelude::*;
-use miniquad::TextureFormat;
-use std::sync::atomic::AtomicU32;
+use miniquad::{gl::GLuint, Texture, TextureFormat};
+use std::{cell::RefCell, collections::BTreeMap, sync::atomic::AtomicU32};
 
+pub const MAX_SIZE: usize = 64; // needs tweaking
 pub static DPI_VALUE: AtomicU32 = AtomicU32::new(250);
 
 pub struct NoteStyle {
@@ -87,6 +88,39 @@ impl ParticleEmitter {
     }
 }
 
+pub struct NoteBuffer(BTreeMap<(i8, GLuint), Vec<(Vec<Vertex>, Vec<u16>)>>);
+impl Default for NoteBuffer {
+    fn default() -> Self {
+        Self(BTreeMap::new())
+    }
+}
+
+impl NoteBuffer {
+    pub fn push(&mut self, key: (i8, GLuint), vertices: [Vertex; 4]) {
+        let meshes = self.0.entry(key).or_default();
+        if meshes.last().map_or(true, |it| it.0.len() + 4 > MAX_SIZE * 4) {
+            meshes.push(Default::default());
+        }
+        let last = meshes.last_mut().unwrap();
+        let i = last.0.len() as u16;
+        last.0.extend_from_slice(&vertices);
+        last.1.extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
+    }
+
+    pub fn draw_all(&mut self) {
+        let mut gl = unsafe { get_internal_gl() };
+        gl.flush();
+        let gl = gl.quad_gl;
+        gl.draw_mode(DrawMode::Triangles);
+        for ((_, tex_id), meshes) in std::mem::take(&mut self.0).into_iter() {
+            gl.texture(Some(Texture2D::from_miniquad_texture(unsafe { Texture::from_raw_id(tex_id) })));
+            for mesh in meshes {
+                gl.geometry(&mesh.0, &mesh.1);
+            }
+        }
+    }
+}
+
 pub struct Resource {
     pub config: Config,
     pub info: ChartInfo,
@@ -127,6 +161,8 @@ pub struct Resource {
     pub sfx_flick: AudioClip,
 
     pub chart_target: (Option<RenderTarget>, Option<RenderTarget>),
+
+    pub note_buffer: RefCell<NoteBuffer>,
 
     pub model_stack: Vec<Matrix>,
 }
@@ -240,6 +276,7 @@ impl Resource {
         let note_width = config.note_scale * NOTE_WIDTH_RATIO_BASE;
         let note_scale = config.note_scale;
 
+        macroquad::window::gl_set_drawcall_buffer_capacity(MAX_SIZE * 4, MAX_SIZE * 6);
         Ok(Self {
             config,
             info,
@@ -287,6 +324,8 @@ impl Resource {
             sfx_flick,
 
             chart_target: (None, None),
+
+            note_buffer: RefCell::new(NoteBuffer::default()),
 
             model_stack: vec![Matrix::identity()],
         })

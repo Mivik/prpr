@@ -52,7 +52,7 @@ impl Default for RenderConfig {
     }
 }
 
-fn draw_tex(res: &Resource, texture: Texture2D, x: f32, y: f32, color: Color, params: DrawTextureParams) {
+fn draw_tex(res: &Resource, texture: Texture2D, order: i8, x: f32, y: f32, color: Color, params: DrawTextureParams) {
     let Vec2 { x: w, y: h } = params.dest_size.unwrap_or_else(|| {
         params
             .source
@@ -72,8 +72,6 @@ fn draw_tex(res: &Resource, texture: Texture2D, x: f32, y: f32, color: Color, pa
     {
         return;
     }
-    let gl = unsafe { get_internal_gl() }.quad_gl;
-
     let Rect { x: sx, y: sy, w: sw, h: sh } = params.source.unwrap_or(Rect { x: 0., y: 0., w: 1., h: 1. });
 
     if params.flip_x {
@@ -92,18 +90,17 @@ fn draw_tex(res: &Resource, texture: Texture2D, x: f32, y: f32, color: Color, pa
         Vertex::new(p[2].x, p[2].y, 0., sx + sw, sy + sh, color),
         Vertex::new(p[3].x, p[3].y, 0., sx     , sy + sh, color),
     ];
-    let indices: [u16; 6] = [0, 1, 2, 0, 2, 3];
-
-    gl.texture(Some(texture));
-    gl.draw_mode(DrawMode::Triangles);
-    gl.geometry(&vertices, &indices);
+    res.note_buffer
+        .borrow_mut()
+        .push((order, texture.raw_miniquad_texture_handle().gl_internal_id()), vertices);
 }
 
-fn draw_center(res: &Resource, tex: Texture2D, scale: f32, color: Color) {
+fn draw_center(res: &Resource, tex: Texture2D, order: i8, scale: f32, color: Color) {
     let hf = vec2(scale, tex.height() * scale / tex.width());
     draw_tex(
         res,
         tex,
+        order,
         -hf.x,
         -hf.y,
         color,
@@ -164,6 +161,7 @@ impl Note {
         {
             return;
         }
+        let order = self.kind.order();
         res.with_model(self.now_transform(res, base), |res| {
             let style = if res.config.multiple_hint && self.multiple_hint {
                 &res.note_style_mh
@@ -175,7 +173,7 @@ impl Note {
                 if !config.draw_below {
                     color.a *= (self.time - res.time).min(0.) / FADEOUT_TIME + 1.;
                 }
-                draw_center(res, tex, scale, color);
+                draw_center(res, tex, order, scale, color);
             };
             match self.kind {
                 NoteKind::Click => {
@@ -198,6 +196,7 @@ impl Note {
                         draw_tex(
                             res,
                             **tex,
+                            order,
                             -hf.x,
                             -hf.y * 2.,
                             color,
@@ -209,13 +208,13 @@ impl Note {
                         );
                     }
                     // body
-                    let tex = &style.hold;
                     let w = scale;
                     let h = if self.time <= res.time { line_height } else { height };
                     // TODO (end_height - height) is not always total height
                     draw_tex(
                         res,
-                        **tex,
+                        *style.hold,
+                        order,
                         -w,
                         h - line_height - base,
                         color,
@@ -237,6 +236,7 @@ impl Note {
                     draw_tex(
                         res,
                         **tex,
+                        order,
                         -hf.x,
                         end_height - line_height - base,
                         color,
@@ -278,6 +278,7 @@ impl BadNote {
                     NoteKind::Flick => *res.note_style.flick,
                     _ => unreachable!(),
                 },
+                self.kind.order(),
                 res.note_width,
                 Color::new(0.423529, 0.262745, 0.262745, (self.time - res.time).max(-1.) / BAD_TIME + 1.),
             )

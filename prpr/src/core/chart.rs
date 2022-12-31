@@ -1,5 +1,6 @@
 use super::{Effect, JudgeLine, Matrix, Resource, UIElement, Vector};
 use crate::{judge::JudgeStatus, ui::Ui};
+use macroquad::prelude::*;
 
 #[derive(Default)]
 pub struct Chart {
@@ -67,6 +68,7 @@ impl Chart {
             for id in &self.order {
                 self.lines[*id].render(res, &self.lines);
             }
+            res.note_buffer.borrow_mut().draw_all();
             for effect in &self.effects {
                 effect.render(res);
             }
