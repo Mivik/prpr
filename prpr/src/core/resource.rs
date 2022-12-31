@@ -131,13 +131,13 @@ pub struct Resource {
     pub model_stack: Vec<Matrix>,
 }
 
-pub fn new_render_target() -> Option<RenderTarget> {
+pub fn new_render_target(dim: (u32, u32)) -> Option<RenderTarget> {
     let gl = unsafe { get_internal_gl() };
     let texture = miniquad::Texture::new_render_texture(
         gl.quad_context,
         miniquad::TextureParams {
-            width: screen_width() as u32,
-            height: screen_height() as u32,
+            width: dim.0,
+            height: dim.1,
             format: TextureFormat::RGB8,
             ..Default::default()
         },
@@ -308,7 +308,7 @@ impl Resource {
             a.delete();
             b.delete();
         }
-        self.chart_target = (new_render_target(), new_render_target());
+        self.chart_target = (new_render_target(dim), new_render_target(dim));
         fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {
             let w = w as f32;
             let h = h as f32;
