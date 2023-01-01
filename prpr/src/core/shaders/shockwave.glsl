@@ -14,27 +14,27 @@ uniform float distortion; // %0.8%
 uniform float expand; // %10.0%
 
 void main() {
-    float aspect = screenSize.y / screenSize.x;
+  float aspect = screenSize.y / screenSize.x;
 
-    vec2 center = vec2(centerX, centerY);
-    center.y = (center.y - 0.5) * aspect + 0.5;
+  vec2 center = vec2(centerX, centerY);
+  center.y = (center.y - 0.5) * aspect + 0.5;
 
-	vec2 tex_coord = uv;
+  vec2 tex_coord = uv;
     tex_coord.y = (tex_coord.y - 0.5) * aspect + 0.5;
-	float dist = distance(tex_coord, center);
+  float dist = distance(tex_coord, center);
 
-	if (progress - width <= dist && dist <= progress + width) {
-		float diff = dist - progress;
-		float scale_diff = 1.0 - pow(abs(diff * expand), distortion);
-		float dt = diff * scale_diff;
+  if (progress - width <= dist && dist <= progress + width) {
+    float diff = dist - progress;
+    float scale_diff = 1.0 - pow(abs(diff * expand), distortion);
+    float dt = diff * scale_diff;
 
-		vec2 dir = normalize(tex_coord - center);
+    vec2 dir = normalize(tex_coord - center);
 
-		tex_coord += ((dir * dt) / (progress * dist * 40.0));
-		gl_FragColor = texture2D(screenTexture, vec2(tex_coord.x, (tex_coord.y - 0.5) / aspect + 0.5));
+    tex_coord += ((dir * dt) / (progress * dist * 40.0));
+    gl_FragColor = texture2D(screenTexture, vec2(tex_coord.x, (tex_coord.y - 0.5) / aspect + 0.5));
 
-		gl_FragColor += (gl_FragColor * scale_diff) / (progress * dist * 40.0);
-	} else {
-		gl_FragColor = texture2D(screenTexture, vec2(tex_coord.x, (tex_coord.y - 0.5) / aspect + 0.5));
-	}
+    gl_FragColor += (gl_FragColor * scale_diff) / (progress * dist * 40.0);
+  } else {
+    gl_FragColor = texture2D(screenTexture, vec2(tex_coord.x, (tex_coord.y - 0.5) / aspect + 0.5));
+  }
 }

@@ -10,11 +10,14 @@ use std::{collections::HashSet, ops::Range};
 static SHADERS: phf::Map<&'static str, &'static str> = phf_map! {
     "chromatic" => include_str!("shaders/chromatic.glsl"),
     "circleBlur" => include_str!("shaders/circle_blur.glsl"),
+    "fisheye" => include_str!("shaders/fisheye.glsl"),
     "glitch" => include_str!("shaders/glitch.glsl"),
+    "grayscale" => include_str!("shaders/grayscale.glsl"),
     "noise" => include_str!("shaders/noise.glsl"),
     "pixel" => include_str!("shaders/pixel.glsl"),
     "radialBlur" => include_str!("shaders/radial_blur.glsl"),
     "shockwave" => include_str!("shaders/shockwave.glsl"),
+    "vignette" => include_str!("shaders/vignette.glsl"),
 };
 
 pub trait UniformValue: Clone + Default {
@@ -93,7 +96,7 @@ impl Effect {
                         vec2(x.trim().parse()?, y.trim().parse()?)
                     })),
                     "vec4" => Box::new((name, {
-                        let values: Vec<_> = value.split(',').collect();
+                        let values: Vec<_> = value.split(',').map(|it| it.trim()).collect();
                         if values.len() != 4 {
                             bail!("Expected r,g,b,a");
                         }

@@ -135,7 +135,7 @@ struct RPEMetadata {
 #[serde(untagged)]
 enum Variable {
     Float(Vec<RPEEvent<f32>>),
-    Color(Vec<RPEEvent<[f32; 4]>>),
+    Color(Vec<RPEEvent<[u8; 4]>>),
 }
 
 // custom extension
@@ -384,7 +384,7 @@ fn parse_effect(r: &mut BpmList, rpe: RPEEffect) -> Result<Effect> {
             .map(|(name, var)| -> Result<Box<dyn Uniform>> {
                 Ok(match var {
                     Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events, None)?)),
-                    Variable::Color(events) => Box::new((name, parse_events::<Color, [f32; 4]>(r, &events, None)?)),
+                    Variable::Color(events) => Box::new((name, parse_events::<Color, [u8; 4]>(r, &events, None)?)),
                 })
             })
             .collect::<Result<_>>()?,
