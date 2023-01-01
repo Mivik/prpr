@@ -350,10 +350,12 @@ impl SongScene {
                 ) && self.upload_task.is_none()
                     && self.save_task.is_none()
                 {
-                    if self.chart.path.starts_with(':') {
-                        show_message("不能上传内置谱面");
-                    } else if get_data().me.is_none() {
+                    if get_data().me.is_none() {
                         show_message("请先登录！");
+                    } else if self.chart.path.starts_with(':') {
+                        show_message("不能上传内置谱面");
+                    } else if self.chart.info.uploader.is_some() {
+                        show_message("不能上传下载的谱面");
                     } else if !CONFIRM_UPLOAD.load(Ordering::SeqCst) {
                         Dialog::plain("上传须知", include_str!("upload_info.txt"))
                             .buttons(vec!["再想想".to_owned(), "确认上传".to_owned()])
@@ -396,7 +398,8 @@ impl SongScene {
         }
     }
 
-    fn update_chart_info(&mut self, info: BriefChartInfo) {
+    fn update_chart_info(&mut self, mut info: BriefChartInfo) {
+        info.uploader = self.chart.info.uploader.clone();
         self.chart.info = info.clone();
         get_data_mut().charts[TRANSIT_ID.load(Ordering::SeqCst) as usize].info = info;
         let _ = save_data();
