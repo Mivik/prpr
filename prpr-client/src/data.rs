@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Result;
 use prpr::{config::Config, info::ChartInfo};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, ops::DerefMut};
+use std::{collections::HashSet, ops::DerefMut, path::Path};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,7 +73,7 @@ pub struct Data {
 impl Data {
     pub async fn init(&mut self) -> Result<()> {
         let charts = dir::charts()?;
-        self.charts.retain(|it| std::fs::metadata(format!("{}/{}", charts, it.path)).is_ok());
+        self.charts.retain(|it| Path::new(&format!("{}/{}", charts, it.path)).exists());
         let occurred: HashSet<_> = self.charts.iter().map(|it| it.path.clone()).collect();
         for entry in std::fs::read_dir(dir::custom_charts()?)? {
             let entry = entry?;

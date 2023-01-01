@@ -1,6 +1,6 @@
 use super::{song::TrashBin, SongScene};
 use crate::{
-    cloud::{Client, LCChartItem, User, UserManager},
+    cloud::{Client, Images, LCChartItem, User, UserManager},
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut, save_data,
     task::Task,
@@ -584,17 +584,11 @@ impl MainScene {
         self.task_load = Task::new({
             let tex = self.tex.clone();
             async move {
-                let charts: Vec<LCChartItem> = Client::query()
-                    .with_where(json!({
-                        "verified": true,
-                    }))
-                    .order("updatedAt")
-                    .send()
-                    .await?;
+                let charts: Vec<LCChartItem> = Client::query().order("updatedAt").send().await?;
                 Ok(charts
                     .into_iter()
                     .map(|it| {
-                        let url = it.illustration;
+                        let illu = it.illustration;
                         ChartItem {
                             info: BriefChartInfo {
                                 id: it.id,
@@ -602,11 +596,7 @@ impl MainScene {
                             },
                             path: it.file.url,
                             illustration: tex.clone(),
-                            illustration_task: Some(Task::new(async move {
-                                let bytes = reqwest::get(url.url).await?.bytes().await?;
-                                let image = image::load_from_memory(&bytes)?;
-                                Ok(image)
-                            })),
+                            illustration_task: Some(Task::new(async move { Images::load(&illu).await })),
                         }
                     })
                     .collect::<Vec<_>>())

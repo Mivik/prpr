@@ -1,6 +1,5 @@
 use super::LCObject;
 use crate::data::BriefChartInfo;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -75,7 +74,6 @@ pub struct User {
     pub avatar: Option<LCFile>,
     pub short_id: String,
     pub email: String,
-    pub updated_at: DateTime<Utc>,
 }
 
 impl LCObject for User {
