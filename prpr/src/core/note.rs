@@ -219,12 +219,6 @@ impl Note {
                         h - line_height - base,
                         color,
                         DrawTextureParams {
-                            source: Some(Rect {
-                                x: 0.,
-                                y: 0.,
-                                w: 1.,
-                                h: ((end_height - h) / (end_height - height)).min(1.).abs(),
-                            }),
                             dest_size: Some(vec2(w * 2., end_height - h)),
                             flip_y: true,
                             ..Default::default()
