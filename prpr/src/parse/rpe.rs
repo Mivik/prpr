@@ -371,24 +371,23 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
     })
 }
 
-fn parse_effect(r: &mut BpmList, rpe: RPEEffect) -> Result<Effect> {
-    Effect::new(
-        r.time(&rpe.start)..r.time(&rpe.end),
-        if rpe.shader.starts_with('#') {
-            &rpe.shader
-        } else {
-            Effect::get_preset(&rpe.shader).ok_or_else(|| anyhow!("Cannot find preset shader {}", rpe.shader))?
-        },
-        rpe.vars
-            .into_iter()
-            .map(|(name, var)| -> Result<Box<dyn Uniform>> {
-                Ok(match var {
-                    Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events, None)?)),
-                    Variable::Color(events) => Box::new((name, parse_events::<Color, [u8; 4]>(r, &events, None)?)),
-                })
+async fn parse_effect(r: &mut BpmList, rpe: RPEEffect, fs: &mut dyn FileSystem) -> Result<Effect> {
+    let range = r.time(&rpe.start)..r.time(&rpe.end);
+    let vars = rpe
+        .vars
+        .into_iter()
+        .map(|(name, var)| -> Result<Box<dyn Uniform>> {
+            Ok(match var {
+                Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events, None)?)),
+                Variable::Color(events) => Box::new((name, parse_events::<Color, [u8; 4]>(r, &events, None)?)),
             })
-            .collect::<Result<_>>()?,
-    )
+        })
+        .collect::<Result<_>>()?;
+    if let Some(path) = rpe.shader.strip_prefix('/') {
+        Effect::new(range, &String::from_utf8(fs.load_file(path).await?).with_context(|| format!("Cannot load shader from {path}"))?, vars)
+    } else {
+        Effect::new(range, Effect::get_preset(&rpe.shader).ok_or_else(|| anyhow!("Cannot find preset shader {}", rpe.shader))?, vars)
+    }
 }
 
 pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
@@ -439,14 +438,9 @@ pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
         );
     }
     process_lines(&mut lines);
-    Ok(Chart::new(
-        rpe.meta.offset as f32 / 1000.0,
-        lines,
-        rpe.effects
-            .into_iter()
-            .flatten()
-            .enumerate()
-            .map(|(id, rpe)| parse_effect(&mut r, rpe).with_context(|| format!("In effect #{id}")))
-            .collect::<Result<_>>()?,
-    ))
+    let mut effects = Vec::new();
+    for (id, rpe) in rpe.effects.into_iter().flatten().enumerate() {
+        effects.push(parse_effect(&mut r, rpe, fs).await.with_context(|| format!("In effect #{id}"))?);
+    }
+    Ok(Chart::new(rpe.meta.offset as f32 / 1000.0, lines, effects))
 }

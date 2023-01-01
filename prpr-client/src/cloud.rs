@@ -58,7 +58,11 @@ pub trait RequestExt {
 
 impl RequestExt for RequestBuilder {
     fn with_session(self) -> Self {
-        self.header("X-LC-Session", get_data().me.as_ref().unwrap().session_token.as_ref().unwrap())
+        if let Some(me) = get_data().me.as_ref() {
+            self.header("X-LC-Session", me.session_token.as_ref().unwrap())
+        } else {
+            self
+        }
     }
 }
 
