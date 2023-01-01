@@ -207,6 +207,19 @@ fn parse_speed_events(r: &mut BpmList, rpe: &[RPEEventLayer], max_time: f32) -> 
     pts.dedup();
     let mut sani = AnimFloat::chain(anis);
     sani.map_value(|v| v * SPEED_RATIO);
+    for i in 0..(pts.len() - 1) {
+        let now_time = *pts[i];
+        let end_time = *pts[i + 1];
+        sani.set_time(now_time);
+        let speed = sani.now();
+        sani.set_time(end_time - 1e-4);
+        let end_speed = sani.now();
+        if speed.signum() * end_speed.signum() < 0. {
+            pts.push(f32::tween(&now_time, &end_time, speed / (speed - end_speed)).not_nan());
+        }
+    }
+    pts.sort();
+    pts.dedup();
     let mut kfs = Vec::new();
     let mut height = 0.0;
     for i in 0..(pts.len() - 1) {
@@ -220,7 +233,7 @@ fn parse_speed_events(r: &mut BpmList, rpe: &[RPEEventLayer], max_time: f32) -> 
         let end_speed = sani.now();
         kfs.push(if (speed - end_speed).abs() < EPS {
             Keyframe::new(now_time, height, 2)
-        } else if speed > end_speed {
+        } else if speed.abs() > end_speed.abs() {
             Keyframe {
                 time: now_time,
                 value: height,
