@@ -104,7 +104,7 @@ impl FileSystem for ExternalFileSystem {
 
     fn list_root(&self) -> Result<Vec<String>> {
         Ok(std::fs::read_dir(&self.0)?
-            .filter_map(|res| Some(res.ok()?.file_name().into_string().ok()?))
+            .filter_map(|res| res.ok()?.file_name().into_string().ok())
             .collect())
     }
 
@@ -189,7 +189,7 @@ impl FileSystem for PatchedFileSystem {
 
     fn list_root(&self) -> Result<Vec<String>> {
         let mut res = self.0.list_root()?;
-        res.extend(self.1.keys().map(|s| s.clone()));
+        res.extend(self.1.keys().cloned());
         res.dedup();
         Ok(res)
     }

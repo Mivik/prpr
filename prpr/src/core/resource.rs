@@ -88,12 +88,8 @@ impl ParticleEmitter {
     }
 }
 
+#[derive(Default)]
 pub struct NoteBuffer(BTreeMap<(i8, GLuint), Vec<(Vec<Vertex>, Vec<u16>)>>);
-impl Default for NoteBuffer {
-    fn default() -> Self {
-        Self(BTreeMap::new())
-    }
-}
 
 impl NoteBuffer {
     pub fn push(&mut self, key: (i8, GLuint), vertices: [Vertex; 4]) {
@@ -178,14 +174,13 @@ pub fn new_render_target(dim: (u32, u32), upscale: f32) -> Option<RenderTarget> 
             ..Default::default()
         },
     );
-    let target = Some({
+    Some({
         let render_pass = miniquad::RenderPass::new(gl.quad_context, texture, None);
         RenderTarget {
             texture: Texture2D::from_miniquad_texture(texture),
             render_pass,
         }
-    });
-    target
+    })
 }
 
 impl Resource {

@@ -209,7 +209,7 @@ impl Tweenable for String {
             Self::tween(y, x, 1. - t)
         } else if x.is_empty() {
             let chars = y.chars().collect::<Vec<_>>();
-            chars[..(t * chars.len() as f32).round() as usize].into_iter().collect()
+            chars[..(t * chars.len() as f32).round() as usize].iter().collect()
         } else {
             x.clone()
         }

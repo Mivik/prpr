@@ -3,7 +3,7 @@ use crate::{
     audio::{Audio, AudioHandle, PlayParams},
     config::Config,
     core::{BadNote, Chart, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
-    ext::{draw_parallelogram, draw_text_aligned, screen_aspect, SafeTexture},
+    ext::{draw_text_aligned, screen_aspect, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
     judge::Judge,
