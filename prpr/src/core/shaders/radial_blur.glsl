@@ -5,8 +5,8 @@ precision mediump float;
 varying lowp vec2 uv;
 uniform sampler2D screenTexture;
 
-uniform float centerX; // %0.5%
-uniform float centerY; // %0.5%
+uniform float centerX; // %0.5% 0..1
+uniform float centerY; // %0.5% 0..1
 uniform float power; // %0.01% 0..1
 uniform float sampleCount; // %6% int 1..64
 
