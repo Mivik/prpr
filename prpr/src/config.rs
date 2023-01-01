@@ -25,6 +25,7 @@ pub struct Config {
     pub challenge_color: ChallengeModeColor,
     pub challenge_rank: u32,
     pub fix_aspect_ratio: bool,
+    pub fxaa: bool,
     pub interactive: bool,
     pub multiple_hint: bool,
     pub note_scale: f32,
@@ -33,6 +34,7 @@ pub struct Config {
     pub player_name: String,
     pub player_rks: f32,
     pub speed: f32,
+    pub upscale: f32,
     pub volume_music: f32,
     pub volume_sfx: f32,
 }
@@ -47,6 +49,7 @@ impl Default for Config {
             challenge_color: ChallengeModeColor::Golden,
             challenge_rank: 45,
             fix_aspect_ratio: false,
+            fxaa: true,
             interactive: true,
             multiple_hint: true,
             note_scale: 1.0,
@@ -55,6 +58,7 @@ impl Default for Config {
             player_name: "Mivik".to_string(),
             player_rks: 15.,
             speed: 1.,
+            upscale: 1.,
             volume_music: 1.,
             volume_sfx: 1.,
         }

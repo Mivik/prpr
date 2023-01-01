@@ -63,7 +63,7 @@ impl Chart {
         }
     }
 
-    pub fn render(&self, res: &mut Resource) {
+    pub fn render(&self, res: &mut Resource, fxaa: Option<&Effect>) {
         res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
             for id in &self.order {
                 self.lines[*id].render(res, &self.lines);
@@ -71,6 +71,9 @@ impl Chart {
             res.note_buffer.borrow_mut().draw_all();
             for effect in &self.effects {
                 effect.render(res);
+            }
+            if let Some(fxaa) = fxaa.as_ref() {
+                fxaa.render(res);
             }
         });
     }

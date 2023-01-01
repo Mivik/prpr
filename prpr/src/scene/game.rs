@@ -2,8 +2,8 @@ use super::{draw_background, EndingScene, NextScene, Scene};
 use crate::{
     audio::{Audio, AudioHandle, PlayParams},
     config::Config,
-    core::{BadNote, Chart, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
-    ext::{draw_text_aligned, screen_aspect, SafeTexture},
+    core::{BadNote, Chart, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
+    ext::{draw_parallelogram, draw_text_aligned, screen_aspect, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
     judge::Judge,
@@ -40,6 +40,7 @@ pub struct GameScene {
     pub chart: Chart,
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
+    fxaa: Option<Effect>,
 
     pub audio_handle: AudioHandle,
 
@@ -117,6 +118,11 @@ impl GameScene {
         let mut res = Resource::new(config, info, fs, player, background, illustration, font)
             .await
             .context("Failed to load resources")?;
+        let fxaa = if res.config.fxaa {
+            Some(Effect::new(0.0..f32::INFINITY, include_str!("fxaa.glsl"), Vec::new()).unwrap())
+        } else {
+            None
+        };
 
         let judge = Judge::new(&chart);
 
@@ -129,6 +135,7 @@ impl GameScene {
             chart,
             judge,
             gl: unsafe { get_internal_gl() },
+            fxaa,
 
             audio_handle,
 
@@ -489,12 +496,18 @@ impl Scene for GameScene {
         });
         draw_background(*res.background);
         pop_camera_state();
-        self.gl.quad_gl.viewport(res.camera.viewport);
+        {
+            let upscale = res.config.upscale;
+            let mp = move |p: i32| (p as f32 * upscale) as i32;
+            self.gl
+                .quad_gl
+                .viewport(res.camera.viewport.map(|it| (mp(it.0), mp(it.1), mp(it.2), mp(it.3))));
+        }
 
         let h = 1. / res.aspect_ratio;
         draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
 
-        self.chart.render(res);
+        self.chart.render(res, self.fxaa.as_ref());
         self.gl.flush();
         self.gl.quad_gl.render_pass(old_pass);
 

@@ -162,22 +162,21 @@ impl Effect {
             uniform.apply(&self.material);
         }
         self.material.set_uniform("time", self.t);
-        let screen_dim = if let Some(pass) = unsafe { get_internal_gl() }.quad_gl.get_active_render_pass() {
-            let tex = pass.texture(unsafe { get_internal_gl() }.quad_context);
+        let gl = unsafe { get_internal_gl() };
+        let screen_dim = if let Some(pass) = gl.quad_gl.get_active_render_pass() {
+            let tex = pass.texture(gl.quad_context);
             vec2(tex.width as _, tex.height as _)
         } else {
             vec2(screen_width(), screen_height())
         };
         self.material.set_uniform("screenSize", screen_dim);
-        let vp = res.camera.viewport.unwrap();
+        let vp = gl.quad_gl.get_viewport();
         self.material.set_uniform("UVScale", vec2(vp.2 as _, vp.3 as _) / screen_dim);
 
         std::mem::swap(&mut res.chart_target.0, &mut res.chart_target.1);
         let old_tex = res.chart_target.1.as_ref().unwrap().texture;
         self.material.set_texture("screenTexture", old_tex);
-        unsafe { get_internal_gl() }
-            .quad_gl
-            .render_pass(res.chart_target.0.map(|it| it.render_pass));
+        gl.quad_gl.render_pass(res.chart_target.0.map(|it| it.render_pass));
 
         gl_use_material(self.material);
         let top = 1. / res.aspect_ratio;

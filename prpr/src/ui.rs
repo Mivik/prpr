@@ -12,7 +12,7 @@ pub use scroll::Scroll;
 
 use crate::{
     core::{Matrix, Point, Tweenable, Vector},
-    ext::{draw_text_aligned_scale, get_viewport, make_pipeline, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType},
+    ext::{draw_text_aligned_scale, get_viewport, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType},
     judge::Judge,
     scene::{request_input, return_input, take_input},
 };
@@ -22,31 +22,11 @@ use lyon::{
     path::PathEvent,
 };
 use macroquad::prelude::*;
-use miniquad::{CompareFunc, PassAction, StencilOp};
-use once_cell::sync::{Lazy, OnceCell};
+use miniquad::PassAction;
+use once_cell::sync::OnceCell;
 use std::{cell::RefCell, collections::HashMap, ops::Range};
 
 pub static FONT: OnceCell<Font> = OnceCell::new();
-
-static PIPELINE_INC_STENCIL: Lazy<GlPipeline> = Lazy::new(|| make_pipeline(false, StencilOp::IncrementClamp, CompareFunc::Always, 0));
-static PIPELINE_DEC_STENCIL: Lazy<GlPipeline> = Lazy::new(|| make_pipeline(false, StencilOp::DecrementClamp, CompareFunc::Always, 0));
-thread_local! {
-    static PIPELINE_CACHES: RefCell<Vec<GlPipeline>> = RefCell::default();
-}
-
-fn get_draw_pipeline(clips: u32) -> GlPipeline {
-    PIPELINE_CACHES.with(|caches| {
-        let mut caches = caches.borrow_mut();
-        if let Some(cache) = caches.get(clips as usize).copied() {
-            cache
-        } else {
-            for layer in (caches.len() as u32)..=clips {
-                caches.push(make_pipeline(true, StencilOp::Keep, CompareFunc::Equal, layer as _));
-            }
-            *caches.last().unwrap()
-        }
-    })
-}
 
 #[derive(Default, Clone, Copy)]
 pub struct Gravity(u8);
@@ -430,7 +410,6 @@ impl From<f32> for InputParams {
 pub struct Ui {
     pub top: f32,
 
-    clips: u32,
     model_stack: Vec<Matrix>,
     touches: Vec<Touch>,
 
@@ -455,7 +434,6 @@ impl Ui {
         Self {
             top: 1. / screen_aspect(),
 
-            clips: 0,
             model_stack: vec![Matrix::identity()],
             touches: Judge::get_touches(),
 
@@ -588,19 +566,6 @@ impl Ui {
         let res = f();
         unsafe { get_internal_gl() }.quad_gl.pop_model_matrix();
         res
-    }
-
-    pub fn clipped(&mut self, mut f: impl FnMut(&mut Ui), g: impl FnOnce(&mut Ui)) {
-        let gl = unsafe { get_internal_gl() }.quad_gl;
-        gl.pipeline(Some(*PIPELINE_INC_STENCIL));
-        f(self);
-        self.clips += 1;
-        gl.pipeline(Some(get_draw_pipeline(self.clips)));
-        g(self);
-        gl.pipeline(Some(*PIPELINE_DEC_STENCIL));
-        f(self);
-        self.clips -= 1;
-        gl.pipeline(if self.clips == 0 { None } else { Some(get_draw_pipeline(self.clips)) });
     }
 
     pub fn scissor(&mut self, rect: Option<Rect>) {

@@ -59,7 +59,7 @@ impl ParticleEmitter {
                 initial_direction_spread: 2. * std::f32::consts::PI,
                 size_randomness: 0.3,
                 emitting: false,
-                initial_velocity: 2.3,
+                initial_velocity: 2.5,
                 initial_velocity_randomness: 1. / 10.,
                 linear_accel: -6. / 1.,
                 colors_curve,
@@ -84,7 +84,7 @@ impl ParticleEmitter {
 
     pub fn set_scale(&mut self, scale: f32) {
         self.emitter.config.size = scale / 5.;
-        self.emitter_square.config.size = scale / 57.;
+        self.emitter_square.config.size = scale / 44.;
     }
 }
 
@@ -167,13 +167,13 @@ pub struct Resource {
     pub model_stack: Vec<Matrix>,
 }
 
-pub fn new_render_target(dim: (u32, u32)) -> Option<RenderTarget> {
+pub fn new_render_target(dim: (u32, u32), upscale: f32) -> Option<RenderTarget> {
     let gl = unsafe { get_internal_gl() };
     let texture = miniquad::Texture::new_render_texture(
         gl.quad_context,
         miniquad::TextureParams {
-            width: dim.0,
-            height: dim.1,
+            width: (dim.0 as f32 * upscale) as _,
+            height: (dim.1 as f32 * upscale) as _,
             format: TextureFormat::RGB8,
             ..Default::default()
         },
@@ -347,7 +347,7 @@ impl Resource {
             a.delete();
             b.delete();
         }
-        self.chart_target = (new_render_target(dim), new_render_target(dim));
+        self.chart_target = (new_render_target(dim, self.config.upscale), new_render_target(dim, self.config.upscale));
         fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {
             let w = w as f32;
             let h = h as f32;
