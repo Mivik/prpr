@@ -120,7 +120,7 @@ impl Note {
     pub fn update(&mut self, res: &mut Resource, object: &mut Object) {
         if let Some(color) = if let JudgeStatus::Hold(perfect, at, ..) = &mut self.judge {
             if res.time > *at {
-                *at += HOLD_PARTICLE_INTERVAL;
+                *at += HOLD_PARTICLE_INTERVAL / res.config.speed;
                 Some(if *perfect { JUDGE_LINE_PERFECT_COLOR } else { JUDGE_LINE_GOOD_COLOR })
             } else {
                 None

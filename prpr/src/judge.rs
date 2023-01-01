@@ -263,6 +263,7 @@ impl Judge {
             return;
         }
         let x_diff_max = res.note_width * 1.9;
+        let spd = res.config.speed;
 
         let t = res.time;
         let touches = Self::get_touches();
@@ -285,7 +286,7 @@ impl Judge {
                 let p = to_local(p);
                 match phase {
                     miniquad::TouchPhase::Started => {
-                        self.trackers.insert(id, VelocityTracker::new(t, p));
+                        self.trackers.insert(id, VelocityTracker::new(t / spd, p));
                         touches
                             .entry(id)
                             .or_insert_with(|| Touch {
@@ -297,7 +298,7 @@ impl Judge {
                     }
                     miniquad::TouchPhase::Moved => {
                         if let Some(tracker) = self.trackers.get_mut(&id) {
-                            tracker.push(t, p);
+                            tracker.push(t / spd, p);
                         }
                     }
                     miniquad::TouchPhase::Ended | miniquad::TouchPhase::Cancelled => {
@@ -350,21 +351,26 @@ impl Judge {
                     if matches!(note.kind, NoteKind::Drag) || (!click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. })) {
                         continue;
                     }
-                    if note.time - t >= closest.2 {
+                    let dt = (note.time - t) / spd;
+                    if dt >= closest.2 {
                         break;
                     }
                     let x = &mut note.object.translation.0;
                     x.set_time(t);
                     let dist = (x.now() - pos.x).abs();
-                    let dt = (note.time - t).abs();
-                    let bad = LIMIT_BAD - LIMIT_PERFECT * (dist - 0.9).max(0.);
-                    if dt > bad {
+                    if dt.abs()
+                        > if matches!(note.kind, NoteKind::Click) {
+                            LIMIT_BAD - LIMIT_PERFECT * (dist - 0.9).max(0.)
+                        } else {
+                            LIMIT_GOOD
+                        }
+                    {
                         continue;
                     }
                     if (dist < res.note_width || dist < closest.1) && (flick || !matches!(note.kind, NoteKind::Flick) || note.time < t) {
                         closest.0 = Some((line_id, *id));
                         closest.1 = dist;
-                        closest.2 = note.time - t + 0.01;
+                        closest.2 = dt + 0.01;
                         if dist < res.note_width {
                             break;
                         }
@@ -379,7 +385,7 @@ impl Judge {
                     if matches!(note.kind, NoteKind::Flick) {
                         continue; // to next loop
                     }
-                    let dt = dt.abs();
+                    let dt = (dt - 0.01).abs();
                     if dt <= LIMIT_GOOD || matches!(note.kind, NoteKind::Hold { .. }) {
                         match note.kind {
                             NoteKind::Click => {
@@ -388,7 +394,7 @@ impl Judge {
                             }
                             NoteKind::Hold { .. } => {
                                 res.play_sfx(&res.sfx_click.clone());
-                                note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, t - note.time, false);
+                                note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false);
                             }
                             _ => unreachable!(),
                         };
@@ -425,7 +431,7 @@ impl Judge {
                 .min_by_key(|(line_id, id)| chart.lines[*line_id].notes[*id as usize].time.not_nan())
             {
                 let note = &mut chart.lines[line_id].notes[id as usize];
-                let dt = (t - note.time).abs();
+                let dt = (t - note.time).abs() / spd;
                 if dt <= if matches!(note.kind, NoteKind::Click) { LIMIT_BAD } else { LIMIT_GOOD } {
                     match note.kind {
                         NoteKind::Click => {
@@ -445,7 +451,7 @@ impl Judge {
                         }
                         NoteKind::Hold { .. } => {
                             res.play_sfx(&res.sfx_click.clone());
-                            note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, t - note.time, false);
+                            note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false);
                         }
                         _ => unreachable!(),
                     };
@@ -460,7 +466,7 @@ impl Judge {
                 let note = &mut line.notes[*id as usize];
                 if let NoteKind::Hold { end_time, .. } = &note.kind {
                     if let JudgeStatus::Hold(.., ref mut pre_judge) = note.judge {
-                        if t + LIMIT_BAD >= *end_time {
+                        if (*end_time - t) / spd <= LIMIT_BAD {
                             *pre_judge = true;
                             continue;
                         }
@@ -478,18 +484,19 @@ impl Judge {
                     continue;
                 }
                 // process miss
-                if note.time < t - LIMIT_BAD {
+                let dt = (t - note.time) / spd;
+                if dt > LIMIT_BAD {
                     note.judge = JudgeStatus::Judged;
                     judgements.push((Judgement::Miss, line_id, *id, None));
                     continue;
                 }
-                if note.time > t + LIMIT_BAD {
+                if -t > LIMIT_BAD {
                     break;
                 }
                 if !matches!(note.kind, NoteKind::Drag) && (self.key_down_count == 0 || !matches!(note.kind, NoteKind::Flick)) {
                     continue;
                 }
-                let dt = (t - note.time).abs();
+                let dt = dt.abs();
                 let x = &mut note.object.translation.0;
                 x.set_time(t);
                 let x = x.now();
@@ -541,7 +548,7 @@ impl Judge {
             self.commit(
                 judgement,
                 if matches!(judgement, Judgement::Good | Judgement::Bad) {
-                    Some(diff.unwrap_or(t - note.time))
+                    Some(diff.unwrap_or((t - note.time) / spd))
                 } else {
                     None
                 },
@@ -600,6 +607,7 @@ impl Judge {
 
     fn auto_play_update(&mut self, res: &mut Resource, chart: &mut Chart) {
         let t = res.time;
+        let spd = res.config.speed;
         let mut judgements = Vec::new();
         for (line_id, (line, (idx, st))) in chart.lines.iter_mut().zip(self.notes.iter_mut()).enumerate() {
             for id in &idx[*st..] {
@@ -621,7 +629,7 @@ impl Judge {
                 }
                 note.judge = if matches!(note.kind, NoteKind::Hold { .. }) {
                     res.play_sfx(&res.sfx_click.clone());
-                    JudgeStatus::Hold(true, t, t - note.time, false)
+                    JudgeStatus::Hold(true, t, (t - note.time) / spd, false)
                 } else {
                     judgements.push((line_id, *id));
                     JudgeStatus::Judged
