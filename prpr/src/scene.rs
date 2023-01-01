@@ -10,9 +10,9 @@ pub use loading::LoadingScene;
 use crate::{
     ext::{draw_image, screen_aspect, ScaleType},
     time::TimeManager,
-    ui::{BillBoard, Ui},
+    ui::{BillBoard, Dialog, Ui},
 };
-use anyhow::Result;
+use anyhow::{Result, Error};
 use macroquad::prelude::{
     utils::{register_input_subscriber, repeat_all_miniquad_input},
     *,
@@ -33,6 +33,12 @@ pub enum NextScene {
 
 thread_local! {
     pub static BILLBOARD: RefCell<(BillBoard, TimeManager)> = RefCell::new((BillBoard::new(), TimeManager::default()));
+    pub static DIALOG: RefCell<Option<Dialog>> = RefCell::new(None);
+}
+
+#[inline]
+pub fn show_error(error: Error) {
+    Dialog::error(error).show();
 }
 
 pub fn show_message(msg: impl Into<String>) {
@@ -203,16 +209,34 @@ impl Main {
             let now = self.tm.now();
             let delta = (now - self.last_update_time) / handler.0.len() as f64;
             let vp = unsafe { get_internal_gl() }.quad_gl.get_viewport();
-            for (index, mut touch) in handler.0.into_iter().enumerate() {
-                let Vec2 { x, y } = touch.position;
-                touch.position =
-                    vec2((x - vp.0 as f32) / vp.2 as f32 * 2. - 1., ((y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / (vp.2 as f32 / vp.3 as f32));
-                self.tm.seek_to(self.last_update_time + (index + 1) as f64 * delta);
-                self.scenes.last_mut().unwrap().touch(&mut self.tm, touch)?;
-            }
+            DIALOG.with(|it| -> Result<()> {
+                for (index, mut touch) in handler.0.into_iter().enumerate() {
+                    let Vec2 { x, y } = touch.position;
+                    touch.position =
+                        vec2((x - vp.0 as f32) / vp.2 as f32 * 2. - 1., ((y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / (vp.2 as f32 / vp.3 as f32));
+                    let t = self.last_update_time + (index + 1) as f64 * delta;
+                    let mut guard = it.borrow_mut();
+                    if let Some(dialog) = guard.as_mut() {
+                        if !dialog.touch(&touch, t as _) {
+                            drop(guard);
+                            *it.borrow_mut() = None;
+                        }
+                    } else {
+                        drop(guard);
+                        self.tm.seek_to(t);
+                        self.scenes.last_mut().unwrap().touch(&mut self.tm, touch)?;
+                    }
+                }
+                Ok(())
+            })?;
             self.tm.seek_to(now);
         }
         self.last_update_time = self.tm.now();
+        DIALOG.with(|it| {
+            if let Some(dialog) = it.borrow_mut().as_mut() {
+                dialog.update(self.last_update_time as _);
+            }
+        });
         self.scenes.last_mut().unwrap().update(&mut self.tm)
     }
 
@@ -228,6 +252,11 @@ impl Main {
                 guard.0.render(ui, t);
             });
         }
+        DIALOG.with(|it| {
+            if let Some(dialog) = it.borrow_mut().as_mut() {
+                dialog.render(ui);
+            }
+        });
         Ok(())
     }
 

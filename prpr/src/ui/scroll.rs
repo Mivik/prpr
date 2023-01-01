@@ -173,13 +173,13 @@ impl Scroll {
         ui.scissor(Some(Rect::new(0., 0., self.size.0, self.size.1)));
         let s = ui.with(Translation2::new(-self.x_scroller.offset(), -self.y_scroller.offset()).to_homogeneous(), content);
         ui.scissor(None);
-        self.x_scroller.bound(s.0);
-        self.y_scroller.bound(s.1);
         self.x_scroller.size((s.0 - self.size.0).max(0.));
         self.y_scroller.size((s.1 - self.size.1).max(0.));
     }
 
     pub fn size(&mut self, size: (f32, f32)) {
         self.size = size;
+        self.x_scroller.bound(size.0);
+        self.y_scroller.bound(size.1);
     }
 }

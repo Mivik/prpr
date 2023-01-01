@@ -90,8 +90,7 @@ impl Scene for MainScene {
                             bail!("格式应当为 “宽x高”")
                         }
                     }() {
-                        Err(err) => {
-                            warn!("{:?}", err);
+                        Err(_) => {
                             show_message("输入非法");
                         }
                         Ok(value) => {
@@ -106,8 +105,7 @@ impl Scene for MainScene {
                     let r = ui.input("FPS", &mut string, 0.8);
                     if string != old {
                         match string.parse::<u32>() {
-                            Err(err) => {
-                                warn!("{:?}", err);
+                            Err(_) => {
                                 show_message("输入非法");
                             }
                             Ok(value) => {
@@ -123,8 +121,7 @@ impl Scene for MainScene {
                     let r = ui.input("结算时间", &mut string, 0.8);
                     if string != old {
                         match string.parse::<f64>() {
-                            Err(err) => {
-                                warn!("{:?}", err);
+                            Err(_) => {
                                 show_message("输入非法");
                             }
                             Ok(value) => {

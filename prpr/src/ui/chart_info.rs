@@ -5,7 +5,6 @@ use crate::{
     scene::{request_input, return_input, show_message, take_input},
 };
 use anyhow::Result;
-use miniquad::warn;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -85,8 +84,7 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
         let r = ui.input("预览时间", &mut string, len);
         dy!(r.h + s);
         match string.parse::<f32>() {
-            Err(err) => {
-                warn!("{:?}", err);
+            Err(_) => {
                 show_message("输入非法");
             }
             Ok(value) => {
@@ -104,8 +102,7 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
                 Ok(string.parse()?)
             }
         }() {
-            Err(err) => {
-                warn!("{:?}", err);
+            Err(_) => {
                 show_message("输入非法");
             }
             Ok(value) => {

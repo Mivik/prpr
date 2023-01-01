@@ -4,12 +4,15 @@ pub use billboard::BillBoard;
 mod chart_info;
 pub use chart_info::*;
 
+mod dialog;
+pub use dialog::Dialog;
+
 mod scroll;
 pub use scroll::Scroll;
 
 use crate::{
     core::{Matrix, Point, Tweenable, Vector},
-    ext::{draw_text_aligned_scale, get_viewport, make_pipeline, screen_aspect, source_of_image, RectExt, ScaleType, nalgebra_to_glm},
+    ext::{draw_text_aligned_scale, get_viewport, make_pipeline, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType},
     judge::Judge,
     scene::{request_input, return_input, take_input},
 };
@@ -103,6 +106,7 @@ pub struct DrawText<'a> {
     anchor: (f32, f32),
     color: Color,
     max_width: Option<f32>,
+    baseline: bool,
     multiline: bool,
     scale: Matrix,
 }
@@ -118,6 +122,7 @@ impl<'a> DrawText<'a> {
             anchor: (0., 0.),
             color: WHITE,
             max_width: None,
+            baseline: true,
             multiline: false,
             scale: Matrix::identity(),
         }
@@ -150,6 +155,11 @@ impl<'a> DrawText<'a> {
 
     pub fn max_width(mut self, max_width: f32) -> Self {
         self.max_width = Some(max_width);
+        self
+    }
+
+    pub fn no_baseline(mut self) -> Self {
+        self.baseline = false;
         self
     }
 
@@ -198,6 +208,7 @@ impl<'a> DrawText<'a> {
                 self.anchor,
                 self.size,
                 self.color,
+                self.baseline,
                 self.scale,
             )
         });
@@ -507,6 +518,10 @@ impl Ui {
 
     pub fn get_matrix(&self) -> Matrix {
         *self.model_stack.last().unwrap()
+    }
+
+    pub fn screen_rect(&self) -> Rect {
+        Rect::new(-1., -self.top, 2., self.top * 2.)
     }
 
     pub fn rect_to_global(&self, rect: Rect) -> Rect {

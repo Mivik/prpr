@@ -15,24 +15,27 @@ use prpr::{
     ext::{poll_future, screen_aspect, JoinToString, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, ZipFileSystem},
     info::ChartInfo,
-    scene::{show_message, LoadingScene, NextScene, Scene},
+    scene::{show_error, show_message, LoadingScene, NextScene, Scene},
     time::TimeManager,
-    ui::{render_chart_info, ChartInfoEdit, RectButton, Scroll, Ui},
+    ui::{render_chart_info, ChartInfoEdit, Dialog, RectButton, Scroll, Ui},
 };
 use std::{
     future::Future,
     ops::DerefMut,
     pin::Pin,
-    sync::{atomic::Ordering, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
 };
 
 const FADEIN_TIME: f32 = 0.3;
 const EDIT_TRANSIT: f32 = 0.32;
-const UPLOAD_CONFIRM: f32 = 1.;
 const IMAGE_LIMIT: usize = 2 * 1024 * 1024;
 const CHART_LIMIT: usize = 10 * 1024 * 1024;
 const EDIT_CHART_INFO_WIDTH: f32 = 0.7;
 
+static CONFIRM_UPLOAD: AtomicBool = AtomicBool::new(false);
 static UPLOAD_STATUS: Mutex<Option<String>> = Mutex::new(None);
 
 fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
@@ -135,7 +138,6 @@ pub struct SongScene {
     next_scene: Option<NextScene>,
     save_task: Option<Task<Result<()>>>,
     upload_task: Option<Task<Result<()>>>,
-    upload_confirm: f32,
     info_edit: Option<ChartInfoEdit>,
     edit_enter_time: f32,
 }
@@ -177,7 +179,7 @@ impl SongScene {
                 .await;
                 match info {
                     Err(err) => {
-                        warn!("{:?}", err);
+                        show_error(err.context("加载谱面信息失败"));
                         brief.into_full()
                     }
                     Ok(ok) => ChartInfo {
@@ -197,7 +199,6 @@ impl SongScene {
             next_scene: None,
             save_task: None,
             upload_task: None,
-            upload_confirm: f32::INFINITY,
             info_edit: None,
             edit_enter_time: f32::INFINITY,
         }
@@ -209,7 +210,7 @@ impl SongScene {
 
     fn ui(&mut self, ui: &mut Ui, t: f32) {
         let sp = self.scroll_progress();
-        let r = Rect::new(-1., -ui.top, 2., ui.top * 2.);
+        let r = ui.screen_rect();
         ui.fill_rect(r, (*self.illustration, r));
         ui.fill_rect(r, Color::new(0., 0., 0., f32::tween(&0.55, &0.8, sp)));
         let p = ((t + FADEIN_TIME) / FADEIN_TIME).min(1.);
@@ -300,7 +301,7 @@ impl SongScene {
             let p = ((t - self.edit_enter_time.abs()) / EDIT_TRANSIT).min(1.);
             let p = 1. - (1. - p).powi(3);
             let p = if self.edit_enter_time < 0. { 1. - p } else { p };
-            ui.fill_rect(Rect::new(-1., -ui.top, 2., ui.top * 2.), Color::new(0., 0., 0., p * 0.6));
+            ui.fill_rect(ui.screen_rect(), Color::new(0., 0., 0., p * 0.6));
             let lf = f32::tween(&1.04, &(1. - EDIT_CHART_INFO_WIDTH), p);
             ui.scope(|ui| {
                 ui.dx(lf);
@@ -322,8 +323,7 @@ impl SongScene {
                         if let Err(err) =
                             fs::fix_info(fs_from_path(&self.chart.path).unwrap().deref_mut(), &mut self.info_edit.as_mut().unwrap().info).block_on()
                         {
-                            warn!("{:?}", err);
-                            show_message(format!("修复失败：{err:?}"));
+                            show_error(err.context("修复失败"));
                         } else {
                             show_message("修复成功");
                         }
@@ -344,8 +344,6 @@ impl SongScene {
                     r,
                     if self.upload_task.is_some() {
                         UPLOAD_STATUS.lock().unwrap().clone().unwrap()
-                    } else if self.upload_confirm.is_finite() {
-                        "确定上传".to_owned()
                     } else {
                         "上传".to_owned()
                     },
@@ -356,42 +354,15 @@ impl SongScene {
                         show_message("不能上传内置谱面");
                     } else if get_data().me.is_none() {
                         show_message("请先登录！");
-                    } else if self.upload_confirm.is_infinite() {
-                        self.upload_confirm = t;
-                    } else {
-                        *UPLOAD_STATUS.lock().unwrap() = Some("上传中…".to_owned());
-                        self.upload_confirm = f32::INFINITY;
-                        let info = self.info_edit.as_ref().unwrap().info.clone();
-                        let path = self.chart.path.clone();
-                        let user_id = get_data().me.as_ref().unwrap().id.clone();
-                        self.upload_task = Some(Task::new(async move {
-                            let chart_bytes = tokio::fs::read(format!("{}/{}", dir::charts()?, path)).await.context("读取文件失败")?;
-                            if chart_bytes.len() > CHART_LIMIT {
-                                bail!("谱面文件过大");
-                            }
-                            let mut fs = fs_from_path(&path)?;
-                            let image = fs.load_file(&info.illustration).await.context("读取插图失败")?;
-                            if image.len() > IMAGE_LIMIT {
-                                bail!("插图文件过大");
-                            }
-                            *UPLOAD_STATUS.lock().unwrap() = Some("上传谱面中…".to_owned());
-                            let file = Client::upload_file("chart.zip", &chart_bytes).await.context("上传谱面失败")?;
-                            *UPLOAD_STATUS.lock().unwrap() = Some("上传插图中…".to_owned());
-                            let illustration = Client::upload_file("illustration.jpg", &image).await.context("上传插图失败")?;
-                            *UPLOAD_STATUS.lock().unwrap() = Some("保存中…".to_owned());
-                            let item = LCChartItem {
-                                id: None,
-                                info: BriefChartInfo {
-                                    uploader: Some(Pointer::from(user_id).with_class_name("_User")),
-                                    ..info.into()
-                                },
-                                file,
-                                illustration,
-                                verified: Some(false),
-                            };
-                            Client::create(item).await?;
-                            Ok(())
-                        }));
+                    } else if !CONFIRM_UPLOAD.load(Ordering::SeqCst) {
+                        Dialog::plain("上传须知", include_str!("upload_info.txt"))
+                            .buttons(vec!["再想想".to_owned(), "确认上传".to_owned()])
+                            .listener(|pos| {
+                                if pos == 1 {
+                                    CONFIRM_UPLOAD.store(true, Ordering::SeqCst);
+                                }
+                            })
+                            .show();
                     }
                 }
                 r.x += dx;
@@ -523,8 +494,7 @@ impl Scene for SongScene {
         if let Some(task) = &mut self.save_task {
             if let Some(result) = task.take() {
                 if let Err(err) = result {
-                    warn!("{:?}", err);
-                    show_message(format!("保存失败：{err:?}"));
+                    show_error(err.context("保存失败"));
                 } else {
                     if self.info_edit.as_ref().unwrap().illustration.is_some() {
                         self.illustration_task = Some(illustration_task(self.chart.path.clone()));
@@ -537,8 +507,7 @@ impl Scene for SongScene {
         if let Some(task) = &mut self.upload_task {
             if let Some(result) = task.take() {
                 if let Err(err) = result {
-                    warn!("{:?}", err);
-                    show_message(format!("上传失败：{err:?}"));
+                    show_error(err.context("上传失败"));
                 } else {
                     show_message("上传成功，请等待审核！");
                 }
@@ -549,8 +518,7 @@ impl Scene for SongScene {
             if let Some(result) = task.take() {
                 match result {
                     Err(err) => {
-                        warn!("{:?}", err);
-                        show_message(format!("加载插图失败：{err:?}"));
+                        show_error(err.context("加载插图失败"));
                         self.illustration = BLACK_TEXTURE.clone();
                     }
                     Ok(image) => {
@@ -561,8 +529,40 @@ impl Scene for SongScene {
                 self.illustration_task = None;
             }
         }
-        if self.upload_confirm + UPLOAD_CONFIRM < tm.now() as _ {
-            self.upload_confirm = f32::INFINITY;
+        if CONFIRM_UPLOAD.fetch_and(false, Ordering::SeqCst) {
+            *UPLOAD_STATUS.lock().unwrap() = Some("上传中…".to_owned());
+            CONFIRM_UPLOAD.store(false, Ordering::SeqCst);
+            let info = self.info_edit.as_ref().unwrap().info.clone();
+            let path = self.chart.path.clone();
+            let user_id = get_data().me.as_ref().unwrap().id.clone();
+            self.upload_task = Some(Task::new(async move {
+                let chart_bytes = tokio::fs::read(format!("{}/{}", dir::charts()?, path)).await.context("读取文件失败")?;
+                if chart_bytes.len() > CHART_LIMIT {
+                    bail!("谱面文件过大");
+                }
+                let mut fs = fs_from_path(&path)?;
+                let image = fs.load_file(&info.illustration).await.context("读取插图失败")?;
+                if image.len() > IMAGE_LIMIT {
+                    bail!("插图文件过大");
+                }
+                *UPLOAD_STATUS.lock().unwrap() = Some("上传谱面中…".to_owned());
+                let file = Client::upload_file("chart.zip", &chart_bytes).await.context("上传谱面失败")?;
+                *UPLOAD_STATUS.lock().unwrap() = Some("上传插图中…".to_owned());
+                let illustration = Client::upload_file("illustration.jpg", &image).await.context("上传插图失败")?;
+                *UPLOAD_STATUS.lock().unwrap() = Some("保存中…".to_owned());
+                let item = LCChartItem {
+                    id: None,
+                    info: BriefChartInfo {
+                        uploader: Some(Pointer::from(user_id).with_class_name("_User")),
+                        ..info.into()
+                    },
+                    file,
+                    illustration,
+                    verified: Some(false),
+                };
+                Client::create(item).await?;
+                Ok(())
+            }));
         }
         Ok(())
     }

@@ -19,7 +19,7 @@ use prpr::{
     core::{ParticleEmitter, Tweenable, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
     ext::{screen_aspect, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs,
-    scene::{request_file, request_input, return_file, return_input, show_message, take_file, take_input, NextScene, Scene},
+    scene::{request_file, request_input, return_file, return_input, show_error, show_message, take_file, take_input, NextScene, Scene},
     time::TimeManager,
     ui::{RectButton, Scroll, Ui},
 };
@@ -29,7 +29,11 @@ use std::{
     collections::HashMap,
     future::Future,
     io::Cursor,
-    sync::{atomic::{AtomicBool, Ordering, AtomicU32}, Mutex}, ops::DerefMut,
+    ops::DerefMut,
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Mutex,
+    },
 };
 use tempfile::NamedTempFile;
 
@@ -313,7 +317,7 @@ impl MainScene {
                     let ct = r.center();
                     ui.fill_circle(ct.x, ct.y, rad, ui.accent());
                     self.import_button.set(ui, r);
-                    ui.text("+").pos(ct.x, ct.y).anchor(0.5, 0.5).size(1.4).draw();
+                    ui.text("+").pos(ct.x, ct.y).anchor(0.5, 0.5).size(1.4).no_baseline().draw();
                 }
                 ui.dx(content_size.0);
                 Self::render_scroll(ui, content_size, &mut self.scroll_remote, &mut self.charts_remote);
@@ -801,8 +805,7 @@ impl Scene for MainScene {
             let res = task.1.take().unwrap();
             match res {
                 Err(err) => {
-                    warn!("{:?}", err);
-                    show_message(format!("{} 下载失败", task.0));
+                    show_error(err.context(format!("{} 下载失败", task.0)));
                 }
                 Ok(chart) => {
                     get_data_mut().charts.push(chart);
@@ -821,16 +824,14 @@ impl Scene for MainScene {
                 }
                 Err(err) => {
                     self.remote_first_time = true;
-                    warn!("{:?}", err);
-                    show_message(format!("加载失败：{err:?}"));
+                    show_error(err.context("加载失败"));
                 }
             }
         }
         if let Some(result) = self.import_task.take() {
             match result {
                 Err(err) => {
-                    warn!("{:?}", err);
-                    show_message(format!("导入失败：{err:?}"));
+                    show_error(err.context("导入失败"));
                 }
                 Ok(chart) => {
                     get_data_mut().charts.push(chart);
@@ -899,8 +900,7 @@ impl Scene for MainScene {
                         Ok(())
                     }
                     if let Err(err) = load(file, &mut self.account_page) {
-                        warn!("{:?}", err);
-                        show_message(format!("导入头像失败：{err:?}"));
+                        show_error(err.context("导入头像失败"));
                     }
                 }
                 _ => return_file(id, file),
@@ -911,8 +911,7 @@ impl Scene for MainScene {
                 let desc = &self.account_page.task_desc;
                 match result {
                     Err(err) => {
-                        warn!("{:?}", err);
-                        show_message(format!("{desc}失败：{err:?}"));
+                        show_error(err.context(format!("{desc}失败")));
                     }
                     Ok(user) => {
                         if let Some(user) = user {
@@ -988,8 +987,7 @@ impl Scene for MainScene {
                         Ok(())
                     })();
                     if let Err(err) = err {
-                        warn!("{:?}", err);
-                        show_message(format!("删除失败：{err:?}"));
+                        show_error(err.context("删除失败"));
                     } else {
                         show_message("删除成功");
                     }

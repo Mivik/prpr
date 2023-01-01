@@ -139,12 +139,22 @@ pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f
     rect
 }
 
-pub fn draw_text_aligned_scale(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f32), font_size: f32, color: Color, scale_mat: Matrix) -> Rect {
+pub fn draw_text_aligned_scale(
+    font: Font,
+    text: &str,
+    x: f32,
+    y: f32,
+    anchor: (f32, f32),
+    font_size: f32,
+    color: Color,
+    baseline: bool,
+    scale_mat: Matrix,
+) -> Rect {
     use macroquad::prelude::*;
     let size = (get_viewport().2 as f32 / 23. * font_size) as u16;
     let scale = 0.08 * font_size / size as f32;
     let dim = measure_text(text, Some(font), size, scale);
-    let rect = Rect::new(x - dim.width * anchor.0, y - dim.offset_y * anchor.1, dim.width, dim.offset_y);
+    let rect = Rect::new(x - dim.width * anchor.0, y - (if baseline { dim.offset_y } else { dim.height }) * anchor.1, dim.width, dim.offset_y);
     let gl = unsafe { get_internal_gl() }.quad_gl;
     let ct = rect.center();
     gl.push_model_matrix(nalgebra_to_glm(&scale_mat.prepend_translation(&Vector::new(ct.x, ct.y + dim.offset_y))));
