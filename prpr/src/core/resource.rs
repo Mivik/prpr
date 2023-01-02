@@ -240,12 +240,11 @@ impl Resource {
                 SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
             };
         }
-        let hold_tail = load_tex!("hold_tail.png");
         let note_style = NoteStyle {
             click: load_tex!("click.png"),
             hold_head: load_tex!("hold_head.png"),
             hold: load_tex!("hold.png"),
-            hold_tail: hold_tail.clone(),
+            hold_tail: load_tex!("hold_tail.png"),
             flick: load_tex!("flick.png"),
             drag: load_tex!("drag.png"),
         };
@@ -298,7 +297,7 @@ impl Resource {
                 click: load_tex!("click_mh.png"),
                 hold_head: load_tex!("hold_head_mh.png"),
                 hold: load_tex!("hold_mh.png"),
-                hold_tail,
+                hold_tail: load_tex!("hold_tail_mh.png"),
                 flick: load_tex!("flick_mh.png"),
                 drag: load_tex!("drag_mh.png"),
             },

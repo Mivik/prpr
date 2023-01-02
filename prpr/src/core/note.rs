@@ -59,12 +59,15 @@ fn draw_tex(res: &Resource, texture: Texture2D, order: i8, x: f32, y: f32, color
             .map(|it| vec2(it.w, it.h))
             .unwrap_or_else(|| vec2(texture.width(), texture.height()))
     });
-    let mut p = [
+    let p = [
         res.world_to_screen(Point::new(x, y)),
         res.world_to_screen(Point::new(x + w, y)),
         res.world_to_screen(Point::new(x + w, y + h)),
         res.world_to_screen(Point::new(x, y + h)),
     ];
+    draw_tex_pts(res, texture, order, p, color, params);
+}
+fn draw_tex_pts(res: &Resource, texture: Texture2D, order: i8, mut p: [Point; 4], color: Color, params: DrawTextureParams) {
     if p[0].x.min(p[1].x.min(p[2].x.min(p[3].x))) > 1.
         || p[0].x.max(p[1].x.max(p[2].x.max(p[3].x))) < -1.
         || p[0].y.min(p[1].y.min(p[2].y.min(p[3].y))) > 1.
@@ -189,57 +192,27 @@ impl Note {
                     }
                     let end_height = end_height / res.aspect_ratio * self.speed;
                     let base = height - line_height;
+                    let pt = |x: f32, y: f32| res.world_to_screen(Point::new(x, y));
+
+                    let h = if self.time <= res.time { line_height } else { height };
+                    let th = h - line_height - base;
+                    let btn = [pt(-scale, th), pt(scale, th)];
+                    let th = end_height - line_height - base;
+                    let top = [pt(-scale, th), pt(scale, th)];
                     // head
                     if res.time < self.time {
                         let tex = &style.hold_head;
                         let hf = vec2(scale, tex.height() * scale / tex.width());
-                        draw_tex(
-                            res,
-                            **tex,
-                            order,
-                            -hf.x,
-                            -hf.y * 2.,
-                            color,
-                            DrawTextureParams {
-                                dest_size: Some(hf * 2.),
-                                flip_y: true,
-                                ..Default::default()
-                            },
-                        );
+                        draw_tex_pts(res, **tex, order, [btn[0], btn[1], pt(hf.x, -hf.y * 2.), pt(-hf.x, -hf.y * 2.)], color, Default::default());
                     }
                     // body
-                    let w = scale;
-                    let h = if self.time <= res.time { line_height } else { height };
                     // TODO (end_height - height) is not always total height
-                    draw_tex(
-                        res,
-                        *style.hold,
-                        order,
-                        -w,
-                        h - line_height - base,
-                        color,
-                        DrawTextureParams {
-                            dest_size: Some(vec2(w * 2., end_height - h)),
-                            flip_y: true,
-                            ..Default::default()
-                        },
-                    );
+                    draw_tex_pts(res, *style.hold, order, [top[0], top[1], btn[1], btn[0]], color, Default::default());
                     // tail
                     let tex = &style.hold_tail;
-                    let hf = vec2(res.note_width, tex.height() / tex.width() * res.note_width);
-                    draw_tex(
-                        res,
-                        **tex,
-                        order,
-                        -hf.x,
-                        end_height - line_height - base,
-                        color,
-                        DrawTextureParams {
-                            dest_size: Some(hf * 2.),
-                            flip_y: true,
-                            ..Default::default()
-                        },
-                    );
+                    let hf = vec2(scale, tex.height() * scale / tex.width());
+                    let th = th + hf.y * 2.;
+                    draw_tex_pts(res, **tex, order, [pt(-scale, th), pt(scale, th), top[1], top[0]], color, Default::default());
                 }
                 NoteKind::Flick => {
                     draw(*style.flick);
