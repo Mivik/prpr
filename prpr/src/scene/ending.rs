@@ -148,16 +148,20 @@ impl Scene for EndingScene {
             Color::new(0., 0., 0., 0.7),
             false,
         );
-        draw_text_aligned(
-            self.font,
-            &self.info.name,
-            r.x + 0.04,
-            r.bottom() - top / 20.,
-            (0., 1.),
-            if self.info.name.len() > 9 { 0.6 } else { 0.84 },
-            WHITE,
-        );
-        draw_text_aligned(self.font, &self.info.level, r.right() - r.h / 7. * 13. * 0.13 - 0.01, r.bottom() - top / 20., (1., 1.), 0.46, WHITE);
+        let rr =
+            draw_text_aligned(self.font, &self.info.level, r.right() - r.h / 7. * 13. * 0.13 - 0.01, r.bottom() - top / 20., (1., 1.), 0.46, WHITE);
+        let p = (r.x + 0.04, r.bottom() - top / 20.);
+        let mw = rr.x - 0.02 - p.0;
+        let mut size = 0.7;
+        loop {
+            let text = ui.text(&self.info.name).pos(p.0, p.1).anchor(0., 1.).size(size);
+            if text.measure().w > mw {
+                size *= 0.93;
+            } else {
+                text.draw();
+                break;
+            }
+        }
         gl.pop_model_matrix();
 
         let dx = 0.06;
