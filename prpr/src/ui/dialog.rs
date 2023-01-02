@@ -63,6 +63,8 @@ impl Dialog {
                     show_message("复制成功");
                 }
             })),
+
+            rect_buttons: vec![RectButton::new(); 2],
             ..Default::default()
         }
     }
