@@ -181,6 +181,8 @@ async fn main() -> Result<()> {
     next_frame().await;
 
     let edit = INFO_EDIT.lock().unwrap().take().unwrap();
+    let volume_music = config.volume_music;
+    let volume_sfx = config.volume_sfx;
     let config = Config {
         autoplay: true,
         volume_music: 0.,
@@ -281,11 +283,11 @@ async fn main() -> Result<()> {
         for frame in 0..count {
             let position = (frame as f64 * ratio).round() as usize;
             let frame = frames[position];
-            *it.next().unwrap() += frame.left;
-            *it.next().unwrap() += frame.right;
+            *it.next().unwrap() += frame.left * volume_music;
+            *it.next().unwrap() += frame.right * volume_music;
         }
     }
-    let mut place = |pos: f64, clip: &AudioClip| {
+    let mut place = |pos: f64, clip: &AudioClip, volume: f32| {
         let position = (pos * sample_rate as f64).round() as usize * 2;
         let slice = &mut output[position..];
         let len = (slice.len() / 2).min(clip.frames.len());
@@ -293,9 +295,9 @@ async fn main() -> Result<()> {
         // TODO optimize?
         for frame in clip.frames[..len].iter() {
             let dst = it.next().unwrap();
-            *dst += frame.left;
+            *dst += frame.left * volume;
             let dst = it.next().unwrap();
-            *dst += frame.right;
+            *dst += frame.right * volume;
         }
     };
     for note in chart.lines.iter().flat_map(|it| it.notes.iter()).filter(|it| !it.fake) {
@@ -306,9 +308,10 @@ async fn main() -> Result<()> {
                 NoteKind::Drag => &sfx_drag,
                 NoteKind::Flick => &sfx_flick,
             },
+            volume_sfx,
         )
     }
-    place(O + length + A, &ending);
+    place(O + length + A, &ending, volume_music);
 
     info!("[3] 合并 & 压缩…");
     let mut proc = Command::new(ffmpeg)

@@ -29,6 +29,7 @@ pub struct EndingScene {
     player_rks: f32,
     challenge_texture: SafeTexture,
     challenge_rank: u32,
+    volume: f32,
     next: u8, // 0 -> none, 1 -> pop, 2 -> exit
 }
 
@@ -68,6 +69,7 @@ impl EndingScene {
             player_rks: config.player_rks,
             challenge_texture,
             challenge_rank: config.challenge_rank,
+            volume: config.volume_music,
             next: 0,
         })
     }
@@ -102,6 +104,7 @@ impl Scene for EndingScene {
             self.bgm_handle = Some(self.audio.play(
                 &self.bgm,
                 PlayParams {
+                    volume: self.volume as _,
                     loop_: true,
                     ..Default::default()
                 },
