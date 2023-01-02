@@ -1,7 +1,6 @@
 [workspace]
 members = [
 	"prpr",
-	"prpr-android",
 	"prpr-client",
 	"prpr-client-main",
 	"prpr-player",

@@ -25,9 +25,6 @@ fn copy_fbo(src: GLuint, dst: GLuint, dim: (u32, u32)) {
 }
 
 fn internal_id(target: RenderTarget) -> GLuint {
-    // let target: TransparentRenderPass = unsafe { std::mem::transmute(target.render_pass) };
-    // let ctx: &mut GraphicsContextHeader = unsafe { std::mem::transmute(get_internal_gl().quad_context) };
-    // ctx.passes[target.0].gl_fb
     target.render_pass.gl_internal_id(unsafe { get_internal_gl() }.quad_context)
 }
 
