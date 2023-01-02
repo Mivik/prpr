@@ -1,4 +1,4 @@
-use super::{Matrix, Point, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE};
+use super::{MSRenderTarget, Matrix, Point, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE};
 use crate::{
     audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::Result;
 use macroquad::prelude::*;
-use miniquad::{gl::GLuint, Texture, TextureFormat};
+use miniquad::{gl::GLuint, Texture};
 use std::{cell::RefCell, collections::BTreeMap, sync::atomic::AtomicU32};
 
 pub const MAX_SIZE: usize = 64; // needs tweaking
@@ -156,31 +156,11 @@ pub struct Resource {
     pub sfx_drag: AudioClip,
     pub sfx_flick: AudioClip,
 
-    pub chart_target: (Option<RenderTarget>, Option<RenderTarget>),
+    pub chart_target: Option<MSRenderTarget>,
 
     pub note_buffer: RefCell<NoteBuffer>,
 
     pub model_stack: Vec<Matrix>,
-}
-
-pub fn new_render_target(dim: (u32, u32), upscale: f32) -> Option<RenderTarget> {
-    let gl = unsafe { get_internal_gl() };
-    let texture = miniquad::Texture::new_render_texture(
-        gl.quad_context,
-        miniquad::TextureParams {
-            width: (dim.0 as f32 * upscale) as _,
-            height: (dim.1 as f32 * upscale) as _,
-            format: TextureFormat::RGB8,
-            ..Default::default()
-        },
-    );
-    Some({
-        let render_pass = miniquad::RenderPass::new(gl.quad_context, texture, None);
-        RenderTarget {
-            texture: Texture2D::from_miniquad_texture(texture),
-            render_pass,
-        }
-    })
 }
 
 impl Resource {
@@ -317,7 +297,7 @@ impl Resource {
             sfx_drag,
             sfx_flick,
 
-            chart_target: (None, None),
+            chart_target: None,
 
             note_buffer: RefCell::new(NoteBuffer::default()),
 
@@ -337,11 +317,12 @@ impl Resource {
         if self.last_screen_size == dim {
             return false;
         }
-        if let (Some(a), Some(b)) = self.chart_target {
-            a.delete();
-            b.delete();
-        }
-        self.chart_target = (new_render_target(dim, self.config.upscale), new_render_target(dim, self.config.upscale));
+        self.last_screen_size = dim;
+        self.chart_target = {
+            let upscale = self.config.upscale;
+            let dim = ((dim.0 as f32 * upscale) as u32, (dim.1 as f32 * upscale) as u32);
+            Some(MSRenderTarget::new(dim, 8))
+        };
         fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {
             let w = w as f32;
             let h = h as f32;

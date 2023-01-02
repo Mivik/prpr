@@ -468,6 +468,9 @@ impl Scene for GameScene {
                 self.should_exit = true;
             }
         }
+        if let Some(fxaa) = self.fxaa.as_mut() {
+            fxaa.update(&self.res);
+        }
         Ok(())
     }
 
@@ -478,20 +481,13 @@ impl Scene for GameScene {
             set_camera(&res.camera);
         }
 
-        let old_pass = self.gl.quad_gl.get_active_render_pass();
-        self.gl.quad_gl.render_pass(res.chart_target.0.map(|it| it.render_pass));
+        self.gl.quad_gl.render_pass(res.chart_target.as_ref().map(|it| it.input().render_pass));
 
         push_camera_state();
         self.gl.quad_gl.viewport(None);
         set_camera(&Camera2D {
             zoom: vec2(1., -screen_aspect()),
-            render_target: res.chart_target.0,
-            ..Default::default()
-        });
-        draw_background(*res.background);
-        set_camera(&Camera2D {
-            zoom: vec2(1., -screen_aspect()),
-            render_target: res.chart_target.1,
+            render_target: res.chart_target.as_ref().map(|it| it.input()),
             ..Default::default()
         });
         draw_background(*res.background);
@@ -509,7 +505,7 @@ impl Scene for GameScene {
 
         self.chart.render(res, self.fxaa.as_ref());
         self.gl.flush();
-        self.gl.quad_gl.render_pass(old_pass);
+        self.gl.quad_gl.render_pass(res.camera.render_pass());
 
         // render the texture onto screen
         push_camera_state();
@@ -520,17 +516,19 @@ impl Scene for GameScene {
             ..Default::default()
         });
         let top = 1. / screen_aspect();
-        draw_texture_ex(
-            res.chart_target.0.as_ref().unwrap().texture,
-            -1.,
-            -top,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(2., top * 2.)),
-                flip_y: true,
-                ..Default::default()
-            },
-        );
+        if let Some(target) = &res.chart_target {
+            draw_texture_ex(
+                target.output().texture,
+                -1.,
+                -top,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(2., top * 2.)),
+                    flip_y: true,
+                    ..Default::default()
+                },
+            );
+        }
         pop_camera_state();
         self.gl.quad_gl.viewport(res.camera.viewport);
 

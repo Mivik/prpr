@@ -173,10 +173,10 @@ impl Effect {
         let vp = gl.quad_gl.get_viewport();
         self.material.set_uniform("UVScale", vec2(vp.2 as _, vp.3 as _) / screen_dim);
 
-        std::mem::swap(&mut res.chart_target.0, &mut res.chart_target.1);
-        let old_tex = res.chart_target.1.as_ref().unwrap().texture;
-        self.material.set_texture("screenTexture", old_tex);
-        gl.quad_gl.render_pass(res.chart_target.0.map(|it| it.render_pass));
+        let target = res.chart_target.as_mut().unwrap();
+        target.swap();
+        self.material.set_texture("screenTexture", target.old().texture);
+        gl.quad_gl.render_pass(Some(target.output().render_pass));
 
         gl_use_material(self.material);
         let top = 1. / res.aspect_ratio;

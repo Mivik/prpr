@@ -8,7 +8,7 @@ use prpr::{
     audio::AudioClip,
     build_conf,
     config::Config,
-    core::{init_assets, NoteKind},
+    core::{init_assets, MSRenderTarget, NoteKind},
     fs::{self, PatchedFileSystem},
     scene::{GameScene, LoadingScene},
     time::TimeManager,
@@ -167,7 +167,6 @@ async fn main() -> Result<()> {
         } else {
             gl.quad_gl.viewport(None);
             gl.quad_gl.render_pass(None);
-            set_default_camera();
             main.render(&mut Ui::new())?;
         }
         if main.should_exit() {
@@ -190,32 +189,17 @@ async fn main() -> Result<()> {
     let v_config = VIDEO_CONFIG.lock().unwrap().take().unwrap();
     let (vw, vh) = v_config.resolution;
 
-    let texture = miniquad::Texture::new_render_texture(
-        gl.quad_context,
-        miniquad::TextureParams {
-            width: vw,
-            height: vh,
-            format: TextureFormat::RGB8,
-            ..Default::default()
-        },
-    );
-    let target = Some({
-        let render_pass = miniquad::RenderPass::new(gl.quad_context, texture, None);
-        RenderTarget {
-            texture: Texture2D::from_miniquad_texture(texture),
-            render_pass,
-        }
-    });
-
     info!("[1] 渲染视频…");
 
+    let mst = MSRenderTarget::new((vw, vh), 4);
     let my_time: Rc<RefCell<f64>> = Rc::new(RefCell::new(0.));
     let tm = TimeManager::manual(Box::new({
         let my_time = Rc::clone(&my_time);
         move || *(*my_time).borrow()
     }));
     let fs = Box::new(PatchedFileSystem(fs, edit.to_patches().await?));
-    let mut main = Main::new(Box::new(LoadingScene::new(edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, target)?;
+    let mut main =
+        Main::new(Box::new(LoadingScene::new(edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, Some(mst.input()))?;
     main.show_billboard = false;
 
     let mut bytes = vec![0; vw as usize * vh as usize * 3];
@@ -266,9 +250,12 @@ async fn main() -> Result<()> {
         *my_time.borrow_mut() = (frame as f32 * frame_delta).max(0.) as f64;
         main.update()?;
         main.render(&mut Ui::new())?;
+        // TODO magic. can't remove this line.
+        draw_rectangle(0., 0., 0., 0., Color::default());
         gl.flush();
 
-        texture.read_pixels(&mut bytes);
+        mst.blit();
+        mst.output().texture.raw_miniquad_texture_handle().read_pixels(&mut bytes);
         input.write_all(&bytes)?;
         if frame % 100 == 0 {
             info!("{frame} / {frames}, {:.2}fps", frame as f64 / start_time.elapsed().as_secs_f64());

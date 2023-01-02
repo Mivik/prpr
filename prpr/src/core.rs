@@ -31,6 +31,9 @@ pub use note::{BadNote, Note, NoteKind, RenderConfig};
 mod object;
 pub use object::Object;
 
+mod render;
+pub use render::MSRenderTarget;
+
 mod resource;
 pub use resource::{ParticleEmitter, Resource, DPI_VALUE};
 

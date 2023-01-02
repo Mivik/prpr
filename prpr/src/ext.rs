@@ -349,7 +349,7 @@ pub fn poll_future<R>(future: Pin<&mut (impl Future<Output = R> + ?Sized)>) -> O
 }
 
 pub fn screen_aspect() -> f32 {
-    let vp = unsafe { get_internal_gl() }.quad_gl.get_viewport();
+    let vp = get_viewport();
     vp.2 as f32 / vp.3 as f32
 }
 

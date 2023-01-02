@@ -69,6 +69,10 @@ impl Chart {
                 self.lines[*id].render(res, &self.lines);
             }
             res.note_buffer.borrow_mut().draw_all();
+            unsafe { get_internal_gl() }.flush();
+            if let Some(target) = &res.chart_target {
+                target.blit();
+            }
             for effect in &self.effects {
                 effect.render(res);
             }
