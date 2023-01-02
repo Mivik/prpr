@@ -29,6 +29,8 @@ pub struct EndingScene {
     player_rks: f32,
     challenge_texture: SafeTexture,
     challenge_rank: u32,
+    autoplay: bool,
+    speed: f32,
     volume: f32,
     next: u8, // 0 -> none, 1 -> pop, 2 -> exit
 }
@@ -69,6 +71,8 @@ impl EndingScene {
             player_rks: config.player_rks,
             challenge_texture,
             challenge_rank: config.challenge_rank,
+            autoplay: config.autoplay,
+            speed: config.speed,
             volume: config.volume_music,
             next: 0,
         })
@@ -165,7 +169,17 @@ impl Scene for EndingScene {
         {
             let r = draw_text_aligned(
                 self.font,
-                &format!("PRPR   {:07}  +{:07}", res.score, res.score),
+                &format!(
+                    "PRPR{} {}   {:07}  +{:07}",
+                    if self.autoplay { "[AUTOPLAY]" } else { "" },
+                    if (self.speed - 1.).abs() <= 1e-4 {
+                        String::new()
+                    } else {
+                        format!(" {:.2}x", self.speed)
+                    },
+                    res.score,
+                    res.score
+                ),
                 main.x + dx,
                 main.bottom() - 0.035,
                 (0., 1.),
