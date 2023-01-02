@@ -142,10 +142,24 @@ pub trait Scene {
     }
 }
 
+pub trait RenderTargetChooser {
+    fn choose(&mut self) -> Option<RenderTarget>;
+}
+impl RenderTargetChooser for Option<RenderTarget> {
+    fn choose(&mut self) -> Option<RenderTarget> {
+        *self
+    }
+}
+impl<F: FnMut() -> Option<RenderTarget>> RenderTargetChooser for F {
+    fn choose(&mut self) -> Option<RenderTarget> {
+        self()
+    }
+}
+
 pub struct Main {
     pub scenes: Vec<Box<dyn Scene>>,
     times: Vec<f64>,
-    target: Option<RenderTarget>,
+    target_chooser: Box<dyn RenderTargetChooser>,
     tm: TimeManager,
     subscriber: usize,
     paused: bool,
@@ -155,14 +169,14 @@ pub struct Main {
 }
 
 impl Main {
-    pub fn new(mut scene: Box<dyn Scene>, mut tm: TimeManager, target: Option<RenderTarget>) -> Result<Self> {
+    pub fn new(mut scene: Box<dyn Scene>, mut tm: TimeManager, mut target_chooser: impl RenderTargetChooser + 'static) -> Result<Self> {
         simulate_mouse_with_touch(false);
-        scene.enter(&mut tm, target)?;
+        scene.enter(&mut tm, target_chooser.choose())?;
         let last_update_time = tm.now();
         Ok(Self {
             scenes: vec![scene],
             times: Vec::new(),
-            target,
+            target_chooser: Box::new(target_chooser),
             tm,
             subscriber: register_input_subscriber(),
             paused: false,
@@ -181,25 +195,25 @@ impl Main {
             NextScene::Pop => {
                 self.scenes.pop();
                 self.tm.seek_to(self.times.pop().unwrap());
-                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target)?;
+                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
             }
             NextScene::PopN(num) => {
                 for _ in 0..num {
                     self.scenes.pop();
                     self.tm.seek_to(self.times.pop().unwrap());
                 }
-                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target)?;
+                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
             }
             NextScene::Exit => {
                 self.should_exit = true;
             }
             NextScene::Overlay(mut scene) => {
                 self.times.push(self.tm.now());
-                scene.enter(&mut self.tm, self.target)?;
+                scene.enter(&mut self.tm, self.target_chooser.choose())?;
                 self.scenes.push(scene);
             }
             NextScene::Replace(mut scene) => {
-                scene.enter(&mut self.tm, self.target)?;
+                scene.enter(&mut self.tm, self.target_chooser.choose())?;
                 *self.scenes.last_mut().unwrap() = scene;
             }
         }

@@ -10,19 +10,21 @@ use prpr::{
     config::Config,
     core::{init_assets, MSRenderTarget, NoteKind},
     fs::{self, PatchedFileSystem},
-    scene::{GameScene, LoadingScene},
+    scene::{GameScene, LoadingScene, BILLBOARD},
     time::TimeManager,
     ui::{ChartInfoEdit, Ui},
     Main,
 };
-use prpr::{ext::screen_aspect, scene::BILLBOARD};
 use std::{
     cell::RefCell,
     io::{BufWriter, Cursor, Write},
     ops::{Deref, DerefMut},
     process::{Command, Stdio},
     rc::Rc,
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
     time::Instant,
 };
 use std::{fmt::Write as _, path::Path};
@@ -145,7 +147,7 @@ async fn main() -> Result<()> {
             main.render(&mut ui)?;
             gl.flush();
             set_camera(&Camera2D {
-                zoom: vec2(1., -screen_aspect()),
+                zoom: vec2(1., -screen_width() / screen_height()),
                 ..Default::default()
             });
             let mut ui = Ui::new();
@@ -195,15 +197,28 @@ async fn main() -> Result<()> {
 
     info!("[1] 渲染视频…");
 
-    let mst = MSRenderTarget::new((vw, vh), 4);
+    let mst = Rc::new(MSRenderTarget::new((vw, vh), config.sample_count));
     let my_time: Rc<RefCell<f64>> = Rc::new(RefCell::new(0.));
     let tm = TimeManager::manual(Box::new({
         let my_time = Rc::clone(&my_time);
         move || *(*my_time).borrow()
     }));
     let fs = Box::new(PatchedFileSystem(fs, edit.to_patches().await?));
-    let mut main =
-        Main::new(Box::new(LoadingScene::new(edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, Some(mst.input()))?;
+    static MSAA: AtomicBool = AtomicBool::new(false);
+    let mut main = Main::new(Box::new(LoadingScene::new(edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, {
+        let mut cnt = 0;
+        let mst = Rc::clone(&mst);
+        move || {
+            cnt += 1;
+            if cnt == 1 || cnt == 3 {
+                MSAA.store(true, Ordering::SeqCst);
+                Some(mst.input())
+            } else {
+                MSAA.store(false, Ordering::SeqCst);
+                Some(mst.output())
+            }
+        }
+    })?;
     main.show_billboard = false;
 
     let mut bytes = vec![0; vw as usize * vh as usize * 3];
@@ -258,7 +273,9 @@ async fn main() -> Result<()> {
         draw_rectangle(0., 0., 0., 0., Color::default());
         gl.flush();
 
-        mst.blit();
+        if MSAA.load(Ordering::SeqCst) {
+            mst.blit();
+        }
         mst.output().texture.raw_miniquad_texture_handle().read_pixels(&mut bytes);
         input.write_all(&bytes)?;
         if frame % 100 == 0 {
