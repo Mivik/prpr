@@ -321,7 +321,7 @@ impl Resource {
         self.chart_target = {
             let upscale = self.config.upscale;
             let dim = ((dim.0 as f32 * upscale) as u32, (dim.1 as f32 * upscale) as u32);
-            Some(MSRenderTarget::new(dim, 8))
+            Some(MSRenderTarget::new(dim, self.config.sample_count))
         };
         fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {
             let w = w as f32;

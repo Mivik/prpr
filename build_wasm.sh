@@ -92,14 +92,50 @@ HTML=$(cat <<- END
         </div>
         <canvas onclick="full()" id="glcanvas" tabindex="1" hidden></canvas>
     </div>
-    <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
+    <!--<script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>-->
+    <script src="./mq_js_bundle.js"></script>
     <script type="module">
         import init, { set_wasm } from "./${PROJECT_NAME}.js";
         async function impl_run() {
+            gl.clearColorStencil = gl.clearStencil;
+            GL.renderbuffers = [];
+            gl.glGenRenderbuffers = function (n, ids) {
+                _glGenObject(n, ids, 'createRenderbuffer', GL.renderbuffers, 'glGenRenderbuffers');
+            };
+            gl.glBindRenderbuffer = function (target, renderbuffer) {
+                GL.validateGLObjectID(GL.renderbuffers, renderbuffer, 'glBindRenderbuffer', 'renderbuffer');
+
+                gl.bindRenderbuffer(target, GL.renderbuffers[renderbuffer]);
+            };
+            gl.glRenderbufferStorageMultisample = function (target, samples, internalFormat, width, height) {
+                gl.renderbufferStorageMultisample(target, samples, internalFormat, width, height);
+            };
+            gl.glFramebufferRenderbuffer = function (target, attachment, renderbuffertarget, renderbuffer) {
+                gl.framebufferRenderbuffer(target, attachment, renderbuffertarget, GL.renderbuffers[renderbuffer]);
+            };
+            gl.glDrawBuffers = function (length, buffers) {
+                gl.drawBuffers(buffers? getArray(buffers, Int32Array, length): null);
+            };
+            gl.glBlitFramebuffer = function (srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter) {
+                gl.blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+            };
+            gl.glDeleteRenderbuffers = function (n, buffers) {
+                for (var i = 0; i < n; i++) {
+                    var id = getArray(buffers + i * 4, Uint32Array, 1)[0];
+                    var buffer = GL.renderbuffers[id];
+
+                    if (!buffer) continue;
+
+                    gl.deleteRenderbuffer(buffer);
+                    buffer.name = 0;
+                    GL.renderbuffers[id] = null;
+                }
+            };
             let wbg = await init();
             miniquad_add_plugin({
                 register_plugin: (a) => {
                     Object.assign(a.env, wbg);
+                    Object.assign(a.env, gl);
                     a.wbg = wbg;
                 },
                 on_init: () => set_wasm(wasm_exports),
@@ -107,7 +143,6 @@ HTML=$(cat <<- END
                 name: "wbg",
             });
             load("./${PROJECT_NAME}_bg.wasm");
-            gl.clearColorStencil = gl.clearStencil;
         }
         window.run = function() {
             document.getElementById('container').removeAttribute('hidden');

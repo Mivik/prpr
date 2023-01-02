@@ -12,37 +12,23 @@ pub struct MSRenderTarget {
     output: [Option<RenderTarget>; 2],
 }
 
-// TODO remove dirty hacks
-#[allow(dead_code)]
-struct RenderPassInternal {
-    gl_fb: GLuint,
-    texture: Texture,
-    depth_texture: Option<Texture>,
-}
-#[allow(dead_code)]
-struct GraphicsContextHeader {
-    shaders: Vec<()>,
-    pipelines: Vec<()>,
-    passes: Vec<RenderPassInternal>,
-}
-struct TransparentRenderPass(usize);
-
 fn copy_fbo(src: GLuint, dst: GLuint, dim: (u32, u32)) {
     unsafe {
         use miniquad::gl::*;
         glBindFramebuffer(GL_READ_FRAMEBUFFER, src);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst);
-        let buf = GL_BACK;
-        glDrawBuffers(1, &buf as *const _);
+        let buf = [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2];
+        glDrawBuffers(3, &buf as *const _);
         let (w, h) = (dim.0 as i32, dim.1 as i32);
         glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     }
 }
 
 fn internal_id(target: RenderTarget) -> GLuint {
-    let target: TransparentRenderPass = unsafe { std::mem::transmute(target.render_pass) };
-    let ctx: &mut GraphicsContextHeader = unsafe { std::mem::transmute(get_internal_gl().quad_context) };
-    ctx.passes[target.0].gl_fb
+    // let target: TransparentRenderPass = unsafe { std::mem::transmute(target.render_pass) };
+    // let ctx: &mut GraphicsContextHeader = unsafe { std::mem::transmute(get_internal_gl().quad_context) };
+    // ctx.passes[target.0].gl_fb
+    target.render_pass.gl_internal_id(unsafe { get_internal_gl() }.quad_context)
 }
 
 impl MSRenderTarget {
@@ -69,16 +55,7 @@ impl MSRenderTarget {
             },
         );
         let render_pass = RenderPass::new(gl.quad_context, texture, None);
-        let dummy_render_pass = unsafe {
-            let ctx: &mut GraphicsContextHeader = std::mem::transmute(gl.quad_context);
-            ctx.passes.push(RenderPassInternal {
-                gl_fb: fbo,
-                texture,
-                depth_texture: None,
-            });
-            let pass = TransparentRenderPass(ctx.passes.len() - 1);
-            std::mem::transmute(pass)
-        };
+        let dummy_render_pass = RenderPass::from_raw(gl.quad_context, fbo, texture);
         Self {
             dim,
             fbo,
