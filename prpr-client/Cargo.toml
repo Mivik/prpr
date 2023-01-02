@@ -11,7 +11,7 @@ anyhow = "1.0"
 base64 = "0.20"
 image = "*"
 lyon = "*"
-macroquad = { git = "https://github.com/Mivik/macroquad", default-features = false }
+macroquad = { git = "https://github.com/Mivik/prpr-macroquad", default-features = false }
 md5 = "0.7"
 once_cell = "*"
 openssl = { version = "*", features = ["vendored"] }
