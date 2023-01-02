@@ -74,10 +74,13 @@ impl Scene for MainScene {
             let pad = 0.01;
             self.scroll.size((width, ui.top * 2. - h));
             self.scroll.render(ui, |ui| {
+                ui.dy(pad);
+                let r = ui.text("注：可以通过鼠标拖动屏幕来查看更下面的配置项").size(0.4).draw();
+                ui.dy(r.h + pad);
                 let (w, mut h) = render_chart_info(ui, &mut self.edit, width);
                 ui.scope(|ui| {
-                    h += 0.01;
                     ui.dy(h);
+                    h += r.h + pad * 2.;
                     let width = ui.text("一二三四").size(0.4).measure().w;
                     ui.dx(width);
                     let res = self.v_config.resolution;
@@ -98,7 +101,7 @@ impl Scene for MainScene {
                         }
                     }
                     ui.dy(r.h + pad);
-                    h += r.h;
+                    h += r.h + pad;
 
                     let mut string = self.v_config.fps.to_string();
                     let old = string.clone();
@@ -114,7 +117,11 @@ impl Scene for MainScene {
                         }
                     }
                     ui.dy(r.h + pad);
-                    h += r.h;
+                    h += r.h + pad;
+
+                    let r = ui.input("码率", &mut self.v_config.bitrate, 0.8);
+                    ui.dy(r.h + pad);
+                    h += r.h + pad;
 
                     let mut string = format!("{:.2}", self.v_config.ending_length);
                     let old = string.clone();
@@ -133,11 +140,11 @@ impl Scene for MainScene {
                         }
                     }
                     ui.dy(r.h + pad);
-                    h += r.h;
+                    h += r.h + pad;
 
                     let r = ui.checkbox("启用硬件加速", &mut self.v_config.hardware_accel);
                     ui.dy(r.h + pad);
-                    h += r.h;
+                    h += r.h + pad;
                 });
                 (w, h)
             });

@@ -33,6 +33,7 @@ struct VideoConfig {
     resolution: (u32, u32),
     hardware_accel: bool,
     ending_length: f64,
+    bitrate: String,
 }
 
 impl Default for VideoConfig {
@@ -42,6 +43,7 @@ impl Default for VideoConfig {
             resolution: (1920, 1080),
             hardware_accel: false,
             ending_length: 27.5,
+            bitrate: "7M".to_string(),
         }
     }
 }
@@ -311,9 +313,11 @@ async fn main() -> Result<()> {
     info!("[3] 合并 & 压缩…");
     let mut proc = Command::new(ffmpeg)
         .args(
-            "-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -vf format=yuv420p -c:a mp3 -map 0:v:0 -map 1:a:0 out.mp4"
-                .to_string()
-                .split_whitespace(),
+            format!(
+                "-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -vf format=yuv420p -c:a mp3 -map 0:v:0 -map 1:a:0 -b:v {} out.mp4",
+                v_config.bitrate
+            )
+            .split_whitespace(),
         )
         .stdin(Stdio::piped())
         .stderr(Stdio::inherit())
