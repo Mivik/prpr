@@ -5,8 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-macroquad = { version = "*", default-features = false }
-# macroquad = { path = "../../macroquad", default-features = false }
+macroquad = { git = "https://github.com/Mivik/prpr-macroquad", default-features = false }
 prpr = { path = "../prpr" }
 image = "*"
 fastblur = "*"
