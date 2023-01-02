@@ -87,7 +87,7 @@ impl Scene for MainScene {
                     let mut string = format!("{}x{}", res.0, res.1);
                     let r = ui.input("分辨率", &mut string, 0.8);
                     match || -> Result<(u32, u32)> {
-                        if let Some((w, h)) = string.split_once(&['x', 'X', '×', '*']) {
+                        if let Some((w, h)) = string.split_once(['x', 'X', '×', '*']) {
                             Ok((w.parse::<u32>()?, h.parse::<u32>()?))
                         } else {
                             bail!("格式应当为 “宽x高”")
