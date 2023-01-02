@@ -174,7 +174,7 @@ impl SongScene {
             info_task: Some(Task::new(async move {
                 let info: Result<ChartInfo> = async {
                     let mut fs = fs_from_path(&path)?;
-                    Ok(fs::load_info(fs.deref_mut()).await?)
+                    fs::load_info(fs.deref_mut()).await
                 }
                 .await;
                 match info {
