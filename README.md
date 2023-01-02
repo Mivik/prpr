@@ -26,14 +26,6 @@ prpr
 └── ...
 ```
 
-Before building, a small patch should be applied to the crate `macroquad`. Navigate to `$HOME/.cargo/registry/src/github.com-..../macroquad-VERSION/src/text.rs`, and comment out the line that panics on vertical fonts, namely:
-
-```rust
-if metrics.advance_height != 0.0 {
-    panic!("Vertical fonts are not supported"); // comment out this line
-}
-```
-
 Finally, run `prpr` with your chart's path.
 
 ```shell
