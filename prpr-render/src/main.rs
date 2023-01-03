@@ -56,9 +56,11 @@ static VIDEO_CONFIG: Mutex<Option<VideoConfig>> = Mutex::new(None);
 #[cfg(target_arch = "wasm32")]
 compile_error!("WASM target is not supported");
 
-#[macroquad::main(build_conf)]
-async fn main() -> Result<()> {
+async fn the_main() -> Result<()> {
     init_assets();
+    set_panic_handler(|msg, backtrace| async move {
+        let _ = std::fs::write("错误信息.txt", format!("发生错误：{msg}\n\n详细堆栈：\n{backtrace}"));
+    });
 
     let ffmpeg = if cfg!(target_os = "windows") {
         let local = Path::new("ffmpeg.exe");
@@ -355,4 +357,11 @@ async fn main() -> Result<()> {
     info!("[4] 完成！");
 
     Ok(())
+}
+
+#[macroquad::main(build_conf)]
+async fn main() {
+    if let Err(err) = the_main().await {
+        let _ = std::fs::write("错误信息.txt", format!("发生错误：{err:?}"));
+    }
 }
