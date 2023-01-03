@@ -7,6 +7,7 @@ pub struct Chart {
     pub offset: f32,
     pub lines: Vec<JudgeLine>,
     pub effects: Vec<Effect>,
+    pub global_effects: Vec<Effect>,
     pub order: Vec<usize>,
     pub attach_ui: [Option<usize>; 7],
 }
@@ -25,10 +26,12 @@ impl Chart {
             })
             .collect::<Vec<_>>();
         order.sort_by_key(|it| (lines[*it].z_index, *it));
+        let (global_effects, effects) = effects.into_iter().partition(|e| e.global);
         Self {
             offset,
             lines,
             effects,
+            global_effects,
             order,
             attach_ui,
         }
@@ -63,7 +66,7 @@ impl Chart {
         }
     }
 
-    pub fn render(&self, res: &mut Resource, fxaa: Option<&Effect>) {
+    pub fn render(&self, res: &mut Resource) {
         res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
             for id in &self.order {
                 self.lines[*id].render(res, &self.lines);
@@ -75,9 +78,6 @@ impl Chart {
             }
             for effect in &self.effects {
                 effect.render(res);
-            }
-            if let Some(fxaa) = fxaa.as_ref() {
-                fxaa.render(res);
             }
         });
     }

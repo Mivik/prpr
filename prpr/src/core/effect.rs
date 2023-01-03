@@ -74,6 +74,7 @@ pub struct Effect {
     material: Material,
     defaults: Vec<Box<dyn Uniform>>,
     uniforms: Vec<Box<dyn Uniform>>,
+    pub global: bool,
 }
 
 impl Effect {
@@ -81,7 +82,7 @@ impl Effect {
         SHADERS.get(name).copied()
     }
 
-    pub fn new(time_range: Range<f32>, shader: &str, uniforms: Vec<Box<dyn Uniform>>) -> Result<Self> {
+    pub fn new(time_range: Range<f32>, shader: &str, uniforms: Vec<Box<dyn Uniform>>, global: bool) -> Result<Self> {
         static DEF_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"uniform\s+(\w+)\s+(\w+);\s+//\s+%([^%]+)%").unwrap());
         let defaults = DEF_REGEX
             .captures_iter(shader)
@@ -136,6 +137,7 @@ impl Effect {
                 },
             )?,
             uniforms,
+            global,
         })
     }
 

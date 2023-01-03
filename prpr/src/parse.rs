@@ -82,7 +82,7 @@ const TWEEN_MAP: [crate::core::TweenId; 30] = {
 };
 
 #[derive(serde::Deserialize)]
-struct Triple(u32, u32, u32);
+struct Triple(i32, u32, u32);
 
 impl Triple {
     pub fn beats(&self) -> f32 {

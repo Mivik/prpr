@@ -27,7 +27,7 @@ impl ChartInfoEdit {
 
     pub async fn to_patches(&self) -> Result<HashMap<String, Vec<u8>>> {
         let mut res = HashMap::new();
-        res.insert("info.yml".to_owned(), serde_json::to_string(&self.info)?.into_bytes());
+        res.insert("info.yml".to_owned(), serde_yaml::to_string(&self.info)?.into_bytes());
         #[cfg(not(target_arch = "wasm32"))]
         {
             if let Some(chart) = &self.chart {

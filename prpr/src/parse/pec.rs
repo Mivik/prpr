@@ -199,8 +199,8 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                                                                                                        bail!("No note has been inserted yet");
-                                                                                                    };
+                bail!("No note has been inserted yet");
+            };
             lines[last_line].notes.last_mut().unwrap()
         }};
     }

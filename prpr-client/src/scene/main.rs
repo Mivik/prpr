@@ -584,7 +584,7 @@ impl MainScene {
         self.task_load = Task::new({
             let tex = self.tex.clone();
             async move {
-                let charts: Vec<LCChartItem> = Client::query().order("updatedAt").send().await?;
+                let charts: Vec<LCChartItem> = Client::query().order("-updatedAt").send().await?;
                 Ok(charts
                     .into_iter()
                     .map(|it| {

@@ -40,7 +40,7 @@ pub struct GameScene {
     pub chart: Chart,
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
-    fxaa: Option<Effect>,
+    effects: Vec<Effect>,
 
     pub audio_handle: AudioHandle,
 
@@ -113,16 +113,17 @@ impl GameScene {
         font: Font,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
     ) -> Result<Self> {
-        let chart = Self::load_chart(&mut fs, &info).await?;
+        let mut chart = Self::load_chart(&mut fs, &info).await?;
+        let effects = std::mem::take(&mut chart.global_effects);
+        if config.fxaa {
+            chart
+                .effects
+                .push(Effect::new(0.0..f32::INFINITY, include_str!("fxaa.glsl"), Vec::new(), true).unwrap());
+        }
 
         let mut res = Resource::new(config, info, fs, player, background, illustration, font)
             .await
             .context("Failed to load resources")?;
-        let fxaa = if res.config.fxaa {
-            Some(Effect::new(0.0..f32::INFINITY, include_str!("fxaa.glsl"), Vec::new()).unwrap())
-        } else {
-            None
-        };
 
         let judge = Judge::new(&chart);
 
@@ -135,7 +136,7 @@ impl GameScene {
             chart,
             judge,
             gl: unsafe { get_internal_gl() },
-            fxaa,
+            effects,
 
             audio_handle,
 
@@ -164,7 +165,6 @@ impl GameScene {
 
     fn ui(&mut self, tm: &mut TimeManager) -> Result<()> {
         let c = Color::new(1., 1., 1., self.res.alpha);
-        let t = tm.now();
         let res = &mut self.res;
         let eps = 2e-2 / res.aspect_ratio;
         let top = -1. / res.aspect_ratio;
@@ -256,6 +256,13 @@ impl GameScene {
                 ui.fill_rect(Rect::new(-1. + dest - hw, top, hw * 2., height), Color { a: c.a * alpha, ..c });
             });
         });
+        Ok(())
+    }
+
+    fn overlay_ui(&mut self, tm: &mut TimeManager) -> Result<()> {
+        let c = Color::new(1., 1., 1., self.res.alpha);
+        let t = tm.now();
+        let res = &mut self.res;
         if tm.paused() {
             let h = 1. / res.aspect_ratio;
             draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., 0.6));
@@ -468,8 +475,8 @@ impl Scene for GameScene {
                 self.should_exit = true;
             }
         }
-        if let Some(fxaa) = self.fxaa.as_mut() {
-            fxaa.update(&self.res);
+        for e in &mut self.effects {
+            e.update(&self.res);
         }
         Ok(())
     }
@@ -503,34 +510,44 @@ impl Scene for GameScene {
         let h = 1. / res.aspect_ratio;
         draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
 
-        self.chart.render(res, self.fxaa.as_ref());
+        self.chart.render(res);
         self.gl.flush();
-        self.gl.quad_gl.render_pass(res.camera.render_pass());
+
+        let render_target = if self.effects.is_empty() {
+            // render directly onto the target
+            res.camera.render_target
+        } else {
+            res.chart_target.as_ref().map(|it| it.input())
+        };
 
         // render the texture onto screen
-        push_camera_state();
-        self.gl.quad_gl.viewport(None);
-        set_camera(&Camera2D {
-            zoom: vec2(1., -screen_aspect()),
-            render_target: res.camera.render_target,
-            ..Default::default()
-        });
-        let top = 1. / screen_aspect();
-        if let Some(target) = &res.chart_target {
-            draw_texture_ex(
-                target.output().texture,
-                -1.,
-                -top,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(2., top * 2.)),
-                    flip_y: true,
-                    ..Default::default()
-                },
-            );
+        fn draw_tex(gl: &mut InternalGlContext, res: &Resource, render_target: Option<RenderTarget>) {
+            push_camera_state();
+            gl.quad_gl.viewport(None);
+            set_camera(&Camera2D {
+                zoom: vec2(1., -screen_aspect()),
+                render_target,
+                ..Default::default()
+            });
+            let top = 1. / screen_aspect();
+            if let Some(target) = &res.chart_target {
+                draw_texture_ex(
+                    target.output().texture,
+                    -1.,
+                    -top,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(vec2(2., top * 2.)),
+                        flip_y: true,
+                        ..Default::default()
+                    },
+                );
+            }
+            pop_camera_state();
         }
-        pop_camera_state();
+        draw_tex(&mut self.gl, res, render_target);
         self.gl.quad_gl.viewport(res.camera.viewport);
+        self.gl.quad_gl.render_pass(render_target.map(|it| it.render_pass));
 
         self.bad_notes.retain(|dummy| dummy.render(res));
         let t = tm.real_time();
@@ -538,7 +555,28 @@ impl Scene for GameScene {
         if res.config.particle {
             res.emitter.draw(dt);
         }
-        self.ui(tm)
+        drop(res);
+        self.ui(tm)?;
+        self.overlay_ui(tm)?;
+        if !self.effects.is_empty() {
+            self.gl.flush();
+            if let Some(target) = &self.res.chart_target {
+                target.blit();
+            }
+            push_camera_state();
+            self.gl.quad_gl.viewport(None);
+            set_camera(&Camera2D {
+                zoom: vec2(1., screen_aspect()),
+                render_target: render_target,
+                ..Default::default()
+            });
+            for e in &self.effects {
+                e.render(&mut self.res);
+            }
+            pop_camera_state();
+            draw_tex(&mut self.gl, &self.res, self.res.camera.render_target);
+        }
+        Ok(())
     }
 
     fn next_scene(&mut self, tm: &mut TimeManager) -> NextScene {
