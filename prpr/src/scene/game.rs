@@ -118,7 +118,7 @@ impl GameScene {
         if config.fxaa {
             chart
                 .effects
-                .push(Effect::new(0.0..f32::INFINITY, include_str!("fxaa.glsl"), Vec::new(), true).unwrap());
+                .push(Effect::new(0.0..f32::INFINITY, include_str!("fxaa.glsl"), Vec::new(), false).unwrap());
         }
 
         let mut res = Resource::new(config, info, fs, player, background, illustration, font)
@@ -499,13 +499,12 @@ impl Scene for GameScene {
         });
         draw_background(*res.background);
         pop_camera_state();
-        {
+        let vp = {
             let upscale = res.config.upscale;
             let mp = move |p: i32| (p as f32 * upscale) as i32;
-            self.gl
-                .quad_gl
-                .viewport(res.camera.viewport.map(|it| (mp(it.0), mp(it.1), mp(it.2), mp(it.3))));
-        }
+            res.camera.viewport.map(|it| (mp(it.0), mp(it.1), mp(it.2), mp(it.3)))
+        };
+        self.gl.quad_gl.viewport(vp);
 
         let h = 1. / res.aspect_ratio;
         draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
@@ -521,11 +520,10 @@ impl Scene for GameScene {
         };
 
         // render the texture onto screen
-        fn draw_tex(gl: &mut InternalGlContext, res: &Resource, render_target: Option<RenderTarget>) {
+        fn draw_tex(res: &Resource, render_target: Option<RenderTarget>) {
             push_camera_state();
-            gl.quad_gl.viewport(None);
             set_camera(&Camera2D {
-                zoom: vec2(1., -screen_aspect()),
+                zoom: vec2(1., screen_aspect()),
                 render_target,
                 ..Default::default()
             });
@@ -538,15 +536,14 @@ impl Scene for GameScene {
                     WHITE,
                     DrawTextureParams {
                         dest_size: Some(vec2(2., top * 2.)),
-                        flip_y: true,
                         ..Default::default()
                     },
                 );
             }
             pop_camera_state();
         }
-        draw_tex(&mut self.gl, res, render_target);
-        self.gl.quad_gl.viewport(res.camera.viewport);
+        draw_tex(res, render_target);
+        self.gl.quad_gl.viewport(vp);
         self.gl.quad_gl.render_pass(render_target.map(|it| it.render_pass));
 
         self.bad_notes.retain(|dummy| dummy.render(res));
@@ -564,7 +561,6 @@ impl Scene for GameScene {
                 target.blit();
             }
             push_camera_state();
-            self.gl.quad_gl.viewport(None);
             set_camera(&Camera2D {
                 zoom: vec2(1., screen_aspect()),
                 render_target: render_target,
@@ -574,7 +570,7 @@ impl Scene for GameScene {
                 e.render(&mut self.res);
             }
             pop_camera_state();
-            draw_tex(&mut self.gl, &self.res, self.res.camera.render_target);
+            draw_tex(&self.res, self.res.camera.render_target);
         }
         Ok(())
     }
