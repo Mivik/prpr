@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use super::{process_lines, BpmList, Triple, TWEEN_MAP};
 use crate::{
     core::{
@@ -12,7 +11,7 @@ use crate::{
 use anyhow::{anyhow, bail, Context, Result};
 use macroquad::prelude::Color;
 use serde::Deserialize;
-use std::{borrow::Cow, collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 const RPE_WIDTH: f32 = 1350.;
 const RPE_HEIGHT: f32 = 900.;
@@ -398,16 +397,18 @@ async fn parse_effect(r: &mut BpmList, rpe: RPEEffect, fs: &mut dyn FileSystem) 
             })
         })
         .collect::<Result<_>>()?;
-    let source: Cow<str> = if let Some(path) = rpe.shader.strip_prefix('/') {
-        String::from_utf8(fs.load_file(path).await?)
-            .with_context(|| format!("Cannot load shader from {path}"))?
-            .into()
-    } else {
-        Effect::get_preset(&rpe.shader)
-            .ok_or_else(|| anyhow!("Cannot find preset shader {}", rpe.shader))?
-            .into()
-    };
-    Effect::new(range, &source, vars, rpe.global)
+    let string;
+    Effect::new(
+        range,
+        if let Some(path) = rpe.shader.strip_prefix('/') {
+            string = String::from_utf8(fs.load_file(path).await?).with_context(|| format!("Cannot load shader from {path}"))?;
+            &string
+        } else {
+            Effect::get_preset(&rpe.shader).ok_or_else(|| anyhow!("Cannot find preset shader {}", rpe.shader))?
+        },
+        vars,
+        rpe.global,
+    )
 }
 
 pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {

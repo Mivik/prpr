@@ -1,3 +1,5 @@
+use crate::ext::screen_aspect;
+
 use super::{Anim, Resource, Tweenable};
 use anyhow::{anyhow, bail, Result};
 use macroquad::prelude::*;
@@ -181,7 +183,7 @@ impl Effect {
         gl.quad_gl.render_pass(Some(target.output().render_pass));
 
         gl_use_material(self.material);
-        let top = 1. / res.aspect_ratio;
+        let top = 1. / if self.global { screen_aspect() } else { res.aspect_ratio };
         draw_rectangle(-1., -top, 2., top * 2., WHITE);
         gl_use_default_material();
     }
