@@ -149,7 +149,7 @@ impl JudgeLine {
                 ..Default::default()
             };
             if alpha < 0.0 {
-                let w = (-alpha.round()) as u32;
+                let w = (-(alpha * 255.).round()) as u32;
                 match w {
                     1 => {
                         return;
