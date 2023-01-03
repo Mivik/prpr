@@ -62,6 +62,7 @@ fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
     get_data()
         .charts
         .iter()
+        .rev()
         .map(|it| ChartItem {
             info: it.info.clone(),
             path: it.path.clone(),
