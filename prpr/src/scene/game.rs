@@ -584,6 +584,7 @@ impl Scene for GameScene {
             if tm.paused() {
                 tm.resume();
             }
+            tm.speed = 1.0;
             NextScene::Pop
         } else if let Some(scene) = self.next_scene.take() {
             tm.speed = 1.0;
