@@ -1,5 +1,9 @@
 # prpr - <ins>P</ins>hig<ins>R</ins>os <ins>P</ins>layer, written in <ins>R</ins>ust
 
+[中文文档（建设中）](https://mivik.moe/prpr-docs)
+
+测试 QQ 群：660488396
+
 ## Usage
 
 To begin with, clone the repo:
@@ -49,7 +53,7 @@ The specifications of `info.yml` are as below.
 id: (string) (default: none)
 
 name: (string) (default: 'UK')
-difficulty: (number) (default: 10)
+difficulty: (float) (default: 10)
 level: (string) (default: 'UK Lv.?')
 charter: (string) (default: 'UK')
 composer: (string) (default: 'UK')
@@ -60,6 +64,7 @@ format: (string, the format of the chart) (default: 'rpe', available: 'rpe', 'pg
 music: (string, the path of the music file) (default: 'music.mp3')
 illustration: (string, the path of the illustration) (default: 'background.png')
 
+previewTime: (float, preview time of the music) (default: 0)
 aspectRatio: (float, the aspect ratio of the screen (w / h)) (default: 16 / 9)
 lineLength: (float, half the length of the judge line) (default: 6)
 tip: (string) (default: 'Tip: 欢迎来到 prpr！')
@@ -77,14 +82,21 @@ adjustTime: (bool, whether automatical time alignment adjustment should be enabl
 aggresive: (bool, enables aggresive optimization, may cause inconsistent render result) (default: true)
 aspectRatio: (float, overrides the aspect ratio of chart) (default: none)
 autoplay: (bool, enables the auto play mode) (default: true)
+challengeColor: (enum, the color of the challenge mode badge, one of 'white', 'green', 'blue', 'red', 'golden', 'rainbow') (default: golden)
+challengeRank: (int, the rank in the challenge mode badge) (default: 45)
 fixAspectRatio: (bool, forces to keep the aspect ratio specified in chart) (default: false)
+fxaa: (bool, whether FXAA is enabled) (default: false)
 interactive: (bool, whether the GUI is interactive) (default: true)
 multipleHint: (bool, whether to highlight notes with the same time) (default: true)
+noteScale: (float, scale of note size) (default: 1)
 offset: (float, global chart offset) (default: 0)
 particle: (bool, should particle be enabled or not) (default: false)
 playerName: (string, the name of the player) (default: 'Mivik')
-playerRks: (number, the ranking score of the player) (default: 15)
+playerRks: (float, the ranking score of the player) (default: 15)
+sampleCount: (float, MSAA sampling count) (default: 4)
+skinPath: (string, optional, the path to the custom skin (can be folder or ZIP archive)) (default: none)
 speed: (float, the speed of the chart) (default: 1)
+upscale: (float, scaling ratio of supersampling) (default: 1)
 volumeMusic: (float, the volume of the music) (default: 1)
 volumeSfx: (float, the volume of sound effects) (default: 1)
 ```
