@@ -351,12 +351,15 @@ impl MainScene {
     }
 
     fn render_about(ui: &mut Ui) {
-        static ABOUT: Lazy<String> = Lazy::new(|| {
-            String::from_utf8(base64::decode("cHJwciDmmK/kuIDmrL4gUGhpZ3JvcyDmqKHmi5/lmajvvIzml6jlnKjkuLroh6rliLbosLHmuLjnjqnmj5DkvpvkuIDkuKrnu5/kuIDljJbnmoTlubPlj7DjgILor7foh6rop4npgbXlrojnpL7nvqTnm7jlhbPopoHmsYLvvIzkuI3mgbbmhI/kvb/nlKggcHJwcu+8jOS4jemaj+aEj+WItuS9nOaIluS8oOaSreS9jui0qOmHj+S9nOWTgeOAggoKcHJwciDmmK/lvIDmupDova/ku7bvvIzpgbXlvqogR05VIEdlbmVyYWwgUHVibGljIExpY2Vuc2UgdjMuMCDljY/orq7jgIIK5rWL6K+V576k77yaNjYwNDg4Mzk2CkdpdEh1YjogaHR0cHM6Ly9naXRodWIuY29tL01pdmlrL3BycHI=").unwrap()).unwrap()
-        });
+        const ABOUT: &str = r"prpr-client v0.1.13
+prpr 是一款 Phigros 模拟器，旨在为自制谱游玩提供一个统一化的平台。请自觉遵守社群相关要求，不恶意使用 prpr，不随意制作或传播低质量作品。
+
+prpr 是开源软件，遵循 GNU General Public License v3.0 协议。
+测试群：660488396
+GitHub: https://github.com/Mivik/prpr";
         ui.dx(0.02);
         ui.dy(0.01);
-        ui.text(&*ABOUT).multiline().max_width((1. - SIDE_PADDING) * 2. - 0.02).size(0.5).draw();
+        ui.text(ABOUT).multiline().max_width((1. - SIDE_PADDING) * 2. - 0.02).size(0.5).draw();
     }
 
     fn render_account(ui: &mut Ui, page: &mut AccountPage) {
