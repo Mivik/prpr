@@ -191,7 +191,7 @@ impl Scene for LoadingScene {
         let p = 0.6;
         let s = 0.2;
         let t = ((now - 0.3).max(0.) % (p * 2. + s)) / p;
-        let st = (t - 1.).max(0.).min(1.).powi(3);
+        let st = (t - 1.).clamp(0., 1.).powi(3);
         let en = 1. - (1. - t.min(1.)).powi(3);
 
         let mut r = Rect::new(r.x + r.w * st, r.y, r.w * (en - st), r.h);

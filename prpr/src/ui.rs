@@ -225,8 +225,8 @@ impl Shading {
         if let Some((_, tr, dr)) = self.texture {
             let ux = (x - dr.x) / dr.w;
             let uy = (y - dr.y) / dr.h;
-            let ux = ux.max(0.).min(1.);
-            let uy = uy.max(0.).min(1.);
+            let ux = ux.clamp(0., 1.);
+            let uy = uy.clamp(0., 1.);
             Vertex::new(p.x, p.y, 0., tr.x + tr.w * ux, tr.y + tr.h * uy, color)
         } else {
             Vertex::new(p.x, p.y, 0., 0., 0., color)
@@ -689,7 +689,7 @@ impl Ui {
             let r = Rect::new(0., cy - s, len, s * 2.);
             self.fill_rect(r, WHITE);
             let p = (*value - range.start) / (range.end - range.start);
-            let p = p.max(0.).min(1.);
+            let p = p.clamp(0., 1.);
             self.fill_circle(len * p, cy, 0.015, self.accent());
             let r = r.feather(0.015 - s);
             let r = self.rect_to_global(r);
@@ -697,7 +697,7 @@ impl Ui {
                 if let Some(touch) = self.touches.iter().rfind(|it| it.id == *id) {
                     let Vec2 { x, y } = touch.position;
                     let (x, _) = self.to_local((x, y));
-                    let p = (x / len).max(0.).min(1.);
+                    let p = (x / len).clamp(0., 1.);
                     *value = range.start + (range.end - range.start) * p;
                     *value = (*value / step).round() * step;
                     if matches!(touch.phase, TouchPhase::Cancelled | TouchPhase::Ended) {

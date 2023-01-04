@@ -419,7 +419,7 @@ impl Judge {
                 .zip(self.notes.iter())
                 .enumerate()
                 .filter_map(|(line_id, (line, (idx, st)))| {
-                    idx[*st as usize..]
+                    idx[*st..]
                         .iter()
                         .cloned()
                         .find(|id| {

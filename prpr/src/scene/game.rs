@@ -552,7 +552,6 @@ impl Scene for GameScene {
         if res.config.particle {
             res.emitter.draw(dt);
         }
-        drop(res);
         self.ui(tm)?;
         self.overlay_ui(tm)?;
         if !self.effects.is_empty() {
@@ -563,7 +562,7 @@ impl Scene for GameScene {
             push_camera_state();
             set_camera(&Camera2D {
                 zoom: vec2(1., screen_aspect()),
-                render_target: render_target,
+                render_target,
                 ..Default::default()
             });
             for e in &self.effects {

@@ -30,7 +30,6 @@ use std::{
     future::Future,
     io::Cursor,
     ops::DerefMut,
-    pin::Pin,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
         Mutex,
@@ -517,13 +516,13 @@ impl MainScene {
                 ui.dx(0.65);
                 let r = ui.text("皮肤").size(0.4).anchor(1., 0.).draw();
                 let mut r = Rect::new(0.02, r.y - 0.01, 0.3, r.h + 0.02);
-                if ui.button("choose_skin", r, config.skin_path.as_ref().map(|it| it.as_str()).unwrap_or("[默认]")) {
+                if ui.button("choose_skin", r, config.skin_path.as_deref().unwrap_or("[默认]")) {
                     request_file("skin");
                 }
                 r.x += 0.3 + 0.02;
                 r.w = 0.1;
                 if ui.button("reset_skin", r, "重置") {
-                    *skin_task = Some(Self::new_skin_task(None));
+                    *skin_task = Self::new_skin_task(None);
                 }
             });
 
@@ -628,8 +627,8 @@ impl MainScene {
         });
     }
 
-    fn new_skin_task(path: Option<String>) -> Pin<Box<dyn Future<Output = Result<(SkinPack, Option<String>)>>>> {
-        Box::pin(async move {
+    fn new_skin_task(path: Option<String>) -> LocalTask<Result<(SkinPack, Option<String>)>> {
+        Some(Box::pin(async move {
             let skin = SkinPack::from_path(path.as_ref()).await?;
             Ok((
                 skin,
@@ -641,7 +640,7 @@ impl MainScene {
                     None
                 },
             ))
-        })
+        }))
     }
 }
 
@@ -952,7 +951,7 @@ impl Scene for MainScene {
                     }
                 }
                 "skin" => {
-                    self.load_skin_task = Some(Self::new_skin_task(Some(file)));
+                    self.load_skin_task = Self::new_skin_task(Some(file));
                 }
                 _ => return_file(id, file),
             }

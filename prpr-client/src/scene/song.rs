@@ -203,7 +203,7 @@ impl SongScene {
     }
 
     fn scroll_progress(&self) -> f32 {
-        (self.scroll.y_scroller.offset() / (1. / screen_aspect() * 0.7)).max(0.).min(1.)
+        (self.scroll.y_scroller.offset() / (1. / screen_aspect() * 0.7)).clamp(0., 1.)
     }
 
     fn ui(&mut self, ui: &mut Ui, t: f32) {

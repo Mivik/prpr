@@ -131,7 +131,7 @@ impl Scene for EndingScene {
         draw_background(*self.background);
 
         fn ran(t: f32, l: f32, r: f32) -> f32 {
-            ((t - l) / (r - l)).max(0.).min(1.)
+            ((t - l) / (r - l)).clamp(0., 1.)
         }
         fn tran(gl: &mut QuadGl, x: f32) {
             gl.push_model_matrix(Mat4::from_translation(vec3(x * 2., 0., 0.)));

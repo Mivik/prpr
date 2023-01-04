@@ -57,7 +57,7 @@ impl Scroller {
                             *unlock = true;
                         }
                         if *unlock {
-                            self.offset = (*st_off + (*st - val)).max(-EXTEND).min(self.size + EXTEND);
+                            self.offset = (*st_off + (*st - val)).clamp(-EXTEND, self.size + EXTEND);
                         }
                     }
                 }
