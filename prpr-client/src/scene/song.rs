@@ -399,7 +399,7 @@ impl SongScene {
     fn update_chart_info(&mut self, mut info: BriefChartInfo) {
         info.uploader = self.chart.info.uploader.clone();
         self.chart.info = info.clone();
-        get_data_mut().charts[TRANSIT_ID.load(Ordering::SeqCst) as usize].info = info;
+        get_data_mut().chart_mut(TRANSIT_ID.load(Ordering::SeqCst) as usize).info = info;
         let _ = save_data();
         UPDATE_INFO.store(true, Ordering::SeqCst);
     }

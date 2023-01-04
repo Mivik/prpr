@@ -66,7 +66,7 @@ pub struct LocalChart {
 #[derive(Default, Serialize, Deserialize)]
 pub struct Data {
     pub me: Option<User>,
-    pub charts: Vec<LocalChart>,
+    charts: Vec<LocalChart>,
     pub config: Config,
 }
 
@@ -96,5 +96,27 @@ impl Data {
             }
         }
         Ok(())
+    }
+
+    pub fn add_chart(&mut self, chart: LocalChart) {
+        self.charts.push(chart);
+    }
+
+    pub fn remove_chart(&mut self, id: usize) {
+        self.charts.remove(self.charts.len() - id - 1);
+    }
+
+    pub fn charts(&self) -> impl Iterator<Item = &LocalChart> {
+        self.charts.iter().rev()
+    }
+
+    pub fn chart(&self, id: usize) -> &LocalChart {
+        let id = self.charts.len() - id - 1;
+        &self.charts[id]
+    }
+
+    pub fn chart_mut(&mut self, id: usize) -> &mut LocalChart {
+        let id = self.charts.len() - id - 1;
+        &mut self.charts[id]
     }
 }

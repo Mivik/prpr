@@ -60,9 +60,7 @@ pub fn illustration_task(path: String) -> Task<Result<DynamicImage>> {
 
 fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
     get_data()
-        .charts
-        .iter()
-        .rev()
+        .charts()
         .map(|it| ChartItem {
             info: it.info.clone(),
             path: it.path.clone(),
@@ -655,7 +653,7 @@ impl Scene for MainScene {
         }
         if UPDATE_INFO.fetch_and(false, Ordering::SeqCst) {
             let Some((id, ..)) = self.transit else { unreachable!() };
-            self.charts_local[id as usize].info = get_data().charts[id as usize].info.clone();
+            self.charts_local[id as usize].info = get_data().chart(id as _).info.clone();
         }
         Ok(())
     }
@@ -747,7 +745,7 @@ impl Scene for MainScene {
                         let chart_id = self.charts_remote[id as usize].info.id.as_ref().unwrap();
                         dir::downloaded_charts()?;
                         let path = format!("download/{}", chart_id);
-                        if get_data().charts.iter().any(|it| it.path == path) {
+                        if get_data().charts().any(|it| it.path == path) {
                             show_message("已经下载");
                             return Ok(());
                         }
@@ -837,7 +835,7 @@ impl Scene for MainScene {
                     show_error(err.context(format!("{} 下载失败", task.0)));
                 }
                 Ok(chart) => {
-                    get_data_mut().charts.push(chart);
+                    get_data_mut().add_chart(chart);
                     save_data()?;
                     self.charts_local = load_local(&self.tex);
                     show_message(format!("{} 下载完成", task.0));
@@ -863,7 +861,7 @@ impl Scene for MainScene {
                     show_error(err.context("导入失败"));
                 }
                 Ok(chart) => {
-                    get_data_mut().charts.push(chart);
+                    get_data_mut().add_chart(chart);
                     save_data()?;
                     self.charts_local = load_local(&self.tex);
                     show_message("导入成功");
@@ -1031,7 +1029,7 @@ impl Scene for MainScene {
                         } else {
                             std::fs::remove_dir_all(path)?;
                         }
-                        get_data_mut().charts.remove(id);
+                        get_data_mut().remove_chart(id);
                         save_data()?;
                         self.charts_local.remove(id);
                         Ok(())
