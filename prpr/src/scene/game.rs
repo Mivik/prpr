@@ -197,7 +197,7 @@ impl GameScene {
                 .scale(scale)
                 .draw();
         });
-        self.chart.with_element(&mut ui, res, UIElement::ComboNumber, |ui, alpha, scale| {
+        self.chart.with_element(&mut ui, res, UIElement::Pause, |ui, alpha, scale| {
             let mut r = Rect::new(pause_w * 2.2 - 1., top + eps * 3.5, pause_w, pause_h);
             let ct = Vector::new(r.x + pause_w, r.y + r.h / 2.);
             let c = Color { a: c.a * alpha, ..c };

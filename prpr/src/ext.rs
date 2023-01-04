@@ -111,13 +111,15 @@ pub fn nalgebra_to_glm(mat: &Matrix) -> Mat4 {
 
 pub fn get_viewport() -> (i32, i32, i32, i32) {
     let gl = unsafe { get_internal_gl() };
-    gl.quad_gl
-        .get_active_render_pass()
-        .map(|it| {
+    let that = gl.quad_gl.get_viewport();
+    if that == (0, 0, screen_width() as _, screen_height() as _) {
+        gl.quad_gl.get_active_render_pass().map_or(that, |it| {
             let tex = it.texture(gl.quad_context);
             (0, 0, tex.width as i32, tex.height as i32)
         })
-        .unwrap_or_else(|| gl.quad_gl.get_viewport())
+    } else {
+        that
+    }
 }
 
 pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f32), scale: f32, color: Color) -> Rect {
