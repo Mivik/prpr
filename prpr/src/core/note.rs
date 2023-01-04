@@ -17,10 +17,10 @@ pub enum NoteKind {
 impl NoteKind {
     pub fn order(&self) -> i8 {
         match self {
-            Self::Click => 0,
-            Self::Hold { .. } => 1,
-            Self::Flick => 2,
-            Self::Drag => 3,
+            Self::Hold { .. } => 0,
+            Self::Drag => 1,
+            Self::Click => 2,
+            Self::Flick => 3,
         }
     }
 }
