@@ -150,7 +150,11 @@ impl Note {
         if self.time - config.appear_before > res.time || (matches!(self.judge, JudgeStatus::Judged) && !matches!(self.kind, NoteKind::Hold { .. })) {
             return;
         }
-        let scale = (if self.multiple_hint { 1.1 } else { 1.0 }) * res.note_width;
+        let scale = (if self.multiple_hint {
+            res.skin.note_style_mh.click.width() / res.skin.note_style.click.width()
+        } else {
+            1.0
+        }) * res.note_width;
         let mut color = WHITE;
         color.a = res.alpha;
 
@@ -167,9 +171,9 @@ impl Note {
         let order = self.kind.order();
         res.with_model(self.now_transform(res, base), |res| {
             let style = if res.config.multiple_hint && self.multiple_hint {
-                &res.note_style_mh
+                &res.skin.note_style_mh
             } else {
-                &res.note_style
+                &res.skin.note_style
             };
             let draw = |tex: Texture2D| {
                 let mut color = color;
@@ -237,12 +241,13 @@ impl BadNote {
             return false;
         }
         res.with_model(self.matrix, |res| {
+            let style = &res.skin.note_style;
             draw_center(
                 res,
                 match &self.kind {
-                    NoteKind::Click => *res.note_style.click,
-                    NoteKind::Drag => *res.note_style.drag,
-                    NoteKind::Flick => *res.note_style.flick,
+                    NoteKind::Click => *style.click,
+                    NoteKind::Drag => *style.drag,
+                    NoteKind::Flick => *style.flick,
                     _ => unreachable!(),
                 },
                 self.kind.order(),

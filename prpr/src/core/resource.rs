@@ -7,10 +7,10 @@ use crate::{
     info::ChartInfo,
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
 };
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use macroquad::prelude::*;
 use miniquad::{gl::GLuint, Texture};
-use std::{cell::RefCell, collections::BTreeMap, sync::atomic::AtomicU32};
+use std::{cell::RefCell, collections::BTreeMap, ops::DerefMut, path::Path, sync::atomic::AtomicU32};
 
 pub const MAX_SIZE: usize = 64; // needs tweaking
 pub static DPI_VALUE: AtomicU32 = AtomicU32::new(250);
@@ -24,13 +24,81 @@ pub struct NoteStyle {
     pub drag: SafeTexture,
 }
 
+impl NoteStyle {
+    pub fn verify(&self) -> Result<()> {
+        if self.hold_head.width() != self.hold.width() || self.hold.width() != self.hold_tail.width() {
+            bail!("Inconsistent hold texture width");
+        }
+        Ok(())
+    }
+}
+
+pub struct SkinPack {
+    pub note_style: NoteStyle,
+    pub note_style_mh: NoteStyle,
+    pub hit_fx: SafeTexture,
+    pub hit_fx_dim: (u32, u32),
+}
+
+impl SkinPack {
+    pub async fn from_path(path: Option<&String>) -> Result<Self> {
+        Self::load(
+            if let Some(path) = path {
+                crate::fs::fs_from_file(Path::new(&path))?
+            } else {
+                crate::fs::fs_from_assets("skin/")?
+            }
+            .deref_mut(),
+        )
+        .await
+    }
+
+    pub async fn load(fs: &mut dyn FileSystem) -> Result<Self> {
+        macro_rules! load_tex {
+            ($path:literal) => {
+                image::load_from_memory(&fs.load_file($path).await.with_context(|| format!("Skin pack missing {}", $path))?)?.into()
+            };
+        }
+        let note_style = NoteStyle {
+            click: load_tex!("click.png"),
+            hold_head: load_tex!("hold_head.png"),
+            hold: load_tex!("hold.png"),
+            hold_tail: load_tex!("hold_tail.png"),
+            flick: load_tex!("flick.png"),
+            drag: load_tex!("drag.png"),
+        };
+        note_style.verify()?;
+        let note_style_mh = NoteStyle {
+            click: load_tex!("click_mh.png"),
+            hold_head: load_tex!("hold_head_mh.png"),
+            hold: load_tex!("hold_mh.png"),
+            hold_tail: load_tex!("hold_tail_mh.png"),
+            flick: load_tex!("flick_mh.png"),
+            drag: load_tex!("drag_mh.png"),
+        };
+        note_style_mh.verify()?;
+        let dim = fs.load_file("hit_fx.txt").await.context("Skin pack missing hit_fx.txt")?;
+        let dim = String::from_utf8(dim)?;
+        let Some(hit_fx_dim) = dim.split_once(',').map(|(w, h)| -> Result<_> { Ok((w.parse()?, h.parse()?)) }).transpose()? else {
+            bail!("Hit FX dimension misformatted");
+        };
+        let hit_fx = image::load_from_memory(&fs.load_file("hit_fx.png").await.context("Skin pack missing hit_fx.png")?)?.into();
+        Ok(Self {
+            note_style,
+            note_style_mh,
+            hit_fx,
+            hit_fx_dim,
+        })
+    }
+}
+
 pub struct ParticleEmitter {
     emitter: Emitter,
     emitter_square: Emitter,
 }
 
 impl ParticleEmitter {
-    pub async fn new(scale: f32) -> Result<Self> {
+    pub fn new(skin: &SkinPack, scale: f32) -> Result<Self> {
         let colors_curve = {
             let start = WHITE;
             let mut mid = start;
@@ -42,12 +110,12 @@ impl ParticleEmitter {
         let mut res = Self {
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,
-                texture: Some(Texture2D::from_image(&load_image("hit_fx.png").await?)),
+                texture: Some(*skin.hit_fx),
                 lifetime: 0.5,
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 0.0,
                 initial_velocity: 0.0,
-                atlas: Some(AtlasConfig::new(5, 6, ..)),
+                atlas: Some(AtlasConfig::new(skin.hit_fx_dim.0 as _, skin.hit_fx_dim.1 as _, ..)),
                 emitting: false,
                 colors_curve,
                 ..Default::default()
@@ -138,8 +206,7 @@ pub struct Resource {
     pub illustration: SafeTexture,
     pub icons: [SafeTexture; 8],
     pub challenge_icons: [SafeTexture; 6],
-    pub note_style: NoteStyle,
-    pub note_style_mh: NoteStyle,
+    pub skin: SkinPack,
     pub player: SafeTexture,
     pub icon_back: SafeTexture,
     pub icon_retry: SafeTexture,
@@ -220,14 +287,7 @@ impl Resource {
                 SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
             };
         }
-        let note_style = NoteStyle {
-            click: load_tex!("click.png"),
-            hold_head: load_tex!("hold_head.png"),
-            hold: load_tex!("hold.png"),
-            hold_tail: load_tex!("hold_tail.png"),
-            flick: load_tex!("flick.png"),
-            drag: load_tex!("drag.png"),
-        };
+        let skin = SkinPack::from_path(config.skin_path.as_ref()).await.context("Failed to load skin pack")?;
         let camera = Camera2D {
             target: vec2(0., 0.),
             zoom: vec2(1., -config.aspect_ratio.unwrap_or(info.aspect_ratio)),
@@ -249,6 +309,8 @@ impl Resource {
         let aspect_ratio = config.aspect_ratio.unwrap_or(info.aspect_ratio);
         let note_width = config.note_scale * NOTE_WIDTH_RATIO_BASE;
         let note_scale = config.note_scale;
+
+        let emitter = ParticleEmitter::new(&skin, note_scale)?;
 
         macroquad::window::gl_set_drawcall_buffer_capacity(MAX_SIZE * 4, MAX_SIZE * 6);
         Ok(Self {
@@ -272,22 +334,14 @@ impl Resource {
             illustration,
             icons: Self::load_icons().await?,
             challenge_icons: Self::load_challenge_icons().await?,
-            note_style,
-            note_style_mh: NoteStyle {
-                click: load_tex!("click_mh.png"),
-                hold_head: load_tex!("hold_head_mh.png"),
-                hold: load_tex!("hold_mh.png"),
-                hold_tail: load_tex!("hold_tail_mh.png"),
-                flick: load_tex!("flick_mh.png"),
-                drag: load_tex!("drag_mh.png"),
-            },
+            skin,
             player: if let Some(player) = player { player } else { load_tex!("player.jpg") },
             icon_back: load_tex!("back.png"),
             icon_retry: load_tex!("retry.png"),
             icon_resume: load_tex!("resume.png"),
             icon_proceed: load_tex!("proceed.png"),
 
-            emitter: ParticleEmitter::new(note_scale).await?,
+            emitter,
 
             audio,
             music,

@@ -12,6 +12,8 @@ use std::{
     task::{Poll, RawWaker, RawWakerVTable, Waker},
 };
 
+pub type LocalTask<R> = Option<Pin<Box<dyn Future<Output = R>>>>;
+
 pub trait JoinToString {
     fn join(self, sep: &str) -> String;
 }

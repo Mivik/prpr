@@ -98,3 +98,5 @@ Thanks [@inokana](https://github.com/GBTP) for hints on implementation!
 ## License
 
 This project is licensed under [GNU General Public License v3.0](LICENSE).
+
+The skin assets under `assets/skin` are from [https://github.com/MisaLiu/phi-chart-render], and are licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Assets used here are compressed and some of them are resized for easier usage.

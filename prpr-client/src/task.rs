@@ -3,7 +3,6 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
 };
-
 use tokio::task::JoinError;
 
 pub struct Task<T: Send + 'static>(Option<Pin<Box<dyn Future<Output = Result<(), JoinError>> + Send>>>, Arc<Mutex<Option<T>>>);

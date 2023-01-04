@@ -394,9 +394,6 @@ pub fn fs_from_file(path: &Path) -> Result<Box<dyn FileSystem>> {
     })
 }
 
-pub fn fs_from_assets(name: &str) -> Result<Box<dyn FileSystem>> {
-    if name.contains('/') {
-        bail!("Illegal chart name: {name}");
-    }
-    Ok(Box::new(AssetsFileSystem(concat_string!("charts/", name, "/"))))
+pub fn fs_from_assets(name: impl Into<String>) -> Result<Box<dyn FileSystem>> {
+    Ok(Box::new(AssetsFileSystem(name.into())))
 }

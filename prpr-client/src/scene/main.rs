@@ -16,8 +16,8 @@ use once_cell::sync::Lazy;
 use prpr::{
     audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
     config::ChallengeModeColor,
-    core::{ParticleEmitter, Tweenable, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
-    ext::{screen_aspect, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
+    core::{ParticleEmitter, SkinPack, Tweenable, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
+    ext::{poll_future, screen_aspect, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs,
     scene::{request_file, request_input, return_file, return_input, show_error, show_message, take_file, take_input, NextScene, Scene},
     time::TimeManager,
@@ -30,6 +30,7 @@ use std::{
     future::Future,
     io::Cursor,
     ops::DerefMut,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
         Mutex,
@@ -135,6 +136,7 @@ pub struct MainScene {
     icon_edit: SafeTexture,
     icon_delete: SafeTexture,
     icon_question: SafeTexture,
+    _skin: SkinPack,
 
     audio: DefaultAudio,
     cali_clip: AudioClip,
@@ -161,6 +163,7 @@ pub struct MainScene {
 
     import_button: RectButton,
     import_task: Task<Result<LocalChart>>,
+    load_skin_task: LocalTask<Result<(SkinPack, Option<String>)>>,
 
     account_page: AccountPage,
 
@@ -187,18 +190,21 @@ impl MainScene {
         if let Some(user) = &get_data().me {
             UserManager::request(&user.id);
         }
+        let skin = SkinPack::load(fs::fs_from_assets("skin/")?.deref_mut()).await?;
+        let emitter = ParticleEmitter::new(&skin, get_data().config.note_scale)?;
         Ok(Self {
             target: None,
             next_scene: None,
             scroll_local: Scroll::new(),
             scroll_remote: Scroll::new(),
             tex: tex.clone(),
-            click_texture: load_tex!("click.png"),
+            click_texture: skin.note_style.click.clone(),
             icon_back: load_tex!("back.png"),
             icon_play: load_tex!("resume.png"),
             icon_edit: load_tex!("edit.png"),
             icon_delete: load_tex!("delete.png"),
             icon_question: load_tex!("question.png"),
+            _skin: skin,
 
             audio,
             cali_clip,
@@ -206,7 +212,7 @@ impl MainScene {
             cali_handle: None,
             cali_tm,
             cali_last: false,
-            emitter: ParticleEmitter::new(get_data().config.note_scale).await?,
+            emitter,
 
             task_load: Task::pending(),
             remote_first_time: true,
@@ -225,6 +231,7 @@ impl MainScene {
 
             import_button: RectButton::new(),
             import_task: Task::pending(),
+            load_skin_task: None,
 
             account_page: AccountPage::new(),
 
@@ -333,6 +340,7 @@ impl MainScene {
                         &mut self.cali_last,
                         &mut self.emitter,
                         &mut self.chal_buttons,
+                        &mut self.load_skin_task,
                     )
                 }) && self.tab_index == 3
                 {
@@ -444,6 +452,7 @@ impl MainScene {
         cali_last: &mut bool,
         emitter: &mut ParticleEmitter,
         chal_buttons: &mut [RectButton; 6],
+        skin_task: &mut LocalTask<Result<(SkinPack, Option<String>)>>,
     ) -> bool {
         let config = &mut get_data_mut().config;
         let s = 0.01;
@@ -502,6 +511,20 @@ impl MainScene {
                 let r = ui.slider("挑战模式等级", 0.0..48.0, 1., &mut rks, Some(0.45));
                 config.challenge_rank = rks.round() as u32;
                 ui.dy(r.h + s);
+            });
+
+            ui.scope(|ui| {
+                ui.dx(0.65);
+                let r = ui.text("皮肤").size(0.4).anchor(1., 0.).draw();
+                let mut r = Rect::new(0.02, r.y - 0.01, 0.3, r.h + 0.02);
+                if ui.button("choose_skin", r, config.skin_path.as_ref().map(|it| it.as_str()).unwrap_or("[默认]")) {
+                    request_file("skin");
+                }
+                r.x += 0.3 + 0.02;
+                r.w = 0.1;
+                if ui.button("reset_skin", r, "重置") {
+                    *skin_task = Some(Self::new_skin_task(None));
+                }
             });
 
             let ct = (0.9, ui.top * 1.3);
@@ -603,6 +626,22 @@ impl MainScene {
                     .collect::<Vec<_>>())
             }
         });
+    }
+
+    fn new_skin_task(path: Option<String>) -> Pin<Box<dyn Future<Output = Result<(SkinPack, Option<String>)>>>> {
+        Box::pin(async move {
+            let skin = SkinPack::from_path(path.as_ref()).await?;
+            Ok((
+                skin,
+                if let Some(path) = path {
+                    let dst = format!("{}/chart.zip", dir::root()?);
+                    std::fs::copy(path, &dst).context("Failed to save skin pack")?;
+                    Some(dst)
+                } else {
+                    None
+                },
+            ))
+        })
     }
 }
 
@@ -832,6 +871,24 @@ impl Scene for MainScene {
                 }
             }
         }
+        if let Some(future) = &mut self.load_skin_task {
+            if let Some(result) = poll_future(future.as_mut()) {
+                self.load_skin_task = None;
+                match result {
+                    Err(err) => {
+                        show_error(err.context("加载皮肤失败"));
+                    }
+                    Ok((skin, dst)) => {
+                        self.click_texture = skin.note_style.click.clone();
+                        self.emitter = ParticleEmitter::new(&skin, get_data().config.note_scale)?;
+                        self._skin = skin;
+                        get_data_mut().config.skin_path = dst;
+                        save_data()?;
+                        show_message("加载皮肤成功");
+                    }
+                }
+            }
+        }
         if let Some((id, text)) = take_input() {
             if id == "edit_username" {
                 if let Some(error) = validate_username(&text) {
@@ -893,6 +950,9 @@ impl Scene for MainScene {
                     if let Err(err) = load(file, &mut self.account_page) {
                         show_error(err.context("导入头像失败"));
                     }
+                }
+                "skin" => {
+                    self.load_skin_task = Some(Self::new_skin_task(Some(file)));
                 }
                 _ => return_file(id, file),
             }

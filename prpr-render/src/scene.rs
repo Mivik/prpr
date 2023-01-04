@@ -3,14 +3,13 @@ use anyhow::{bail, Result};
 use macroquad::prelude::*;
 use prpr::{
     config::Config,
-    ext::{poll_future, screen_aspect},
+    ext::{poll_future, screen_aspect, LocalTask},
     fs::{FileSystem, PatchedFileSystem},
     info::ChartInfo,
     scene::{show_message, LoadingScene, NextScene, Scene},
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Scroll, Ui},
 };
-use std::{future::Future, pin::Pin};
 
 pub struct MainScene {
     target: Option<RenderTarget>,
@@ -22,7 +21,7 @@ pub struct MainScene {
     next_scene: Option<NextScene>,
     v_config: VideoConfig,
 
-    future_to_loading: Option<Pin<Box<dyn Future<Output = Result<LoadingScene>>>>>,
+    loading_scene_task: LocalTask<Result<LoadingScene>>,
 }
 
 impl MainScene {
@@ -37,7 +36,7 @@ impl MainScene {
             next_scene: None,
             v_config: VideoConfig::default(),
 
-            future_to_loading: None,
+            loading_scene_task: None,
         }
     }
 }
@@ -50,9 +49,9 @@ impl Scene for MainScene {
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
         self.scroll.update(tm.now() as _);
-        if let Some(future) = &mut self.future_to_loading {
+        if let Some(future) = &mut self.loading_scene_task {
             if let Some(scene) = poll_future(future.as_mut()) {
-                self.future_to_loading = None;
+                self.loading_scene_task = None;
                 self.next_scene = Some(NextScene::Overlay(Box::new(scene?)));
             }
         }
@@ -155,7 +154,7 @@ impl Scene for MainScene {
                 let config = self.config.clone();
                 let fs = self.fs.clone_box();
                 let edit = self.edit.clone();
-                self.future_to_loading = Some(Box::pin(async move {
+                self.loading_scene_task = Some(Box::pin(async move {
                     LoadingScene::new(info, config, Box::new(PatchedFileSystem(fs, edit.to_patches().await?)), None, None).await
                 }));
             }

@@ -1,7 +1,7 @@
 use super::{draw_background, draw_illustration, GameScene, NextScene, Scene};
 use crate::{
     config::Config,
-    ext::{draw_parallelogram, draw_text_aligned, poll_future, screen_aspect, SafeTexture, BLACK_TEXTURE},
+    ext::{draw_parallelogram, draw_text_aligned, poll_future, screen_aspect, LocalTask, SafeTexture, BLACK_TEXTURE},
     fs::FileSystem,
     info::ChartInfo,
     time::TimeManager,
@@ -13,7 +13,7 @@ use macroquad::{
     prelude::*,
     rand::{srand, ChooseRandom},
 };
-use std::{future::Future, pin::Pin, rc::Rc};
+use std::rc::Rc;
 
 const BEFORE_TIME: f32 = 1.;
 const TRANSITION_TIME: f32 = 1.4;
@@ -24,7 +24,7 @@ pub struct LoadingScene {
     background: SafeTexture,
     illustration: SafeTexture,
     font: Font,
-    future: Option<Pin<Box<dyn Future<Output = Result<GameScene>>>>>,
+    load_task: LocalTask<Result<GameScene>>,
     next_scene: Option<Box<dyn Scene>>,
     finish_time: f32,
     target: Option<RenderTarget>,
@@ -86,7 +86,7 @@ impl LoadingScene {
             background,
             illustration,
             font,
-            future: Some(future),
+            load_task: Some(future),
             next_scene: None,
             finish_time: f32::INFINITY,
             target: None,
@@ -101,7 +101,7 @@ impl Scene for LoadingScene {
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
-        if let Some(future) = self.future.as_mut() {
+        if let Some(future) = self.load_task.as_mut() {
             loop {
                 match poll_future(future.as_mut()) {
                     None => {
@@ -111,7 +111,7 @@ impl Scene for LoadingScene {
                         std::thread::yield_now();
                     }
                     Some(game_scene) => {
-                        self.future = None;
+                        self.load_task = None;
                         self.next_scene = Some(Box::new(game_scene?));
                         self.finish_time = tm.now() as f32 + BEFORE_TIME;
                         break;

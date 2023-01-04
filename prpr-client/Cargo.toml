@@ -22,8 +22,7 @@ reqwest = "0.11"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 tempfile = "3.3"
-tokio = "*"
-# tokio = { version = "*", features = ["rt-multi-thread"] }
+tokio = { version = "*", features = ["rt-multi-thread", "sync"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.2"

@@ -12,7 +12,7 @@ use pollster::FutureExt;
 use prpr::{
     config::Config,
     core::Tweenable,
-    ext::{poll_future, screen_aspect, JoinToString, SafeTexture, ScaleType, BLACK_TEXTURE},
+    ext::{poll_future, screen_aspect, JoinToString, LocalTask, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, ZipFileSystem},
     info::ChartInfo,
     scene::{show_error, show_message, LoadingScene, NextScene, Scene},
@@ -20,9 +20,7 @@ use prpr::{
     ui::{render_chart_info, ChartInfoEdit, Dialog, RectButton, Scroll, Ui},
 };
 use std::{
-    future::Future,
     ops::DerefMut,
-    pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
         Mutex,
@@ -40,7 +38,7 @@ static UPLOAD_STATUS: Mutex<Option<String>> = Mutex::new(None);
 
 fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
     if let Some(name) = path.strip_prefix(':') {
-        fs::fs_from_assets(name)
+        fs::fs_from_assets(format!("charts/{name}/"))
     } else {
         fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))
     }
@@ -130,7 +128,7 @@ pub struct SongScene {
     info_task: Option<Task<ChartInfo>>,
     illustration_task: Option<Task<Result<DynamicImage>>>,
     chart_info: Option<ChartInfo>,
-    future: Option<Pin<Box<dyn Future<Output = Result<LoadingScene>>>>>,
+    scene_task: LocalTask<Result<LoadingScene>>,
 
     target: Option<RenderTarget>,
     first_in: bool,
@@ -191,7 +189,7 @@ impl SongScene {
             })),
             illustration_task: None,
             chart_info: None,
-            future: None,
+            scene_task: None,
 
             target: None,
             first_in: true,
@@ -434,7 +432,7 @@ impl Scene for SongScene {
                     if self.play_button.touch(&touch) {
                         let fs = fs_from_path(&self.chart.path)?;
                         let info = self.chart_info.clone().unwrap();
-                        self.future = Some(Box::pin(async move {
+                        self.scene_task = Some(Box::pin(async move {
                             LoadingScene::new(
                                 info,
                                 Config {
@@ -474,9 +472,9 @@ impl Scene for SongScene {
             self.next_scene = Some(NextScene::Pop);
             super::main::SHOULD_DELETE.store(true, Ordering::SeqCst);
         }
-        if let Some(future) = &mut self.future {
+        if let Some(future) = &mut self.scene_task {
             if let Some(scene) = poll_future(future.as_mut()) {
-                self.future = None;
+                self.scene_task = None;
                 self.next_scene = Some(NextScene::Overlay(Box::new(scene?)));
             }
         }

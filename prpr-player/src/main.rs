@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
         let params = web_sys::UrlSearchParams::new_with_str(&web_sys::window().unwrap().location().search().map_err(js_err)?).map_err(js_err)?;
         let name = params.get("chart").unwrap_or_else(|| "nc".to_string());
         (
-            fs::fs_from_assets(&name)?,
+            fs::fs_from_assets(format!("charts/{name}/"))?,
             Some(prpr::config::Config {
                 autoplay: false,
                 ..Default::default()
@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
         )
     };
     #[cfg(any(target_os = "android", target_os = "ios"))]
-    let (mut fs, config) = (fs::fs_from_assets("moment")?, None);
+    let (mut fs, config) = (fs::fs_from_assets("charts/moment/")?, None);
     #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))]
     let (mut fs, config) = {
         let mut args = std::env::args();
