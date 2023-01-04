@@ -157,7 +157,8 @@ impl Effect {
         if !self.time_range.contains(&self.t) {
             return;
         }
-        unsafe { get_internal_gl() }.flush();
+        let mut gl = unsafe { get_internal_gl() };
+        gl.flush();
 
         for def in &self.defaults {
             def.apply(&self.material);
@@ -166,7 +167,6 @@ impl Effect {
             uniform.apply(&self.material);
         }
         self.material.set_uniform("time", self.t);
-        let gl = unsafe { get_internal_gl() };
         let screen_dim = if let Some(pass) = gl.quad_gl.get_active_render_pass() {
             let tex = pass.texture(gl.quad_context);
             vec2(tex.width as _, tex.height as _)

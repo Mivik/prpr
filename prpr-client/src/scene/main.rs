@@ -457,6 +457,7 @@ impl MainScene {
         ui.scope(|ui| {
             ui.dx(0.02);
             ui.scope(|ui| {
+                let s = 0.005;
                 let r = ui.checkbox("自动游玩", &mut config.autoplay);
                 ui.dy(r.h + s);
                 let r = ui.checkbox("双押提示", &mut config.multiple_hint);
@@ -468,6 +469,10 @@ impl MainScene {
                 let r = ui.checkbox("粒子效果", &mut config.particle);
                 ui.dy(r.h + s);
                 let r = ui.checkbox("激进优化", &mut config.aggressive);
+                ui.dy(r.h + s);
+                let mut low = config.sample_count == 1;
+                let r = ui.checkbox("低性能模式", &mut low);
+                config.sample_count = if low { 1 } else { 4 };
                 ui.dy(r.h + s);
                 let r = ui.slider("玩家 RKS", 1.0..17.0, 0.01, &mut config.player_rks, Some(0.45));
                 ui.dy(r.h + s);

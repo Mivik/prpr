@@ -197,96 +197,13 @@ async fn the_main() -> Result<()> {
     let v_config = VIDEO_CONFIG.lock().unwrap().take().unwrap();
     let (vw, vh) = v_config.resolution;
 
-    info!("[1] 渲染视频…");
-
-    let mst = Rc::new(MSRenderTarget::new((vw, vh), config.sample_count));
-    let my_time: Rc<RefCell<f64>> = Rc::new(RefCell::new(0.));
-    let tm = TimeManager::manual(Box::new({
-        let my_time = Rc::clone(&my_time);
-        move || *(*my_time).borrow()
-    }));
-    let fs = Box::new(PatchedFileSystem(fs, edit.to_patches().await?));
-    static MSAA: AtomicBool = AtomicBool::new(false);
-    let mut main = Main::new(Box::new(LoadingScene::new(edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, {
-        let mut cnt = 0;
-        let mst = Rc::clone(&mst);
-        move || {
-            cnt += 1;
-            if cnt == 1 || cnt == 3 {
-                MSAA.store(true, Ordering::SeqCst);
-                Some(mst.input())
-            } else {
-                MSAA.store(false, Ordering::SeqCst);
-                Some(mst.output())
-            }
-        }
-    })?;
-    main.show_billboard = false;
-
-    let mut bytes = vec![0; vw as usize * vh as usize * 3];
-
-    const O: f64 = LoadingScene::TOTAL_TIME as f64 + GameScene::BEFORE_TIME as f64;
-    const A: f64 = 0.7 + 0.3 + 0.4;
-
-    let fps = v_config.fps;
-    let frame_delta = 1. / fps as f32;
     let length = track_length - chart.offset.min(0.) as f64 + 1.;
     let video_length = O + length + A + v_config.ending_length;
-
-    let output = Command::new(&ffmpeg).arg("-codecs").output().context("无法执行 ffmpeg")?;
-    let codecs = String::from_utf8(output.stdout)?;
-    let use_cuda = v_config.hardware_accel && codecs.contains("h264_nvenc");
-    let has_qsv = v_config.hardware_accel && codecs.contains("h264_qsv");
-
-    let mut args = "-y -f rawvideo -vcodec rawvideo".to_owned();
-    if use_cuda {
-        args += " -hwaccel_output_format cuda";
-    }
-    write!(
-        &mut args,
-        " -s {vw}x{vh} -r {fps} -pix_fmt rgb24 -i - -c:v {} -qp 0 -vf vflip t_video.mp4",
-        if use_cuda {
-            "h264_nvenc"
-        } else if has_qsv {
-            "h264_qsv"
-        } else if v_config.hardware_accel {
-            bail!("不支持硬件加速！");
-        } else {
-            "libx264 -preset ultrafast"
-        }
-    )?;
-
-    let mut proc = Command::new(&ffmpeg)
-        .args(args.split_whitespace())
-        .stdin(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .context("无法执行 ffmpeg")?;
-    let input = proc.stdin.as_mut().unwrap();
-
     let offset = chart.offset.max(0.);
-    let frames = (video_length / frame_delta as f64).ceil() as u64;
-    let start_time = Instant::now();
-    for frame in 0..frames {
-        *my_time.borrow_mut() = (frame as f32 * frame_delta).max(0.) as f64;
-        main.update()?;
-        main.render(&mut Ui::new())?;
-        // TODO magic. can't remove this line.
-        draw_rectangle(0., 0., 0., 0., Color::default());
-        gl.flush();
 
-        if MSAA.load(Ordering::SeqCst) {
-            mst.blit();
-        }
-        mst.output().texture.raw_miniquad_texture_handle().read_pixels(&mut bytes);
-        input.write_all(&bytes)?;
-        if frame % 100 == 0 {
-            info!("{frame} / {frames}, {:.2}fps", frame as f64 / start_time.elapsed().as_secs_f64());
-        }
-    }
-    proc.wait()?;
+    let render_start_time = Instant::now();
 
-    info!("[2] 混音中...");
+    info!("[1] 混音中...");
     let sample_rate = 44100;
     assert_eq!(sample_rate, ending.sample_rate);
     assert_eq!(sample_rate, sfx_click.sample_rate);
@@ -331,18 +248,10 @@ async fn the_main() -> Result<()> {
         )
     }
     place(O + length + A, &ending, volume_music);
-
-    info!("[3] 合并 & 压缩…");
-    let mut proc = Command::new(ffmpeg)
-        .args(
-            format!(
-                "-y -i t_video.mp4 -f f32le -ar 44100 -ac 2 -i - -vf format=yuv420p -c:a mp3 -map 0:v:0 -map 1:a:0 -b:v {} out.mp4",
-                v_config.bitrate
-            )
-            .split_whitespace(),
-        )
+    let mut proc = Command::new(&ffmpeg)
+        .args("-y -f f32le -ar 44100 -ac 2 -i - -c:a mp3 t_audio.mp3".split_whitespace())
         .stdin(Stdio::piped())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::null())
         .spawn()
         .context("无法执行 ffmpeg")?;
     let input = proc.stdin.as_mut().unwrap();
@@ -352,10 +261,102 @@ async fn the_main() -> Result<()> {
     }
     drop(writer);
     proc.wait()?;
-    std::fs::remove_file("t_video.mp4")?;
 
-    info!("[4] 完成！");
+    info!("[2] 渲染视频…");
+    let mst = Rc::new(MSRenderTarget::new((vw, vh), config.sample_count));
+    let my_time: Rc<RefCell<f64>> = Rc::new(RefCell::new(0.));
+    let tm = TimeManager::manual(Box::new({
+        let my_time = Rc::clone(&my_time);
+        move || *(*my_time).borrow()
+    }));
+    let fs = Box::new(PatchedFileSystem(fs, edit.to_patches().await?));
+    static MSAA: AtomicBool = AtomicBool::new(false);
+    let mut main = Main::new(Box::new(LoadingScene::new(edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, {
+        let mut cnt = 0;
+        let mst = Rc::clone(&mst);
+        move || {
+            cnt += 1;
+            if cnt == 1 || cnt == 3 {
+                MSAA.store(true, Ordering::SeqCst);
+                Some(mst.input())
+            } else {
+                MSAA.store(false, Ordering::SeqCst);
+                Some(mst.output())
+            }
+        }
+    })?;
+    main.show_billboard = false;
 
+    let mut bytes = vec![0; vw as usize * vh as usize * 3];
+
+    const O: f64 = LoadingScene::TOTAL_TIME as f64 + GameScene::BEFORE_TIME as f64;
+    const A: f64 = 0.7 + 0.3 + 0.4;
+
+    let fps = v_config.fps;
+    let frame_delta = 1. / fps as f32;
+
+    let codecs = String::from_utf8(Command::new(&ffmpeg).arg("-codecs").output().context("无法执行 ffmpeg")?.stdout)?;
+    let use_cuda = v_config.hardware_accel && codecs.contains("h264_nvenc");
+    let has_qsv = v_config.hardware_accel && codecs.contains("h264_qsv");
+
+    let mut args = "-y -f rawvideo -c:v rawvideo".to_owned();
+    if use_cuda {
+        args += " -hwaccel_output_format cuda";
+    }
+    write!(
+        &mut args,
+        " -s {vw}x{vh} -r {fps} -pixel_format rgb24 -i - -i t_audio.mp3 -c:a copy -c:v {} -map 0:v:0 -map 1:a:0 -qp 0 -vf vflip t_video.mp4",
+        if use_cuda {
+            "h264_nvenc"
+        } else if has_qsv {
+            "h264_qsv"
+        } else if v_config.hardware_accel {
+            bail!("不支持硬件加速！");
+        } else {
+            "libx264 -preset ultrafast"
+        },
+    )?;
+
+    let mut proc = Command::new(&ffmpeg)
+        .args(args.split_whitespace())
+        .stdin(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("无法执行 ffmpeg")?;
+    let input = proc.stdin.as_mut().unwrap();
+
+    let frames = (video_length / frame_delta as f64).ceil() as u64;
+    let start_time = Instant::now();
+    for frame in 0..frames {
+        *my_time.borrow_mut() = (frame as f32 * frame_delta).max(0.) as f64;
+        main.update()?;
+        main.render(&mut Ui::new())?;
+        // TODO magic. can't remove this line.
+        draw_rectangle(0., 0., 0., 0., Color::default());
+        gl.flush();
+
+        if MSAA.load(Ordering::SeqCst) {
+            mst.blit();
+        }
+        mst.output().texture.raw_miniquad_texture_handle().read_pixels(&mut bytes);
+        input.write_all(&bytes)?;
+        if frame % 100 == 0 {
+            info!("{frame} / {frames}, {:.2}fps", frame as f64 / start_time.elapsed().as_secs_f64());
+        }
+    }
+    proc.wait()?;
+
+    info!("[3] 合并 & 转码 & 压制");
+    let _ = Command::new(&ffmpeg)
+        .args("-y -i t_video.mp4 -c:a copy -pix_fmt yuv420p -b:v".split_whitespace())
+        .arg(v_config.bitrate)
+        .arg("out.mp4")
+        .stdin(Stdio::null())
+        .stderr(Stdio::inherit())
+        .status()
+        .context("无法执行 ffmpeg")?;
+
+    info!("渲染完成！耗时：{:.2}", render_start_time.elapsed().as_secs_f64());
     Ok(())
 }
 

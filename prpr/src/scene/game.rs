@@ -483,22 +483,26 @@ impl Scene for GameScene {
 
     fn render(&mut self, tm: &mut TimeManager, _ui: &mut Ui) -> Result<()> {
         let res = &mut self.res;
+        let asp = screen_aspect();
         let dim = (self.get_size_fn)();
         if res.update_size(dim) {
             set_camera(&res.camera);
         }
 
-        self.gl.quad_gl.render_pass(res.chart_target.as_ref().map(|it| it.input().render_pass));
+        let msaa = res.config.sample_count > 1;
 
+        let chart_onto = res.chart_target.as_ref().map(|it| if msaa { it.input() } else { it.output() });
         push_camera_state();
         self.gl.quad_gl.viewport(None);
         set_camera(&Camera2D {
-            zoom: vec2(1., -screen_aspect()),
-            render_target: res.chart_target.as_ref().map(|it| it.input()),
+            zoom: vec2(1., -asp),
+            render_target: chart_onto,
             ..Default::default()
         });
         draw_background(*res.background);
         pop_camera_state();
+
+        self.gl.quad_gl.render_pass(chart_onto.map(|it| it.render_pass));
         let vp = {
             let upscale = res.config.upscale;
             let mp = move |p: i32| (p as f32 * upscale) as i32;
@@ -510,41 +514,9 @@ impl Scene for GameScene {
         draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
 
         self.chart.render(res);
-        self.gl.flush();
 
-        let render_target = if self.effects.is_empty() {
-            // render directly onto the target
-            res.camera.render_target
-        } else {
-            res.chart_target.as_ref().map(|it| it.input())
-        };
-
-        // render the texture onto screen
-        fn draw_tex(res: &Resource, render_target: Option<RenderTarget>) {
-            push_camera_state();
-            set_camera(&Camera2D {
-                zoom: vec2(1., screen_aspect()),
-                render_target,
-                ..Default::default()
-            });
-            let top = 1. / screen_aspect();
-            if let Some(target) = &res.chart_target {
-                draw_texture_ex(
-                    target.output().texture,
-                    -1.,
-                    -top,
-                    WHITE,
-                    DrawTextureParams {
-                        dest_size: Some(vec2(2., top * 2.)),
-                        ..Default::default()
-                    },
-                );
-            }
-            pop_camera_state();
-        }
-        draw_tex(res, render_target);
         self.gl.quad_gl.viewport(vp);
-        self.gl.quad_gl.render_pass(render_target.map(|it| it.render_pass));
+        self.gl.quad_gl.render_pass(res.chart_target.as_ref().map(|it| it.output().render_pass));
 
         self.bad_notes.retain(|dummy| dummy.render(res));
         let t = tm.real_time();
@@ -554,23 +526,35 @@ impl Scene for GameScene {
         }
         self.ui(tm)?;
         self.overlay_ui(tm)?;
+
+        push_camera_state();
         if !self.effects.is_empty() {
-            self.gl.flush();
-            if let Some(target) = &self.res.chart_target {
-                target.blit();
-            }
-            push_camera_state();
             set_camera(&Camera2D {
-                zoom: vec2(1., screen_aspect()),
-                render_target,
+                zoom: vec2(1., asp),
                 ..Default::default()
             });
             for e in &self.effects {
                 e.render(&mut self.res);
             }
-            pop_camera_state();
-            draw_tex(&self.res, self.res.camera.render_target);
         }
+        // render the texture onto screen
+        set_camera(&Camera2D {
+            render_target: self.res.camera.render_target,
+            ..Default::default()
+        });
+        if let Some(target) = &self.res.chart_target {
+            draw_texture_ex(
+                target.output().texture,
+                -1.,
+                -1.,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(2., 2.)),
+                    ..Default::default()
+                },
+            );
+        }
+        pop_camera_state();
         Ok(())
     }
 

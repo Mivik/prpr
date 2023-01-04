@@ -60,7 +60,7 @@ impl Default for Config {
             particle: true,
             player_name: "Mivik".to_string(),
             player_rks: 15.,
-            sample_count: 1,
+            sample_count: 4,
             speed: 1.,
             upscale: 1.,
             volume_music: 1.,
