@@ -203,20 +203,52 @@ impl Note {
                     let btn = [pt(-scale, th), pt(scale, th)];
                     let th = end_height - line_height - base;
                     let top = [pt(-scale, th), pt(scale, th)];
+                    let tex = &style.hold;
+                    let ratio = style.hold_ratio();
                     // head
                     if res.time < self.time {
-                        let tex = &style.hold_head;
-                        let hf = vec2(scale, tex.height() * scale / tex.width());
-                        draw_tex_pts(res, **tex, order, [btn[0], btn[1], pt(hf.x, -hf.y * 2.), pt(-hf.x, -hf.y * 2.)], color, Default::default());
+                        let r = style.hold_head_rect();
+                        let hf = vec2(scale, r.h / r.w * scale * ratio);
+                        draw_tex_pts(
+                            res,
+                            **tex,
+                            order,
+                            [btn[0], btn[1], pt(hf.x, -hf.y * 2.), pt(-hf.x, -hf.y * 2.)],
+                            color,
+                            DrawTextureParams {
+                                source: Some(r),
+                                ..Default::default()
+                            },
+                        );
                     }
                     // body
                     // TODO (end_height - height) is not always total height
-                    draw_tex_pts(res, *style.hold, order, [top[0], top[1], btn[1], btn[0]], color, Default::default());
+                    draw_tex_pts(
+                        res,
+                        **tex,
+                        order,
+                        [top[0], top[1], btn[1], btn[0]],
+                        color,
+                        DrawTextureParams {
+                            source: Some(style.hold_body_rect()),
+                            ..Default::default()
+                        },
+                    );
                     // tail
-                    let tex = &style.hold_tail;
-                    let hf = vec2(scale, tex.height() * scale / tex.width());
+                    let r = style.hold_tail_rect();
+                    let hf = vec2(scale, r.h / r.w * scale * ratio);
                     let th = th + hf.y * 2.;
-                    draw_tex_pts(res, **tex, order, [pt(-scale, th), pt(scale, th), top[1], top[0]], color, Default::default());
+                    draw_tex_pts(
+                        res,
+                        **tex,
+                        order,
+                        [pt(-scale, th), pt(scale, th), top[1], top[0]],
+                        color,
+                        DrawTextureParams {
+                            source: Some(r),
+                            ..Default::default()
+                        },
+                    );
                 }
                 NoteKind::Flick => {
                     draw(*style.flick);

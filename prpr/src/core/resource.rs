@@ -10,34 +10,71 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use macroquad::prelude::*;
 use miniquad::{gl::GLuint, Texture};
+use serde::Deserialize;
 use std::{cell::RefCell, collections::BTreeMap, ops::DerefMut, path::Path, sync::atomic::AtomicU32};
 
 pub const MAX_SIZE: usize = 64; // needs tweaking
 pub static DPI_VALUE: AtomicU32 = AtomicU32::new(250);
 
+#[allow(dead_code)]
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkinPackInfo {
+    name: String,
+    author: String,
+    hit_fx: (u32, u32),
+    hold_atlas: (u32, u32),
+    #[serde(rename = "holdAtlasMH")]
+    hold_atlas_mh: (u32, u32),
+}
+
 pub struct NoteStyle {
     pub click: SafeTexture,
-    pub hold_head: SafeTexture,
     pub hold: SafeTexture,
-    pub hold_tail: SafeTexture,
     pub flick: SafeTexture,
     pub drag: SafeTexture,
+    pub hold_atlas: (u32, u32),
 }
 
 impl NoteStyle {
     pub fn verify(&self) -> Result<()> {
-        if self.hold_head.width() != self.hold.width() || self.hold.width() != self.hold_tail.width() {
-            bail!("Inconsistent hold texture width");
+        if (self.hold_atlas.0 + self.hold_atlas.1) as f32 >= self.hold.height() {
+            bail!("Invalid atlas");
         }
         Ok(())
+    }
+
+    #[inline]
+    fn to_uv(&self, t: u32) -> f32 {
+        t as f32 / self.hold.height()
+    }
+
+    pub fn hold_ratio(&self) -> f32 {
+        self.hold.height() / self.hold.width()
+    }
+
+    pub fn hold_head_rect(&self) -> Rect {
+        let sy = self.to_uv(self.hold_atlas.1);
+        Rect::new(0., 1. - sy, 1., sy)
+    }
+
+    pub fn hold_body_rect(&self) -> Rect {
+        let sy = self.to_uv(self.hold_atlas.0);
+        let ey = 1. - self.to_uv(self.hold_atlas.1);
+        Rect::new(0., sy, 1., ey - sy)
+    }
+
+    pub fn hold_tail_rect(&self) -> Rect {
+        let ey = self.to_uv(self.hold_atlas.0);
+        Rect::new(0., 0., 1., ey)
     }
 }
 
 pub struct SkinPack {
+    pub info: SkinPackInfo,
     pub note_style: NoteStyle,
     pub note_style_mh: NoteStyle,
     pub hit_fx: SafeTexture,
-    pub hit_fx_dim: (u32, u32),
 }
 
 impl SkinPack {
@@ -56,38 +93,32 @@ impl SkinPack {
     pub async fn load(fs: &mut dyn FileSystem) -> Result<Self> {
         macro_rules! load_tex {
             ($path:literal) => {
-                image::load_from_memory(&fs.load_file($path).await.with_context(|| format!("Skin pack missing {}", $path))?)?.into()
+                image::load_from_memory(&fs.load_file($path).await.with_context(|| format!("Missing {}", $path))?)?.into()
             };
         }
+        let info: SkinPackInfo = serde_yaml::from_str(&String::from_utf8(fs.load_file("info.yml").await.context("Missing info.yml")?)?)?;
         let note_style = NoteStyle {
             click: load_tex!("click.png"),
-            hold_head: load_tex!("hold_head.png"),
             hold: load_tex!("hold.png"),
-            hold_tail: load_tex!("hold_tail.png"),
             flick: load_tex!("flick.png"),
             drag: load_tex!("drag.png"),
+            hold_atlas: info.hold_atlas,
         };
         note_style.verify()?;
         let note_style_mh = NoteStyle {
             click: load_tex!("click_mh.png"),
-            hold_head: load_tex!("hold_head_mh.png"),
             hold: load_tex!("hold_mh.png"),
-            hold_tail: load_tex!("hold_tail_mh.png"),
             flick: load_tex!("flick_mh.png"),
             drag: load_tex!("drag_mh.png"),
+            hold_atlas: info.hold_atlas_mh,
         };
         note_style_mh.verify()?;
-        let dim = fs.load_file("hit_fx.txt").await.context("Skin pack missing hit_fx.txt")?;
-        let dim = String::from_utf8(dim)?;
-        let Some(hit_fx_dim) = dim.split_once(',').map(|(w, h)| -> Result<_> { Ok((w.parse()?, h.parse()?)) }).transpose()? else {
-            bail!("Hit FX dimension misformatted");
-        };
-        let hit_fx = image::load_from_memory(&fs.load_file("hit_fx.png").await.context("Skin pack missing hit_fx.png")?)?.into();
+        let hit_fx = image::load_from_memory(&fs.load_file("hit_fx.png").await.context("Missing hit_fx.png")?)?.into();
         Ok(Self {
+            info,
             note_style,
             note_style_mh,
             hit_fx,
-            hit_fx_dim,
         })
     }
 }
@@ -115,7 +146,7 @@ impl ParticleEmitter {
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 0.0,
                 initial_velocity: 0.0,
-                atlas: Some(AtlasConfig::new(skin.hit_fx_dim.0 as _, skin.hit_fx_dim.1 as _, ..)),
+                atlas: Some(AtlasConfig::new(skin.info.hit_fx.0 as _, skin.info.hit_fx.1 as _, ..)),
                 emitting: false,
                 colors_curve,
                 ..Default::default()
