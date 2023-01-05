@@ -305,7 +305,7 @@ async fn the_main() -> Result<()> {
     }
     write!(
         &mut args,
-        " -s {vw}x{vh} -r {fps} -pixel_format rgb24 -i - -i t_audio.mp3 -c:a copy -c:v {} -map 0:v:0 -map 1:a:0 -qp 0 -vf vflip t_video.mp4",
+        " -s {vw}x{vh} -r {fps} -pix_fmt rgb24 -i - -i t_audio.mp3 -c:a copy -c:v {} -map 0:v:0 -map 1:a:0 -qp 0 -vf vflip t_video.mp4",
         if use_cuda {
             "h264_nvenc"
         } else if has_qsv {
@@ -356,7 +356,7 @@ async fn the_main() -> Result<()> {
         .status()
         .context("无法执行 ffmpeg")?;
 
-    info!("渲染完成！耗时：{:.2}", render_start_time.elapsed().as_secs_f64());
+    info!("渲染完成！耗时：{:.2}s", render_start_time.elapsed().as_secs_f64());
     Ok(())
 }
 
