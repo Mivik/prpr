@@ -188,7 +188,7 @@ impl MainScene {
             UserManager::request(&user.id);
         }
         let skin = SkinPack::load(fs::fs_from_assets("skin/")?.deref_mut()).await?;
-        let emitter = ParticleEmitter::new(&skin, get_data().config.note_scale)?;
+        let emitter = ParticleEmitter::new(&skin, get_data().config.note_scale, skin.info.hide_particles)?;
         Ok(Self {
             target: None,
             next_scene: None,
@@ -887,7 +887,7 @@ impl Scene for MainScene {
                     }
                     Ok((skin, dst)) => {
                         self.click_texture = skin.note_style.click.clone();
-                        self.emitter = ParticleEmitter::new(&skin, get_data().config.note_scale)?;
+                        self.emitter = ParticleEmitter::new(&skin, get_data().config.note_scale, skin.info.hide_particles)?;
                         self._skin = skin;
                         get_data_mut().config.skin_path = dst;
                         save_data()?;

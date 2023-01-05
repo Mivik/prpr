@@ -26,6 +26,8 @@ pub struct SkinPackInfo {
     hold_atlas: (u32, u32),
     #[serde(rename = "holdAtlasMH")]
     hold_atlas_mh: (u32, u32),
+    #[serde(default)]
+    pub hide_particles: bool,
 }
 
 pub struct NoteStyle {
@@ -126,10 +128,11 @@ impl SkinPack {
 pub struct ParticleEmitter {
     emitter: Emitter,
     emitter_square: Emitter,
+    hide_particles: bool,
 }
 
 impl ParticleEmitter {
-    pub fn new(skin: &SkinPack, scale: f32) -> Result<Self> {
+    pub fn new(skin: &SkinPack, scale: f32, hide_particles: bool) -> Result<Self> {
         let colors_curve = {
             let start = WHITE;
             let mut mid = start;
@@ -164,6 +167,7 @@ impl ParticleEmitter {
                 colors_curve,
                 ..Default::default()
             }),
+            hide_particles,
         };
         res.set_scale(scale);
         Ok(res)
@@ -172,8 +176,10 @@ impl ParticleEmitter {
     pub fn emit_at(&mut self, pt: Vec2, color: Color) {
         self.emitter.config.base_color = color;
         self.emitter.emit(pt, 1);
-        self.emitter_square.config.base_color = color;
-        self.emitter_square.emit(pt, 4);
+        if !self.hide_particles {
+            self.emitter_square.config.base_color = color;
+            self.emitter_square.emit(pt, 4);
+        }
     }
 
     pub fn draw(&mut self, dt: f32) {
@@ -341,7 +347,7 @@ impl Resource {
         let note_width = config.note_scale * NOTE_WIDTH_RATIO_BASE;
         let note_scale = config.note_scale;
 
-        let emitter = ParticleEmitter::new(&skin, note_scale)?;
+        let emitter = ParticleEmitter::new(&skin, note_scale, skin.info.hide_particles)?;
 
         macroquad::window::gl_set_drawcall_buffer_capacity(MAX_SIZE * 4, MAX_SIZE * 6);
         Ok(Self {
