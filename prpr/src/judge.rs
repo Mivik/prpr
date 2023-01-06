@@ -367,11 +367,11 @@ impl Judge {
                     {
                         continue;
                     }
-                    if (dist < res.note_width || dist < closest.1) && (flick || !matches!(note.kind, NoteKind::Flick) || note.time < t) {
+                    if dist < closest.1 {
                         closest.0 = Some((line_id, *id));
                         closest.1 = dist;
                         closest.2 = dt + 0.01;
-                        if dist < res.note_width {
+                        if dist < res.note_width / 2. {
                             break;
                         }
                     }
