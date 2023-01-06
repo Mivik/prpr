@@ -262,7 +262,7 @@ impl Judge {
             self.auto_play_update(res, chart);
             return;
         }
-        let x_diff_max = res.note_width * 1.9;
+        const X_DIFF_MAX: f32 = 0.21 / (16. / 9.) * 2.;
         let spd = res.config.speed;
 
         let t = res.time;
@@ -340,7 +340,7 @@ impl Judge {
             if !(click || flick) {
                 continue;
             }
-            let mut closest = (None, x_diff_max, LIMIT_BAD);
+            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD);
             for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter_mut()).enumerate() {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
@@ -473,7 +473,7 @@ impl Judge {
                         let x = &mut note.object.translation.0;
                         x.set_time(t);
                         let x = x.now();
-                        if self.key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= x_diff_max)) {
+                        if self.key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX)) {
                             note.judge = JudgeStatus::Judged;
                             judgements.push((Judgement::Miss, line_id, *id, None));
                             continue;
@@ -504,7 +504,7 @@ impl Judge {
                     || pos.iter().any(|it| {
                         it.map_or(false, |it| {
                             let dx = (it.x - x).abs();
-                            dx <= x_diff_max && dt <= (LIMIT_BAD - LIMIT_PERFECT * (dx - 0.9).max(0.))
+                            dx <= X_DIFF_MAX && dt <= (LIMIT_BAD - LIMIT_PERFECT * (dx - 0.9).max(0.))
                         })
                     })
                 {
