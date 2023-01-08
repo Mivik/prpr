@@ -1,4 +1,5 @@
 mod ending;
+use cfg_if::cfg_if;
 pub use ending::EndingScene;
 
 mod game;
@@ -12,7 +13,7 @@ use crate::{
     time::TimeManager,
     ui::{BillBoard, Dialog, Ui},
 };
-use anyhow::{Result, Error};
+use anyhow::{Error, Result};
 use macroquad::prelude::{
     utils::{register_input_subscriber, repeat_all_miniquad_input},
     *,
@@ -60,19 +61,29 @@ pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &str) {
     CURRENT_INPUT.with(|it| *it.borrow_mut() = id.into());
-    #[cfg(not(target_os = "android"))]
-    {
-        *INPUT_TEXT.lock().unwrap() = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
-        show_message("从剪贴板加载成功");
-    }
-    #[cfg(target_os = "android")]
-    unsafe {
-        let env = miniquad::native::attach_jni_env();
-        let ctx = ndk_context::android_context().context();
-        let class = (**env).GetObjectClass.unwrap()(env, ctx);
-        let method = (**env).GetMethodID.unwrap()(env, class, b"inputText\0".as_ptr() as _, b"(Ljava/lang/String;)V\0".as_ptr() as _);
-        let text = std::ffi::CString::new(text.to_owned()).unwrap();
-        (**env).CallVoidMethod.unwrap()(env, ctx, method, (**env).NewStringUTF.unwrap()(env, text.as_ptr()));
+    cfg_if! {
+        if #[cfg(target_os = "android")] {
+            unsafe {
+                let env = miniquad::native::attach_jni_env();
+                let ctx = ndk_context::android_context().context();
+                let class = (**env).GetObjectClass.unwrap()(env, ctx);
+                let method = (**env).GetMethodID.unwrap()(env, class, b"inputText\0".as_ptr() as _, b"(Ljava/lang/String;)V\0".as_ptr() as _);
+                let text = std::ffi::CString::new(text.to_owned()).unwrap();
+                (**env).CallVoidMethod.unwrap()(env, ctx, method, (**env).NewStringUTF.unwrap()(env, text.as_ptr()));
+            }
+        } else if #[cfg(target_os = "ios")] {
+            unsafe {
+                use objc::*;
+                pub type ObjcId = *mut runtime::Object;
+                let shared: ObjcId = msg_send![class!(UIApplication), shared];
+                // let app_delegate: ObjcId = msg_send![shared, delegate];
+                // let window: ObjcId = msg_send![app_delegate, window];
+                show_message(&format!("哈哈 {}", shared as u64));
+            }
+        } else {
+            *INPUT_TEXT.lock().unwrap() = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
+            show_message("从剪贴板加载成功");
+        }
     }
 }
 
@@ -93,17 +104,20 @@ pub fn return_input(id: String, text: String) {
 pub fn request_file(id: impl Into<String>) {
     CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id.into());
     *CHOSEN_FILE.lock().unwrap() = None;
-    #[cfg(not(target_os = "android"))]
-    {
-        *CHOSEN_FILE.lock().unwrap() = rfd::FileDialog::new().pick_file().map(|it| it.display().to_string());
-    }
-    #[cfg(target_os = "android")]
-    unsafe {
-        let env = miniquad::native::attach_jni_env();
-        let ctx = ndk_context::android_context().context();
-        let class = (**env).GetObjectClass.unwrap()(env, ctx);
-        let method = (**env).GetMethodID.unwrap()(env, class, b"chooseFile\0".as_ptr() as _, b"()V\0".as_ptr() as _);
-        (**env).CallVoidMethod.unwrap()(env, ctx, method);
+    cfg_if! {
+        if #[cfg(target_os = "android")] {
+            unsafe {
+                let env = miniquad::native::attach_jni_env();
+                let ctx = ndk_context::android_context().context();
+                let class = (**env).GetObjectClass.unwrap()(env, ctx);
+                let method = (**env).GetMethodID.unwrap()(env, class, b"chooseFile\0".as_ptr() as _, b"()V\0".as_ptr() as _);
+                (**env).CallVoidMethod.unwrap()(env, ctx, method);
+            }
+        } else if #[cfg(target_os = "ios")] {
+            warn!("TODO");
+        } else {
+            *CHOSEN_FILE.lock().unwrap() = rfd::FileDialog::new().pick_file().map(|it| it.display().to_string());
+        }
     }
 }
 

@@ -9,6 +9,7 @@ crate-type = ["lib", "cdylib"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
+cfg-if = "1.0.0"
 chrono = "0.4.23"
 concat-string = "1.0.1"
 csv = "1.1.6"
@@ -29,15 +30,19 @@ serde_yaml = "0.9"
 symphonia = { version = "0.5", features = ["flac", "mp3", "ogg", "vorbis", "wav", "pcm"] }
 zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
 
-[target.'cfg(not(target_os = "android"))'.dependencies]
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 rfd = "0.10"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc = "*"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-context = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.23", features = ["rt-multi-thread", "fs"] }
-kira = "0.7.1"
+# kira = "0.7.1"
+kira = { git = "https://github.com/Mivik/prpr-kira" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = "1.23"
