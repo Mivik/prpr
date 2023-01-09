@@ -365,6 +365,7 @@ impl Scene for GameScene {
         self.res.camera.render_target = target;
         tm.speed = self.res.config.speed as _;
         reset!(self, self.res, tm);
+        set_camera(&self.res.camera);
         Ok(())
     }
 
