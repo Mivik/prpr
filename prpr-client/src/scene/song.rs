@@ -70,7 +70,7 @@ impl TrashBin {
         }
     }
 
-    pub fn touch(&mut self, touch: &Touch, t: f32) {
+    pub fn touch(&mut self, touch: &Touch, t: f32) -> bool {
         if self.button.touch(touch) {
             if (0.0..Self::WAIT_TIME).contains(&(t - self.time - Self::TRANSIT_TIME)) {
                 // delete
@@ -78,6 +78,9 @@ impl TrashBin {
             } else if self.time.is_infinite() {
                 self.time = t;
             }
+            true
+        } else {
+            false
         }
     }
 
@@ -416,18 +419,21 @@ impl Scene for SongScene {
         Ok(())
     }
 
-    fn touch(&mut self, tm: &mut TimeManager, touch: Touch) -> Result<()> {
+    fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
         if tm.now() < 0. {
-            return Ok(());
+            return Ok(false);
         }
         let loaded = self.chart_info.is_some();
         if self.scroll_progress() < 0.4 {
             if self.edit_enter_time.is_infinite() {
                 if loaded {
-                    self.bin.touch(&touch, tm.now() as _);
+                    if self.bin.touch(&touch, tm.now() as _) {
+                        return Ok(true);
+                    }
                     if self.edit_button.touch(&touch) {
                         self.info_edit = Some(ChartInfoEdit::new(self.chart_info.clone().unwrap()));
                         self.edit_enter_time = tm.now() as _;
+                        return Ok(true);
                     }
                     if self.play_button.touch(&touch) {
                         let fs = fs_from_path(&self.chart.path)?;
@@ -445,10 +451,12 @@ impl Scene for SongScene {
                             )
                             .await
                         }));
+                        return Ok(true);
                     }
                 }
                 if self.back_button.touch(&touch) {
                     self.next_scene = Some(NextScene::Pop);
+                    return Ok(true);
                 }
             } else if self.edit_enter_time > 0. && tm.now() as f32 > self.edit_enter_time + EDIT_TRANSIT {
                 if touch.position.x < 1. - EDIT_CHART_INFO_WIDTH
@@ -457,14 +465,17 @@ impl Scene for SongScene {
                     && self.illustration_task.is_none()
                 {
                     self.edit_enter_time = -tm.now() as _;
+                    return Ok(true);
                 }
-                self.edit_scroll.touch(&touch, tm.now() as _);
+                if self.edit_scroll.touch(&touch, tm.now() as _) {
+                    return Ok(true);
+                }
             }
         }
-        if self.edit_enter_time.is_infinite() {
-            self.scroll.touch(&touch, tm.now() as _);
+        if self.edit_enter_time.is_infinite() && self.scroll.touch(&touch, tm.now() as _) {
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {

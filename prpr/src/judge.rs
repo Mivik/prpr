@@ -681,11 +681,35 @@ impl Judge {
 
 struct Handler<'a>(Vec<(u64, miniquad::TouchPhase, (f32, f32))>, &'a mut u32, u32);
 
+fn button_to_id(button: MouseButton) -> u64 {
+    u64::MAX
+        - match button {
+            MouseButton::Left => 0,
+            MouseButton::Middle => 1,
+            MouseButton::Right => 2,
+            MouseButton::Unknown => 3,
+        }
+}
+
 impl<'a> EventHandler for Handler<'a> {
     fn update(&mut self, _: &mut miniquad::Context) {}
     fn draw(&mut self, _: &mut miniquad::Context) {}
     fn touch_event(&mut self, _: &mut miniquad::Context, phase: miniquad::TouchPhase, id: u64, x: f32, y: f32) {
         self.0.push((id, phase, (x, y)));
+    }
+
+    fn mouse_button_down_event(&mut self, _ctx: &mut miniquad::Context, button: MouseButton, x: f32, y: f32) {
+        self.0.push((button_to_id(button), miniquad::TouchPhase::Started, (x, y)));
+    }
+
+    fn mouse_motion_event(&mut self, _ctx: &mut miniquad::Context, x: f32, y: f32) {
+        if is_mouse_button_down(MouseButton::Left) {
+            self.0.push((button_to_id(MouseButton::Left), miniquad::TouchPhase::Moved, (x, y)));
+        }
+    }
+
+    fn mouse_button_up_event(&mut self, _ctx: &mut miniquad::Context, button: MouseButton, x: f32, y: f32) {
+        self.0.push((button_to_id(button), miniquad::TouchPhase::Ended, (x, y)));
     }
 
     fn key_down_event(&mut self, _ctx: &mut miniquad::Context, _keycode: KeyCode, _keymods: miniquad::KeyMods, repeat: bool) {

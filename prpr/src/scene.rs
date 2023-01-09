@@ -10,15 +10,12 @@ pub use loading::LoadingScene;
 
 use crate::{
     ext::{draw_image, screen_aspect, ScaleType},
+    judge::Judge,
     time::TimeManager,
     ui::{BillBoard, Dialog, Ui},
 };
 use anyhow::{Error, Result};
-use macroquad::prelude::{
-    utils::{register_input_subscriber, repeat_all_miniquad_input},
-    *,
-};
-use miniquad::EventHandler;
+use macroquad::prelude::*;
 use std::{cell::RefCell, ops::DerefMut, sync::Mutex};
 
 #[derive(Default)]
@@ -146,8 +143,8 @@ pub trait Scene {
     fn resume(&mut self, _tm: &mut TimeManager) -> Result<()> {
         Ok(())
     }
-    fn touch(&mut self, _tm: &mut TimeManager, _touch: Touch) -> Result<()> {
-        Ok(())
+    fn touch(&mut self, _tm: &mut TimeManager, _touch: &Touch) -> Result<bool> {
+        Ok(false)
     }
     fn update(&mut self, tm: &mut TimeManager) -> Result<()>;
     fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()>;
@@ -175,11 +172,11 @@ pub struct Main {
     times: Vec<f64>,
     target_chooser: Box<dyn RenderTargetChooser>,
     tm: TimeManager,
-    subscriber: usize,
     paused: bool,
     last_update_time: f64,
     should_exit: bool,
     pub show_billboard: bool,
+    touches: Option<Vec<Touch>>,
 }
 
 impl Main {
@@ -192,11 +189,11 @@ impl Main {
             times: Vec::new(),
             target_chooser: Box::new(target_chooser),
             tm,
-            subscriber: register_input_subscriber(),
             paused: false,
             last_update_time,
             should_exit: false,
             show_billboard: true,
+            touches: None,
         })
     }
 
@@ -231,34 +228,33 @@ impl Main {
                 *self.scenes.last_mut().unwrap() = scene;
             }
         }
-        let mut handler = Handler(Vec::new());
-        repeat_all_miniquad_input(&mut handler, self.subscriber);
-        if !handler.0.is_empty() {
+        let mut touches = Judge::get_touches();
+        if !touches.is_empty() {
             let now = self.tm.now();
-            let delta = (now - self.last_update_time) / handler.0.len() as f64;
-            let vp = unsafe { get_internal_gl() }.quad_gl.get_viewport();
+            let delta = (now - self.last_update_time) / touches.len() as f64;
             DIALOG.with(|it| -> Result<()> {
-                for (index, mut touch) in handler.0.into_iter().enumerate() {
-                    let Vec2 { x, y } = touch.position;
-                    touch.position =
-                        vec2((x - vp.0 as f32) / vp.2 as f32 * 2. - 1., ((y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / (vp.2 as f32 / vp.3 as f32));
+                let mut index = 1;
+                touches.retain_mut(|touch| {
                     let t = self.last_update_time + (index + 1) as f64 * delta;
+                    index += 1;
                     let mut guard = it.borrow_mut();
                     if let Some(dialog) = guard.as_mut() {
                         if !dialog.touch(&touch, t as _) {
                             drop(guard);
                             *it.borrow_mut() = None;
                         }
+                        false
                     } else {
                         drop(guard);
                         self.tm.seek_to(t);
-                        self.scenes.last_mut().unwrap().touch(&mut self.tm, touch)?;
+                        !self.scenes.last_mut().unwrap().touch(&mut self.tm, touch).unwrap_or(false)
                     }
-                }
+                });
                 Ok(())
             })?;
             self.tm.seek_to(now);
         }
+        self.touches = Some(touches);
         self.last_update_time = self.tm.now();
         DIALOG.with(|it| {
             if let Some(dialog) = it.borrow_mut().as_mut() {
@@ -272,6 +268,7 @@ impl Main {
         if self.paused {
             return Ok(());
         }
+        ui.set_touches(self.touches.take().unwrap());
         ui.scope(|ui| self.scenes.last_mut().unwrap().render(&mut self.tm, ui))?;
         if self.show_billboard {
             BILLBOARD.with(|it| {
@@ -328,63 +325,4 @@ fn draw_illustration(tex: Texture2D, x: f32, y: f32, w: f32, h: f32, color: Colo
     };
     crate::ext::draw_parallelogram(r, Some((tex, tr)), color, true);
     r
-}
-
-struct Handler(Vec<Touch>);
-
-fn button_to_id(button: MouseButton) -> u64 {
-    u64::MAX
-        - match button {
-            MouseButton::Left => 0,
-            MouseButton::Middle => 1,
-            MouseButton::Right => 2,
-            MouseButton::Unknown => 3,
-        }
-}
-
-impl EventHandler for Handler {
-    fn update(&mut self, _: &mut miniquad::Context) {}
-    fn draw(&mut self, _: &mut miniquad::Context) {}
-    fn touch_event(&mut self, _: &mut miniquad::Context, phase: miniquad::TouchPhase, id: u64, x: f32, y: f32) {
-        self.0.push(Touch {
-            id,
-            phase: match phase {
-                miniquad::TouchPhase::Started => TouchPhase::Started,
-                miniquad::TouchPhase::Moved => TouchPhase::Moved,
-                miniquad::TouchPhase::Ended => TouchPhase::Ended,
-                miniquad::TouchPhase::Cancelled => TouchPhase::Cancelled,
-            },
-            position: vec2(x, y),
-        });
-    }
-
-    fn mouse_button_down_event(&mut self, _ctx: &mut miniquad::Context, button: MouseButton, x: f32, y: f32) {
-        self.0.push(Touch {
-            id: button_to_id(button),
-            phase: TouchPhase::Started,
-            position: vec2(x, y),
-        });
-    }
-
-    fn mouse_motion_event(&mut self, _ctx: &mut miniquad::Context, x: f32, y: f32) {
-        if is_mouse_button_down(MouseButton::Left) {
-            self.0.push(Touch {
-                id: button_to_id(MouseButton::Left),
-                phase: TouchPhase::Moved,
-                position: vec2(x, y),
-            });
-        }
-    }
-
-    fn mouse_button_up_event(&mut self, _ctx: &mut miniquad::Context, button: MouseButton, x: f32, y: f32) {
-        self.0.push(Touch {
-            id: button_to_id(button),
-            phase: TouchPhase::Ended,
-            position: vec2(x, y),
-        });
-    }
-
-    fn key_down_event(&mut self, _ctx: &mut miniquad::Context, _keycode: KeyCode, _keymods: miniquad::KeyMods, _repeat: bool) {}
-
-    fn key_up_event(&mut self, _ctx: &mut miniquad::Context, _keycode: KeyCode, _keymods: miniquad::KeyMods) {}
 }

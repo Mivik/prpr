@@ -685,9 +685,9 @@ impl Scene for MainScene {
         Ok(())
     }
 
-    fn touch(&mut self, tm: &mut TimeManager, touch: Touch) -> Result<()> {
+    fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
         if tm.now() as f32 <= self.tab_start_time + SWITCH_TIME || self.transit.is_some() {
-            return Ok(());
+            return Ok(false);
         }
         if let Some(tab_id) = self.tab_buttons.iter_mut().position(|it| it.touch(&touch)) {
             if tab_id != self.tab_index {
@@ -718,91 +718,106 @@ impl Scene for MainScene {
                     }
                     self.cali_handle = None;
                 }
-                return Ok(());
             }
+            return Ok(true);
         }
         if self.import_button.touch(&touch) {
             request_file("chart");
+            return Ok(true);
         }
         let t = tm.now() as _;
-        if self.tab_index == 0 && !self.scroll_local.touch(&touch, t) {
-            if let Some(pos) = self.scroll_local.position(&touch) {
-                let id = Self::get_touched(pos);
-                let trigger = Self::trigger_grid(touch.phase, &mut self.choose_local, id);
-                if trigger {
-                    let id = id.unwrap();
-                    if let Some(chart) = self.charts_local.get(id as usize) {
-                        if chart.illustration_task.is_none() {
-                            self.transit = Some((id, tm.now() as _, Rect::default(), false));
-                            TRANSIT_ID.store(id, Ordering::SeqCst);
-                        } else {
-                            show_message("尚未加载完成");
+        match self.tab_index {
+            0 => {
+                if self.scroll_local.touch(&touch, t) {
+                    self.choose_local = None;
+                    return Ok(true);
+                } else {
+                    if let Some(pos) = self.scroll_local.position(&touch) {
+                        let id = Self::get_touched(pos);
+                        let trigger = Self::trigger_grid(touch.phase, &mut self.choose_local, id);
+                        if trigger {
+                            let id = id.unwrap();
+                            if let Some(chart) = self.charts_local.get(id as usize) {
+                                if chart.illustration_task.is_none() {
+                                    self.transit = Some((id, tm.now() as _, Rect::default(), false));
+                                    TRANSIT_ID.store(id, Ordering::SeqCst);
+                                } else {
+                                    show_message("尚未加载完成");
+                                }
+                                return Ok(true);
+                            }
                         }
                     }
-                    return Ok(());
                 }
             }
-        } else {
-            self.choose_local = None;
-        }
-        if self.tab_index == 1 && !self.scroll_remote.touch(&touch, t) {
-            if let Some(pos) = self.scroll_remote.position(&touch) {
-                let id = Self::get_touched(pos);
-                let trigger = Self::trigger_grid(touch.phase, &mut self.choose_remote, id);
-                if trigger {
-                    let id = id.unwrap();
-                    if id < self.charts_remote.len() as u32 {
-                        let chart_id = self.charts_remote[id as usize].info.id.as_ref().unwrap();
-                        dir::downloaded_charts()?;
-                        let path = format!("download/{}", chart_id);
-                        if get_data().charts().any(|it| it.path == path) {
-                            show_message("已经下载");
-                            return Ok(());
+            1 => {
+                if self.scroll_remote.touch(&touch, t) {
+                    self.choose_remote = None;
+                    return Ok(true);
+                } else {
+                    if let Some(pos) = self.scroll_remote.position(&touch) {
+                        let id = Self::get_touched(pos);
+                        let trigger = Self::trigger_grid(touch.phase, &mut self.choose_remote, id);
+                        if trigger {
+                            let id = id.unwrap();
+                            if id < self.charts_remote.len() as u32 {
+                                let chart_id = self.charts_remote[id as usize].info.id.as_ref().unwrap();
+                                dir::downloaded_charts()?;
+                                let path = format!("download/{}", chart_id);
+                                if get_data().charts().any(|it| it.path == path) {
+                                    show_message("已经下载");
+                                    return Ok(true);
+                                }
+                                if self.downloading.contains_key(chart_id) {
+                                    show_message("已经在下载队列中");
+                                    return Ok(true);
+                                }
+                                show_message("正在下载");
+                                let chart = &self.charts_remote[id as usize];
+                                let url = chart.path.clone();
+                                let chart = LocalChart {
+                                    info: chart.info.clone(),
+                                    path,
+                                };
+                                self.downloading.insert(
+                                    chart_id.clone(),
+                                    (
+                                        chart.info.name.clone(),
+                                        Task::new({
+                                            let path = format!("{}/{}", dir::downloaded_charts()?, chart_id);
+                                            async move {
+                                                tokio::fs::write(path, reqwest::get(url).await?.bytes().await?).await?;
+                                                Ok(chart)
+                                            }
+                                        }),
+                                    ),
+                                );
+                                return Ok(true);
+                            }
                         }
-                        if self.downloading.contains_key(chart_id) {
-                            show_message("已经在下载队列中");
-                            return Ok(());
-                        }
-                        show_message("正在下载");
-                        let chart = &self.charts_remote[id as usize];
-                        let url = chart.path.clone();
-                        let chart = LocalChart {
-                            info: chart.info.clone(),
-                            path,
-                        };
-                        self.downloading.insert(
-                            chart_id.clone(),
-                            (
-                                chart.info.name.clone(),
-                                Task::new({
-                                    let path = format!("{}/{}", dir::downloaded_charts()?, chart_id);
-                                    async move {
-                                        tokio::fs::write(path, reqwest::get(url).await?.bytes().await?).await?;
-                                        Ok(chart)
-                                    }
-                                }),
-                            ),
-                        );
-                        return Ok(());
                     }
                 }
             }
-        } else {
-            self.choose_remote = None;
-        }
-        if self.tab_index == 2 && self.account_page.task.is_none() && get_data().me.is_some() && self.account_page.avatar_button.touch(&touch) {
-            request_file("avatar");
-        }
-        if self.tab_index == 3 {
-            for (id, button) in self.chal_buttons.iter_mut().enumerate() {
-                if button.touch(&touch) {
-                    use ChallengeModeColor::*;
-                    get_data_mut().config.challenge_color = [White, Green, Blue, Red, Golden, Rainbow][id].clone();
-                    save_data()?;
+            2 => {
+                if self.account_page.task.is_none() && get_data().me.is_some() && self.account_page.avatar_button.touch(&touch) {
+                    request_file("avatar");
+                    return Ok(true);
                 }
             }
+            3 => {
+                for (id, button) in self.chal_buttons.iter_mut().enumerate() {
+                    if button.touch(&touch) {
+                        use ChallengeModeColor::*;
+                        get_data_mut().config.challenge_color = [White, Green, Blue, Red, Golden, Rainbow][id].clone();
+                        save_data()?;
+                        return Ok(true);
+                    }
+                }
+            }
+            4 => {}
+            _ => unreachable!(),
         }
-        Ok(())
+        Ok(false)
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {

@@ -411,7 +411,7 @@ pub struct Ui {
     pub top: f32,
 
     model_stack: Vec<Matrix>,
-    touches: Vec<Touch>,
+    touches: Option<Vec<Touch>>,
 
     vertex_buffers: VertexBuffers<Vertex, u16>,
     fill_tess: FillTessellator,
@@ -435,7 +435,7 @@ impl Ui {
             top: 1. / screen_aspect(),
 
             model_stack: vec![Matrix::identity()],
-            touches: Judge::get_touches(),
+            touches: None,
 
             vertex_buffers: VertexBuffers::new(),
             fill_tess: FillTessellator::new(),
@@ -443,8 +443,25 @@ impl Ui {
         }
     }
 
+    fn ensure_touches(&mut self) -> &mut Vec<Touch> {
+        if self.touches.is_none() {
+            self.touches = Some(Judge::get_touches());
+        }
+        self.touches.as_mut().unwrap()
+    }
+
+    #[inline]
     pub fn mutate_touches(&mut self, f: impl FnMut(&mut Touch)) {
-        self.touches.iter_mut().for_each(f)
+        self.ensure_touches().iter_mut().for_each(f)
+    }
+
+    pub(crate) fn set_touches(&mut self, touches: Vec<Touch>) {
+        self.touches = Some(touches);
+    }
+
+    #[inline]
+    pub fn retain_touches(&mut self, f: impl FnMut(&mut Touch) -> bool) {
+        self.ensure_touches().retain_mut(f)
     }
 
     pub fn builder(&self, shading: impl Into<Shading>) -> VertexBuilder {
@@ -585,9 +602,9 @@ impl Ui {
         DrawText::new(self, text.into())
     }
 
-    fn clicked(&self, rect: Rect, entry: &mut Option<u64>) -> bool {
+    fn clicked(&mut self, rect: Rect, entry: &mut Option<u64>) -> bool {
         let rect = self.rect_to_global(rect);
-        if let Some(touch) = self.touches.iter().find(|it| rect.contains(it.position)) {
+        if let Some(touch) = self.ensure_touches().iter().find(|it| rect.contains(it.position)) {
             match touch.phase {
                 TouchPhase::Started => {
                     *entry = Some(touch.id);
@@ -693,8 +710,9 @@ impl Ui {
             self.fill_circle(len * p, cy, 0.015, self.accent());
             let r = r.feather(0.015 - s);
             let r = self.rect_to_global(r);
+            self.ensure_touches();
             if let Some(id) = entry {
-                if let Some(touch) = self.touches.iter().rfind(|it| it.id == *id) {
+                if let Some(touch) = self.touches.as_ref().unwrap().iter().rfind(|it| it.id == *id) {
                     let Vec2 { x, y } = touch.position;
                     let (x, _) = self.to_local((x, y));
                     let p = (x / len).clamp(0., 1.);
@@ -704,7 +722,7 @@ impl Ui {
                         *entry = None;
                     }
                 }
-            } else if let Some(touch) = self.touches.iter().find(|it| r.contains(it.position)) {
+            } else if let Some(touch) = self.touches.as_ref().unwrap().iter().find(|it| r.contains(it.position)) {
                 if matches!(touch.phase, TouchPhase::Started) {
                     *entry = Some(touch.id);
                 }
