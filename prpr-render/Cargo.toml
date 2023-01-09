@@ -7,6 +7,6 @@ edition = "2021"
 anyhow = "1.0"
 macroquad = { git = "https://github.com/Mivik/prpr-macroquad", default-features = false }
 prpr = { path = "../prpr" }
-kira = "*"
+kira = { git = "https://github.com/Mivik/prpr-kira" }
 serde_yaml = "0.9"
 tokio = "*"

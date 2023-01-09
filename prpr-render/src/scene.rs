@@ -42,9 +42,8 @@ impl MainScene {
 }
 
 impl Scene for MainScene {
-    fn touch(&mut self, tm: &mut TimeManager, touch: Touch) -> Result<()> {
-        self.scroll.touch(&touch, tm.now() as _);
-        Ok(())
+    fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
+        Ok(self.scroll.touch(&touch, tm.now() as _))
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {

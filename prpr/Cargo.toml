@@ -41,7 +41,6 @@ ndk-context = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.23", features = ["rt-multi-thread", "fs"] }
-# kira = "0.7.1"
 kira = { git = "https://github.com/Mivik/prpr-kira" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
