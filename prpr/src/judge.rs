@@ -7,7 +7,9 @@ use macroquad::prelude::{
     *,
 };
 use miniquad::{EventHandler, MouseButton};
+use once_cell::sync::Lazy;
 use std::{
+    cell::RefCell,
     collections::{HashMap, VecDeque},
     num::FpCategory,
 };
@@ -135,7 +137,6 @@ pub struct Judge {
     // LinkedList::drain_filter is unstable...
     notes: Vec<(Vec<u32>, usize)>,
     trackers: HashMap<u64, VelocityTracker>,
-    subscriber_id: usize,
     last_time: f32,
     key_down_count: u32,
     diffs: Vec<f32>,
@@ -144,6 +145,11 @@ pub struct Judge {
     pub max_combo: u32,
     pub counts: [u32; 4],
     pub num_of_notes: u32,
+}
+
+static SUBSCRIBER_ID: Lazy<usize> = Lazy::new(|| register_input_subscriber());
+thread_local! {
+    static TOUCHES: RefCell<Vec<Touch>> = RefCell::default();
 }
 
 impl Judge {
@@ -160,7 +166,6 @@ impl Judge {
         Self {
             notes,
             trackers: HashMap::new(),
-            subscriber_id: register_input_subscriber(),
             last_time: 0.,
             key_down_count: 0,
             diffs: Vec::new(),
@@ -214,47 +219,38 @@ impl Judge {
         }
     }
 
-    pub fn touches_raw() -> Vec<Touch> {
-        let mut touches = touches();
-        // TODO not complete
-        let btn = MouseButton::Left;
-        if is_mouse_button_pressed(btn) {
-            let p = mouse_position();
-            touches.push(Touch {
-                id: u64::MAX,
-                phase: TouchPhase::Started,
-                position: vec2(p.0, p.1),
-            });
-        } else if is_mouse_button_down(btn) {
-            let p = mouse_position();
-            touches.push(Touch {
-                id: u64::MAX,
+    pub(crate) fn on_new_frame() {
+        let mut key_down_count = 0;
+        let mut handler = Handler(Vec::new(), &mut key_down_count, 0);
+        repeat_all_miniquad_input(&mut handler, *SUBSCRIBER_ID);
+        if is_mouse_button_down(MouseButton::Left) {
+            handler.0.push(Touch {
+                id: button_to_id(MouseButton::Left),
                 phase: TouchPhase::Moved,
-                position: vec2(p.0, p.1),
-            });
-        } else if is_mouse_button_released(btn) {
-            let p = mouse_position();
-            touches.push(Touch {
-                id: u64::MAX,
-                phase: TouchPhase::Ended,
-                position: vec2(p.0, p.1),
+                position: mouse_position().into(),
             });
         }
-        touches
+        TOUCHES.with(|it| {
+            *it.borrow_mut() = handler.0;
+        });
     }
 
     pub fn get_touches() -> Vec<Touch> {
-        let touches = Self::touches_raw();
-        let vp = get_viewport();
-        touches
-            .into_iter()
-            .map(|mut touch| {
-                let p = touch.position;
-                touch.position =
-                    vec2((p.x - vp.0 as f32) / vp.2 as f32 * 2. - 1., ((p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / (vp.2 as f32 / vp.3 as f32));
-                touch
-            })
-            .collect()
+        TOUCHES.with(|it| {
+            let vp = get_viewport();
+            it.borrow()
+                .iter()
+                .cloned()
+                .map(|mut touch| {
+                    let p = touch.position;
+                    touch.position = vec2(
+                        (p.x - vp.0 as f32) / vp.2 as f32 * 2. - 1.,
+                        ((p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / (vp.2 as f32 / vp.3 as f32),
+                    );
+                    touch
+                })
+                .collect()
+        })
     }
 
     pub fn update(&mut self, res: &mut Resource, chart: &mut Chart, bad_notes: &mut Vec<BadNote>) {
@@ -271,21 +267,21 @@ impl Judge {
         let mut touches: HashMap<u64, Touch> = touches.into_iter().map(|it| (it.id, it)).collect();
         let (events, keys_down) = {
             let mut handler = Handler(Vec::new(), &mut self.key_down_count, 0);
-            repeat_all_miniquad_input(&mut handler, self.subscriber_id);
+            repeat_all_miniquad_input(&mut handler, *SUBSCRIBER_ID);
             (handler.0, handler.2)
         };
         {
-            fn to_local((x, y): (f32, f32)) -> Point {
+            fn to_local(Vec2 { x, y }: Vec2) -> Point {
                 Point::new(x / screen_width() * 2. - 1., y / screen_height() * 2. - 1.)
             }
             let delta = (t - self.last_time) as f64 / (events.len() + 1) as f64;
             let mut t = self.last_time as f64;
-            for (id, phase, p) in events.into_iter() {
+            for Touch { id, phase, position: p } in events.into_iter() {
                 t += delta;
                 let t = t as f32;
                 let p = to_local(p);
                 match phase {
-                    miniquad::TouchPhase::Started => {
+                    TouchPhase::Started => {
                         self.trackers.insert(id, VelocityTracker::new(t / spd, p));
                         touches
                             .entry(id)
@@ -296,12 +292,12 @@ impl Judge {
                             })
                             .phase = TouchPhase::Started;
                     }
-                    miniquad::TouchPhase::Moved => {
+                    TouchPhase::Moved | TouchPhase::Stationary => {
                         if let Some(tracker) = self.trackers.get_mut(&id) {
                             tracker.push(t / spd, p);
                         }
                     }
-                    miniquad::TouchPhase::Ended | miniquad::TouchPhase::Cancelled => {
+                    TouchPhase::Ended | TouchPhase::Cancelled => {
                         self.trackers.remove(&id);
                     }
                 }
@@ -679,7 +675,7 @@ impl Judge {
     }
 }
 
-struct Handler<'a>(Vec<(u64, miniquad::TouchPhase, (f32, f32))>, &'a mut u32, u32);
+struct Handler<'a>(Vec<Touch>, &'a mut u32, u32);
 
 fn button_to_id(button: MouseButton) -> u64 {
     u64::MAX
@@ -695,32 +691,38 @@ impl<'a> EventHandler for Handler<'a> {
     fn update(&mut self, _: &mut miniquad::Context) {}
     fn draw(&mut self, _: &mut miniquad::Context) {}
     fn touch_event(&mut self, _: &mut miniquad::Context, phase: miniquad::TouchPhase, id: u64, x: f32, y: f32) {
-        self.0.push((id, phase, (x, y)));
+        self.0.push(Touch {
+            id,
+            phase: phase.into(),
+            position: vec2(x, y),
+        });
     }
 
     fn mouse_button_down_event(&mut self, _ctx: &mut miniquad::Context, button: MouseButton, x: f32, y: f32) {
-        self.0.push((button_to_id(button), miniquad::TouchPhase::Started, (x, y)));
-    }
-
-    fn mouse_motion_event(&mut self, _ctx: &mut miniquad::Context, x: f32, y: f32) {
-        if is_mouse_button_down(MouseButton::Left) {
-            self.0.push((button_to_id(MouseButton::Left), miniquad::TouchPhase::Moved, (x, y)));
-        }
+        self.0.push(Touch {
+            id: button_to_id(button),
+            phase: TouchPhase::Started,
+            position: vec2(x, y),
+        });
     }
 
     fn mouse_button_up_event(&mut self, _ctx: &mut miniquad::Context, button: MouseButton, x: f32, y: f32) {
-        self.0.push((button_to_id(button), miniquad::TouchPhase::Ended, (x, y)));
+        self.0.push(Touch {
+            id: button_to_id(button),
+            phase: TouchPhase::Ended,
+            position: vec2(x, y),
+        });
     }
 
     fn key_down_event(&mut self, _ctx: &mut miniquad::Context, _keycode: KeyCode, _keymods: miniquad::KeyMods, repeat: bool) {
         if !repeat {
-            *self.1 += 1;
-            self.2 += 1;
+            *self.1 = self.1.wrapping_add(1);
+            self.2 = self.2.wrapping_add(1);
         }
     }
 
     fn key_up_event(&mut self, _ctx: &mut miniquad::Context, _keycode: KeyCode, _keymods: miniquad::KeyMods) {
-        *self.1 -= 1;
+        *self.1 = self.1.wrapping_sub(1);
     }
 }
 

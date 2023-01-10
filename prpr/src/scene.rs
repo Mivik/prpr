@@ -198,6 +198,10 @@ impl Main {
     }
 
     pub fn update(&mut self) -> Result<()> {
+        self.update_with_mutate(|_| {})
+    }
+
+    pub fn update_with_mutate(&mut self, f: impl Fn(&mut Touch)) -> Result<()> {
         if self.paused {
             return Ok(());
         }
@@ -228,7 +232,9 @@ impl Main {
                 *self.scenes.last_mut().unwrap() = scene;
             }
         }
+        Judge::on_new_frame();
         let mut touches = Judge::get_touches();
+        touches.iter_mut().for_each(f);
         if !touches.is_empty() {
             let now = self.tm.now();
             let delta = (now - self.last_update_time) / touches.len() as f64;

@@ -136,17 +136,15 @@ async fn the_main() -> Result<()> {
     let mut main = Main::new(Box::new(MainScene::new(target, info, config.clone(), fs.clone_box())), TimeManager::default(), None)?;
     let width = texture.width as f32 / 2.;
     loop {
-        main.update()?;
         if main.scenes.len() == 1 {
             gl.quad_gl.viewport(Some((0, 0, texture.width as _, texture.height as _)));
-            let mut ui = Ui::new();
             let sw = screen_width();
             let lf = (sw - width) / 2.;
-            ui.mutate_touches(|touch| {
+            main.update_with_mutate(|touch| {
                 touch.position.x -= lf / texture.width as f32 * 2.;
-            });
+            })?;
             main.show_billboard = false;
-            main.render(&mut ui)?;
+            main.render(&mut Ui::new())?;
             gl.flush();
             set_camera(&Camera2D {
                 zoom: vec2(1., -screen_width() / screen_height()),
@@ -171,6 +169,7 @@ async fn the_main() -> Result<()> {
                 guard.0.render(&mut ui, t);
             });
         } else {
+            main.update()?;
             gl.quad_gl.viewport(None);
             gl.quad_gl.render_pass(None);
             main.render(&mut Ui::new())?;

@@ -450,11 +450,6 @@ impl Ui {
         self.touches.as_mut().unwrap()
     }
 
-    #[inline]
-    pub fn mutate_touches(&mut self, f: impl FnMut(&mut Touch)) {
-        self.ensure_touches().iter_mut().for_each(f)
-    }
-
     pub(crate) fn set_touches(&mut self, touches: Vec<Touch>) {
         self.touches = Some(touches);
     }

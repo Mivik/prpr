@@ -163,7 +163,7 @@ impl GameScene {
         Ok(audio_handle)
     }
 
-    fn ui(&mut self, tm: &mut TimeManager) -> Result<()> {
+    fn ui(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
         let c = Color::new(1., 1., 1., self.res.alpha);
         let res = &mut self.res;
         let eps = 2e-2 / res.aspect_ratio;
@@ -171,17 +171,22 @@ impl GameScene {
         let pause_w = 0.015;
         let pause_h = pause_w * 3.2;
         let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
-        if Self::interactive(res, &self.state)
-            && !tm.paused()
-            && self.pause_rewind.is_none()
-            && Judge::get_touches().into_iter().any(|touch| {
+        if Self::interactive(res, &self.state) && !tm.paused() && self.pause_rewind.is_none() && {
+            let mut touched = false;
+            ui.retain_touches(|touch| {
                 matches!(touch.phase, TouchPhase::Started) && {
                     let p = touch.position;
                     let p = Point::new(p.x, p.y);
-                    (pause_center - p).norm() < 0.05
+                    if (pause_center - p).norm() < 0.05 {
+                        touched = true;
+                        false
+                    } else {
+                        true
+                    }
                 }
-            })
-        {
+            });
+            touched
+        } {
             res.audio.pause(&mut self.audio_handle)?;
             tm.pause();
         }
@@ -259,7 +264,7 @@ impl GameScene {
         Ok(())
     }
 
-    fn overlay_ui(&mut self, tm: &mut TimeManager) -> Result<()> {
+    fn overlay_ui(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
         let c = Color::new(1., 1., 1., self.res.alpha);
         let t = tm.now();
         let res = &mut self.res;
@@ -299,25 +304,24 @@ impl GameScene {
                 },
             );
             if Self::interactive(res, &self.state) {
-                match Judge::get_touches()
-                    .into_iter()
-                    .filter_map(|touch| {
-                        if !matches!(touch.phase, TouchPhase::Started) {
-                            return None;
+                let mut clicked = None;
+                ui.retain_touches(|touch| {
+                    if !matches!(touch.phase, TouchPhase::Started) {
+                        return true;
+                    }
+                    let p = touch.position;
+                    let p = Point::new(p.x, p.y);
+                    for i in -1..=1 {
+                        let ct = Point::new((s * 2. + w) * i as f32, 0.);
+                        let d = p - ct;
+                        if d.x.abs() <= s && d.y.abs() <= s {
+                            clicked = Some(i);
+                            return false;
                         }
-                        let p = touch.position;
-                        let p = Point::new(p.x, p.y);
-                        for i in -1..=1 {
-                            let ct = Point::new((s * 2. + w) * i as f32, 0.);
-                            let d = p - ct;
-                            if d.x.abs() <= s && d.y.abs() <= s {
-                                return Some(i);
-                            }
-                        }
-                        None
-                    })
-                    .next()
-                {
+                    }
+                    true
+                });
+                match clicked {
                     Some(-1) => {
                         self.should_exit = true;
                     }
@@ -482,7 +486,7 @@ impl Scene for GameScene {
         Ok(())
     }
 
-    fn render(&mut self, tm: &mut TimeManager, _ui: &mut Ui) -> Result<()> {
+    fn render(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
         let res = &mut self.res;
         let asp = screen_aspect();
         let dim = (self.get_size_fn)();
@@ -525,8 +529,8 @@ impl Scene for GameScene {
         if res.config.particle {
             res.emitter.draw(dt);
         }
-        self.ui(tm)?;
-        self.overlay_ui(tm)?;
+        self.ui(tm, ui)?;
+        self.overlay_ui(tm, ui)?;
 
         push_camera_state();
         if !self.effects.is_empty() {
