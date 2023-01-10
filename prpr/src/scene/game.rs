@@ -2,7 +2,7 @@ use super::{draw_background, EndingScene, NextScene, Scene};
 use crate::{
     audio::{Audio, AudioHandle, PlayParams},
     config::Config,
-    core::{BadNote, Chart, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
+    core::{copy_fbo, BadNote, Chart, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
     ext::{draw_text_aligned, screen_aspect, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
@@ -504,6 +504,7 @@ impl Scene for GameScene {
             render_target: chart_onto,
             ..Default::default()
         });
+        clear_background(BLACK);
         draw_background(*res.background);
         pop_camera_state();
 
@@ -548,15 +549,13 @@ impl Scene for GameScene {
             ..Default::default()
         });
         if let Some(target) = &self.res.chart_target {
-            draw_texture_ex(
-                target.output().texture,
-                -1.,
-                -1.,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(2., 2.)),
-                    ..Default::default()
-                },
+            copy_fbo(
+                target.output().render_pass.gl_internal_id(self.gl.quad_context),
+                self.res
+                    .camera
+                    .render_target
+                    .map_or(0, |it| it.render_pass.gl_internal_id(self.gl.quad_context)),
+                dim,
             );
         }
         pop_camera_state();

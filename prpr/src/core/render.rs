@@ -12,7 +12,7 @@ pub struct MSRenderTarget {
     output: [Option<RenderTarget>; 2],
 }
 
-fn copy_fbo(src: GLuint, dst: GLuint, dim: (u32, u32)) {
+pub fn copy_fbo(src: GLuint, dst: GLuint, dim: (u32, u32)) {
     unsafe {
         use miniquad::gl::*;
         glBindFramebuffer(GL_READ_FRAMEBUFFER, src);

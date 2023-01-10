@@ -32,7 +32,7 @@ mod object;
 pub use object::Object;
 
 mod render;
-pub use render::MSRenderTarget;
+pub use render::{MSRenderTarget, copy_fbo};
 
 mod resource;
 pub use resource::{ParticleEmitter, Resource, SkinPack, DPI_VALUE};

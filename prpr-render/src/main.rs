@@ -286,8 +286,6 @@ async fn the_main() -> Result<()> {
     })?;
     main.show_billboard = false;
 
-    let mut bytes = vec![0; vw as usize * vh as usize * 3];
-
     const O: f64 = LoadingScene::TOTAL_TIME as f64 + GameScene::BEFORE_TIME as f64;
     const A: f64 = 0.7 + 0.3 + 0.4;
 
@@ -322,12 +320,17 @@ async fn the_main() -> Result<()> {
         .stderr(Stdio::null())
         .spawn()
         .context("无法执行 ffmpeg")?;
-    let input = proc.stdin.as_mut().unwrap();
+    let mut input = proc.stdin.take().unwrap();
+
+    let mut bytes = vec![0; vw as usize * vh as usize * 3];
 
     let frames = (video_length / frame_delta as f64).ceil() as u64;
     let start_time = Instant::now();
-    for frame in 0..frames {
+
+    for frame in 0..400 {
         *my_time.borrow_mut() = (frame as f32 * frame_delta).max(0.) as f64;
+        gl.quad_gl.render_pass(Some(mst.output().render_pass));
+        clear_background(BLACK);
         main.update()?;
         main.render(&mut Ui::new())?;
         // TODO magic. can't remove this line.
@@ -343,6 +346,7 @@ async fn the_main() -> Result<()> {
             info!("{frame} / {frames}, {:.2}fps", frame as f64 / start_time.elapsed().as_secs_f64());
         }
     }
+    drop(input);
     proc.wait()?;
 
     info!("[3] 合并 & 转码 & 压制");
