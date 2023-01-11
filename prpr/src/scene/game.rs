@@ -331,8 +331,13 @@ impl GameScene {
                     Some(1) => {
                         res.audio.resume(&mut self.audio_handle)?;
                         res.time -= 3.;
-                        let dst = (res.audio.position(&self.audio_handle)? - 3.).max(0.);
-                        res.audio.seek_to(&mut self.audio_handle, dst)?;
+                        let dst = res.audio.position(&self.audio_handle)? - 3.;
+                        if dst < 0. {
+                            res.audio.pause(&mut self.audio_handle)?;
+                            self.state = State::BeforeMusic;
+                        } else {
+                            res.audio.seek_to(&mut self.audio_handle, dst)?;
+                        }
                         tm.resume();
                         tm.seek_to(t - 3.);
                         self.pause_rewind = Some(tm.now() - 0.2);
