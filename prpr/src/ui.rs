@@ -600,10 +600,15 @@ impl Ui {
     fn clicked(&mut self, rect: Rect, entry: &mut Option<u64>) -> bool {
         let rect = self.rect_to_global(rect);
         let mut exists = false;
-        if let Some(touch) = self.ensure_touches().iter().find(|it| {
-            exists = exists || *entry == Some(it.id);
-            rect.contains(it.position)
+        let mut any = false;
+        for touch in self.ensure_touches().iter().filter({
+            let entry = *entry;
+            move |it| {
+                exists = exists || entry == Some(it.id);
+                rect.contains(it.position)
+            }
         }) {
+            any = true;
             match touch.phase {
                 TouchPhase::Started => {
                     *entry = Some(touch.id);
@@ -622,7 +627,8 @@ impl Ui {
                     }
                 }
             }
-        } else if exists {
+        }
+        if !any && exists {
             *entry = None;
         }
         false
@@ -722,7 +728,7 @@ impl Ui {
                     }
                 }
             } else if let Some(touch) = self.touches.as_ref().unwrap().iter().find(|it| r.contains(it.position)) {
-                if matches!(touch.phase, TouchPhase::Started) {
+                if touch.phase == TouchPhase::Started {
                     *entry = Some(touch.id);
                 }
             }

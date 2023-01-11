@@ -174,7 +174,7 @@ impl GameScene {
         if Self::interactive(res, &self.state) && !tm.paused() && self.pause_rewind.is_none() && {
             let mut touched = false;
             ui.retain_touches(|touch| {
-                matches!(touch.phase, TouchPhase::Started) && {
+                touch.phase == TouchPhase::Started && {
                     let p = touch.position;
                     let p = Point::new(p.x, p.y);
                     if (pause_center - p).norm() < 0.05 {
@@ -191,9 +191,8 @@ impl GameScene {
             tm.pause();
         }
         let margin = 0.03;
-        let mut ui = Ui::new();
 
-        self.chart.with_element(&mut ui, res, UIElement::Score, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Score, |ui, alpha, scale| {
             ui.text(format!("{:07}", self.judge.score()))
                 .pos(1. - margin, top + eps * 2.8)
                 .anchor(1., 0.)
@@ -202,7 +201,7 @@ impl GameScene {
                 .scale(scale)
                 .draw();
         });
-        self.chart.with_element(&mut ui, res, UIElement::Pause, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Pause, |ui, alpha, scale| {
             let mut r = Rect::new(pause_w * 2.2 - 1., top + eps * 3.5, pause_w, pause_h);
             let ct = Vector::new(r.x + pause_w, r.y + r.h / 2.);
             let c = Color { a: c.a * alpha, ..c };
@@ -213,7 +212,7 @@ impl GameScene {
             });
         });
         if self.judge.combo >= 3 {
-            self.chart.with_element(&mut ui, res, UIElement::ComboNumber, |ui, alpha, scale| {
+            self.chart.with_element(ui, res, UIElement::ComboNumber, |ui, alpha, scale| {
                 ui.text(self.judge.combo.to_string())
                     .pos(0., top + eps * 2.6)
                     .anchor(0.5, 0.)
@@ -221,7 +220,7 @@ impl GameScene {
                     .scale(scale)
                     .draw();
             });
-            self.chart.with_element(&mut ui, res, UIElement::Combo, |ui, alpha, scale| {
+            self.chart.with_element(ui, res, UIElement::Combo, |ui, alpha, scale| {
                 ui.text(if res.config.autoplay { "AUTOPLAY" } else { "COMBO" })
                     .pos(0., top + 0.09 + eps * 1.1)
                     .anchor(0.5, 0.)
@@ -233,7 +232,7 @@ impl GameScene {
         }
         let lf = -1. + margin;
         let bt = -top - eps * 2.8;
-        self.chart.with_element(&mut ui, res, UIElement::Name, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Name, |ui, alpha, scale| {
             ui.text(&res.info.name)
                 .pos(lf, bt)
                 .anchor(0., 1.)
@@ -242,7 +241,7 @@ impl GameScene {
                 .scale(scale)
                 .draw();
         });
-        self.chart.with_element(&mut ui, res, UIElement::Level, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Level, |ui, alpha, scale| {
             ui.text(&res.info.level)
                 .pos(-lf, bt)
                 .anchor(1., 1.)
@@ -254,7 +253,7 @@ impl GameScene {
         let hw = 0.003;
         let height = eps * 1.2;
         let dest = 2. * res.time / res.track_length;
-        self.chart.with_element(&mut ui, res, UIElement::Bar, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Bar, |ui, alpha, scale| {
             let ct = Vector::new(0., top + height / 2.);
             ui.with(scale.prepend_translation(&-ct).append_translation(&ct), |ui| {
                 ui.fill_rect(Rect::new(-1., top, dest, height), Color::new(1., 1., 1., 0.6 * res.alpha * alpha));
@@ -306,7 +305,7 @@ impl GameScene {
             if Self::interactive(res, &self.state) {
                 let mut clicked = None;
                 ui.retain_touches(|touch| {
-                    if !matches!(touch.phase, TouchPhase::Started) {
+                    if touch.phase != TouchPhase::Started {
                         return true;
                     }
                     let p = touch.position;

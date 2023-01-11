@@ -262,13 +262,10 @@ impl Scene for EndingScene {
         fn touched(ui: &mut Ui, rect: Rect) -> bool {
             let mut res = false;
             ui.retain_touches(|touch| {
-                if !matches!(touch.phase, TouchPhase::Ended) {
+                if touch.phase != TouchPhase::Ended {
                     return true;
                 }
-                let w = screen_width();
-                let p = touch.position;
-                let p = (p.x / w * 2. - 1., (p.y - screen_height() / 2.) / w * 2.);
-                if rect.x <= p.0 && p.0 <= rect.right() && rect.y <= p.1 && p.1 <= rect.bottom() {
+                if rect.contains(touch.position) {
                     res = true;
                     false
                 } else {

@@ -108,7 +108,6 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
                     animated: runtime::YES
                     completion: 0 as ObjcId
                 ];
-                show_message(&format!("哈哈 {}", 123));
             }
         } else {
             *INPUT_TEXT.lock().unwrap() = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
