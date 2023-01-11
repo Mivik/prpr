@@ -48,7 +48,8 @@ mod dir {
     }
 
     pub fn cache_image() -> Result<String> {
-        ensure("cache/image")
+        // TODO generalize
+        ensure(if cfg!(target_os = "ios") { "Caches/image" } else { "cache/image" })
     }
 
     pub fn root() -> Result<String> {
