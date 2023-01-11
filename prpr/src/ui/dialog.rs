@@ -110,7 +110,7 @@ impl Dialog {
         }
         if self
             .window_rect
-            .map_or(true, |rect| rect.contains(touch.position) || !matches!(touch.phase, TouchPhase::Started))
+            .map_or(true, |rect| rect.contains(touch.position) || touch.phase != TouchPhase::Started)
         {
             true
         } else {

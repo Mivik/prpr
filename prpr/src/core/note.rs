@@ -120,7 +120,8 @@ impl Note {
         !self.fake && !matches!(self.kind, NoteKind::Hold { .. }) && self.speed == 1.0 && self.object.translation.1.keyframes.len() <= 1
     }
 
-    pub fn update(&mut self, res: &mut Resource, object: &mut Object) {
+    pub fn update(&mut self, res: &mut Resource, parent_tr: &Matrix) {
+        self.object.set_time(res.time);
         if let Some(color) = if let JudgeStatus::Hold(perfect, at, ..) = &mut self.judge {
             if res.time > *at {
                 *at += HOLD_PARTICLE_INTERVAL / res.config.speed;
@@ -131,11 +132,8 @@ impl Note {
         } else {
             None
         } {
-            self.object.set_time(res.time);
-            object.set_time(res.time);
-            res.with_model(object.now(res) * self.now_transform(res, 0.), |res| res.emit_at_origin(color));
+            res.with_model(parent_tr * self.now_transform(res, 0.), |res| res.emit_at_origin(color));
         }
-        self.object.set_time(res.time);
     }
 
     pub fn dead(&self) -> bool {

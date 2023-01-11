@@ -149,7 +149,7 @@ pub struct Judge {
 
 static SUBSCRIBER_ID: Lazy<usize> = Lazy::new(|| register_input_subscriber());
 thread_local! {
-    static TOUCHES: RefCell<Vec<Touch>> = RefCell::default();
+    static TOUCHES: RefCell<(Vec<Touch>, u32, u32)> = RefCell::default();
 }
 
 impl Judge {
@@ -220,34 +220,34 @@ impl Judge {
     }
 
     pub(crate) fn on_new_frame() {
-        let mut key_down_count = 0;
+        let mut key_down_count = TOUCHES.with(|it| it.borrow().1);
         let mut handler = Handler(Vec::new(), &mut key_down_count, 0);
         repeat_all_miniquad_input(&mut handler, *SUBSCRIBER_ID);
-        if is_mouse_button_down(MouseButton::Left) {
-            handler.0.push(Touch {
-                id: button_to_id(MouseButton::Left),
-                phase: TouchPhase::Moved,
-                position: mouse_position().into(),
-            });
-        }
+        handler.finalize();
         TOUCHES.with(|it| {
-            *it.borrow_mut() = handler.0;
+            *it.borrow_mut() = (handler.0, *handler.1, handler.2);
         });
+    }
+
+    fn touch_transform() -> impl Fn(&mut Touch) {
+        let vp = get_viewport();
+        move |touch| {
+            let p = touch.position;
+            touch.position =
+                vec2((p.x - vp.0 as f32) / vp.2 as f32 * 2. - 1., ((p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / (vp.2 as f32 / vp.3 as f32));
+        }
     }
 
     pub fn get_touches() -> Vec<Touch> {
         TOUCHES.with(|it| {
-            let vp = get_viewport();
+            let tr = Self::touch_transform();
             it.borrow()
+                .0
                 .iter()
                 .cloned()
-                .map(|mut touch| {
-                    let p = touch.position;
-                    touch.position = vec2(
-                        (p.x - vp.0 as f32) / vp.2 as f32 * 2. - 1.,
-                        ((p.y - vp.1 as f32) / vp.3 as f32 * 2. - 1.) / (vp.2 as f32 / vp.3 as f32),
-                    );
-                    touch
+                .map(|mut it| {
+                    tr(&mut it);
+                    it
                 })
                 .collect()
         })
@@ -262,14 +262,46 @@ impl Judge {
         let spd = res.config.speed;
 
         let t = res.time;
-        let touches = Self::get_touches();
         // TODO optimize
-        let mut touches: HashMap<u64, Touch> = touches.into_iter().map(|it| (it.id, it)).collect();
-        let (events, keys_down) = {
-            let mut handler = Handler(Vec::new(), &mut self.key_down_count, 0);
-            repeat_all_miniquad_input(&mut handler, *SUBSCRIBER_ID);
-            (handler.0, handler.2)
+        let mut touches: HashMap<u64, Touch> = {
+            let mut touches = touches();
+            let btn = MouseButton::Left;
+            let id = button_to_id(btn);
+            if is_mouse_button_pressed(btn) {
+                let p = mouse_position();
+                touches.push(Touch {
+                    id,
+                    phase: TouchPhase::Started,
+                    position: vec2(p.0, p.1),
+                });
+            } else if is_mouse_button_down(btn) {
+                let p = mouse_position();
+                touches.push(Touch {
+                    id,
+                    phase: TouchPhase::Moved,
+                    position: vec2(p.0, p.1),
+                });
+            } else if is_mouse_button_released(btn) {
+                let p = mouse_position();
+                touches.push(Touch {
+                    id,
+                    phase: TouchPhase::Ended,
+                    position: vec2(p.0, p.1),
+                });
+            }
+            let tr = Self::touch_transform();
+            touches
+                .into_iter()
+                .map(|mut it| {
+                    tr(&mut it);
+                    (it.id, it)
+                })
+                .collect()
         };
+        let (events, keys_down) = TOUCHES.with(|it| {
+            let guard = it.borrow();
+            (guard.0.clone(), guard.2)
+        });
         {
             fn to_local(Vec2 { x, y }: Vec2) -> Point {
                 Point::new(x / screen_width() * 2. - 1., y / screen_height() * 2. - 1.)
@@ -330,13 +362,13 @@ impl Judge {
         let mut judgements = Vec::new();
         // clicks & flicks
         for (id, touch) in touches.iter().enumerate() {
-            let click = matches!(touch.phase, TouchPhase::Started);
+            let click = touch.phase == TouchPhase::Started;
             let flick = matches!(touch.phase, TouchPhase::Moved | TouchPhase::Stationary)
                 && self.trackers.get_mut(&touch.id).map_or(false, |it| it.has_flick(res));
             if !(click || flick) {
                 continue;
             }
-            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD);
+            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD, /*exact*/ false);
             for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter_mut()).enumerate() {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
@@ -344,7 +376,7 @@ impl Judge {
                     if !matches!(note.judge, JudgeStatus::NotJudged) {
                         continue;
                     }
-                    if matches!(note.kind, NoteKind::Drag) || (!click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. })) {
+                    if !click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. }) {
                         continue;
                     }
                     let dt = (note.time - t) / spd;
@@ -363,18 +395,26 @@ impl Judge {
                     {
                         continue;
                     }
-                    if dist < closest.1 {
-                        closest.0 = Some((line_id, *id));
-                        closest.1 = dist;
-                        closest.2 = dt + 0.01;
-                        if dist < res.note_width / 2. {
-                            break;
-                        }
+                    let dt = dt
+                        + if matches!(note.kind, NoteKind::Flick | NoteKind::Drag) {
+                            0.05 /* TODO tweak*/
+                        } else {
+                            0.
+                        };
+                    // non exact: compare dist
+                    // one exact: exact goes first (== compare dist)
+                    // both exact: compare time
+                    let exact = dist < res.note_width / 2.;
+                    if if exact && closest.3 { dt < closest.2 } else { dist < closest.1 } {
+                        closest = (Some((line_id, *id)), dist, dt + 0.01, exact);
                     }
                 }
             }
-            if let (Some((line_id, id)), _, dt) = closest {
+            if let (Some((line_id, id)), _, dt, _) = closest {
                 let line = &mut chart.lines[line_id];
+                if matches!(line.notes[id as usize].kind, NoteKind::Drag) {
+                    continue;
+                }
                 if click {
                     // click & hold
                     let note = &mut line.notes[id as usize];
@@ -540,6 +580,9 @@ impl Judge {
             chart.lines[line_id].notes[id as usize].object.set_time(t);
             let line = &chart.lines[line_id];
             let note = &line.notes[id as usize];
+            if matches!(judgement, Judgement::Miss) {
+                warn!("MISS {:?}", note.kind);
+            }
             let line_tr = line.now_transform(res, &chart.lines);
             self.commit(
                 judgement,
@@ -676,6 +719,17 @@ impl Judge {
 }
 
 struct Handler<'a>(Vec<Touch>, &'a mut u32, u32);
+impl<'a> Handler<'a> {
+    fn finalize(&mut self) {
+        if is_mouse_button_down(MouseButton::Left) {
+            self.0.push(Touch {
+                id: button_to_id(MouseButton::Left),
+                phase: TouchPhase::Moved,
+                position: mouse_position().into(),
+            });
+        }
+    }
+}
 
 fn button_to_id(button: MouseButton) -> u64 {
     u64::MAX

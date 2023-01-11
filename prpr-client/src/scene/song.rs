@@ -460,7 +460,7 @@ impl Scene for SongScene {
                 }
             } else if self.edit_enter_time > 0. && tm.now() as f32 > self.edit_enter_time + EDIT_TRANSIT {
                 if touch.position.x < 1. - EDIT_CHART_INFO_WIDTH
-                    && matches!(touch.phase, TouchPhase::Started)
+                    && touch.phase == TouchPhase::Started
                     && self.save_task.is_none()
                     && self.illustration_task.is_none()
                 {

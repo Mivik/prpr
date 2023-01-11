@@ -59,7 +59,12 @@ impl Chart {
 
     pub fn update(&mut self, res: &mut Resource) {
         for line in &mut self.lines {
-            line.update(res);
+            line.object.set_time(res.time);
+        }
+        // TODO optimize
+        let trs = self.lines.iter().map(|it| it.now_transform(res, &self.lines)).collect::<Vec<_>>();
+        for (line, tr) in self.lines.iter_mut().zip(trs) {
+            line.update(res, tr);
         }
         for effect in &mut self.effects {
             effect.update(res);
