@@ -261,6 +261,7 @@ pub struct Resource {
     pub sfx_flick: AudioClip,
 
     pub chart_target: Option<MSRenderTarget>,
+    pub no_effect: bool,
 
     pub note_buffer: RefCell<NoteBuffer>,
 
@@ -318,6 +319,7 @@ impl Resource {
         background: SafeTexture,
         illustration: SafeTexture,
         font: Font,
+        has_no_effect: bool,
     ) -> Result<Self> {
         macro_rules! load_tex {
             ($path:literal) => {
@@ -348,6 +350,8 @@ impl Resource {
         let note_scale = config.note_scale;
 
         let emitter = ParticleEmitter::new(&skin, note_scale, skin.info.hide_particles)?;
+
+        let no_effect = config.disable_effect || has_no_effect;
 
         macroquad::window::gl_set_drawcall_buffer_capacity(MAX_SIZE * 4, MAX_SIZE * 6);
         Ok(Self {
@@ -389,6 +393,7 @@ impl Resource {
             sfx_flick,
 
             chart_target: None,
+            no_effect,
 
             note_buffer: RefCell::new(NoteBuffer::default()),
 
@@ -409,11 +414,13 @@ impl Resource {
             return false;
         }
         self.last_screen_size = dim;
-        self.chart_target = {
-            let upscale = self.config.upscale;
-            let dim = ((dim.0 as f32 * upscale) as u32, (dim.1 as f32 * upscale) as u32);
-            Some(MSRenderTarget::new(dim, self.config.sample_count))
-        };
+        if !self.no_effect {
+            self.chart_target = {
+                let upscale = self.config.upscale;
+                let dim = ((dim.0 as f32 * upscale) as u32, (dim.1 as f32 * upscale) as u32);
+                Some(MSRenderTarget::new(dim, self.config.sample_count))
+            };
+        }
         fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {
             let w = w as f32;
             let h = h as f32;
