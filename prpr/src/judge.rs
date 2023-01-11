@@ -18,6 +18,7 @@ pub const FLICK_SPEED_THRESHOLD: f32 = 1.8;
 pub const LIMIT_PERFECT: f32 = 0.08;
 pub const LIMIT_GOOD: f32 = 0.18;
 pub const LIMIT_BAD: f32 = 0.22;
+pub const UP_TOLERANCE: f32 = 0.01;
 
 pub struct VelocityTracker {
     movements: VecDeque<(f32, Point)>,
@@ -120,7 +121,7 @@ pub enum JudgeStatus {
     NotJudged,
     PreJudge,
     Judged,
-    Hold(bool, f32, f32, bool), // perfect, at, diff, pre-judge
+    Hold(bool, f32, f32, bool, f32), // perfect, at, diff, pre-judge, up-time
 }
 
 #[repr(u8)]
@@ -430,7 +431,7 @@ impl Judge {
                             }
                             NoteKind::Hold { .. } => {
                                 res.play_sfx(&res.sfx_click.clone());
-                                note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false);
+                                note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false, f32::INFINITY);
                             }
                             _ => unreachable!(),
                         };
@@ -487,7 +488,7 @@ impl Judge {
                         }
                         NoteKind::Hold { .. } => {
                             res.play_sfx(&res.sfx_click.clone());
-                            note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false);
+                            note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false, f32::INFINITY);
                         }
                         _ => unreachable!(),
                     };
@@ -501,7 +502,7 @@ impl Judge {
             for id in &idx[*st..] {
                 let note = &mut line.notes[*id as usize];
                 if let NoteKind::Hold { end_time, .. } = &note.kind {
-                    if let JudgeStatus::Hold(.., ref mut pre_judge) = note.judge {
+                    if let JudgeStatus::Hold(.., ref mut pre_judge, ref mut up_time) = note.judge {
                         if (*end_time - t) / spd <= LIMIT_BAD {
                             *pre_judge = true;
                             continue;
@@ -510,8 +511,12 @@ impl Judge {
                         x.set_time(t);
                         let x = x.now();
                         if self.key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX)) {
-                            note.judge = JudgeStatus::Judged;
-                            judgements.push((Judgement::Miss, line_id, *id, None));
+                            if t > *up_time + UP_TOLERANCE {
+                                note.judge = JudgeStatus::Judged;
+                                judgements.push((Judgement::Miss, line_id, *id, None));
+                            } else if up_time.is_infinite() {
+                                *up_time = t;
+                            }
                             continue;
                         }
                     }
@@ -553,7 +558,7 @@ impl Judge {
             line.object.set_time(t);
             for id in &idx[*st..] {
                 let note = &mut line.notes[*id as usize];
-                if let JudgeStatus::Hold(perfect, .., diff, true) = note.judge {
+                if let JudgeStatus::Hold(perfect, .., diff, true, _) = note.judge {
                     if let NoteKind::Hold { end_time, .. } = &note.kind {
                         if *end_time <= t {
                             note.judge = JudgeStatus::Judged;
@@ -566,7 +571,7 @@ impl Judge {
                     break;
                 }
                 if matches!(note.judge, JudgeStatus::PreJudge) {
-                    let diff = if let JudgeStatus::Hold(.., diff, _) = note.judge {
+                    let diff = if let JudgeStatus::Hold(.., diff, _, _) = note.judge {
                         Some(diff)
                     } else {
                         None
@@ -668,7 +673,7 @@ impl Judge {
                 }
                 note.judge = if matches!(note.kind, NoteKind::Hold { .. }) {
                     res.play_sfx(&res.sfx_click.clone());
-                    JudgeStatus::Hold(true, t, (t - note.time) / spd, false)
+                    JudgeStatus::Hold(true, t, (t - note.time) / spd, false, f32::INFINITY)
                 } else {
                     judgements.push((line_id, *id));
                     JudgeStatus::Judged
