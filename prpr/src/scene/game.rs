@@ -121,7 +121,7 @@ impl GameScene {
                 .push(Effect::new(0.0..f32::INFINITY, include_str!("fxaa.glsl"), Vec::new(), false).unwrap());
         }
 
-        let mut res = Resource::new(config, info, fs, player, background, illustration, font)
+        let mut res = Resource::new(config, info, fs, player, background, illustration, font, chart.effects.is_empty() && effects.is_empty())
             .await
             .context("Failed to load resources")?;
 
@@ -496,7 +496,11 @@ impl Scene for GameScene {
 
         let msaa = res.config.sample_count > 1;
 
-        let chart_onto = res.chart_target.as_ref().map(|it| if msaa { it.input() } else { it.output() });
+        let chart_onto = res
+            .chart_target
+            .as_ref()
+            .map(|it| if msaa { it.input() } else { it.output() })
+            .or(res.camera.render_target);
         push_camera_state();
         self.gl.quad_gl.viewport(None);
         set_camera(&Camera2D {
@@ -522,7 +526,9 @@ impl Scene for GameScene {
         self.chart.render(res);
 
         self.gl.quad_gl.viewport(vp);
-        self.gl.quad_gl.render_pass(res.chart_target.as_ref().map(|it| it.output().render_pass));
+        self.gl
+            .quad_gl
+            .render_pass(res.chart_target.as_ref().map(|it| it.output().render_pass).or(res.camera.render_pass()));
 
         self.bad_notes.retain(|dummy| dummy.render(res));
         let t = tm.real_time();
@@ -533,32 +539,34 @@ impl Scene for GameScene {
         self.ui(tm, ui)?;
         self.overlay_ui(tm, ui)?;
 
-        push_camera_state();
-        if !self.effects.is_empty() {
+        if !self.res.no_effect {
+            push_camera_state();
+            if !self.effects.is_empty() {
+                set_camera(&Camera2D {
+                    zoom: vec2(1., asp),
+                    ..Default::default()
+                });
+                for e in &self.effects {
+                    e.render(&mut self.res);
+                }
+            }
+            // render the texture onto screen
             set_camera(&Camera2D {
-                zoom: vec2(1., asp),
+                render_target: self.res.camera.render_target,
                 ..Default::default()
             });
-            for e in &self.effects {
-                e.render(&mut self.res);
+            if let Some(target) = &self.res.chart_target {
+                copy_fbo(
+                    target.output().render_pass.gl_internal_id(self.gl.quad_context),
+                    self.res
+                        .camera
+                        .render_target
+                        .map_or(0, |it| it.render_pass.gl_internal_id(self.gl.quad_context)),
+                    dim,
+                );
             }
+            pop_camera_state();
         }
-        // render the texture onto screen
-        set_camera(&Camera2D {
-            render_target: self.res.camera.render_target,
-            ..Default::default()
-        });
-        if let Some(target) = &self.res.chart_target {
-            copy_fbo(
-                target.output().render_pass.gl_internal_id(self.gl.quad_context),
-                self.res
-                    .camera
-                    .render_target
-                    .map_or(0, |it| it.render_pass.gl_internal_id(self.gl.quad_context)),
-                dim,
-            );
-        }
-        pop_camera_state();
         Ok(())
     }
 

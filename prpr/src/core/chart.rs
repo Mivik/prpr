@@ -72,14 +72,16 @@ impl Chart {
                 self.lines[*id].render(res, &self.lines);
             }
             res.note_buffer.borrow_mut().draw_all();
-            if res.config.sample_count > 1 {
-                unsafe { get_internal_gl() }.flush();
-                if let Some(target) = &res.chart_target {
-                    target.blit();
+            if !res.no_effect {
+                if res.config.sample_count > 1 {
+                    unsafe { get_internal_gl() }.flush();
+                    if let Some(target) = &res.chart_target {
+                        target.blit();
+                    }
                 }
-            }
-            for effect in &self.effects {
-                effect.render(res);
+                for effect in &self.effects {
+                    effect.render(res);
+                }
             }
         });
     }
