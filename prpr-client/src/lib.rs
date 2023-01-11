@@ -78,8 +78,21 @@ async fn the_main() -> Result<()> {
         .unwrap();
     let _guard = rt.enter();
 
-    if cfg!(target_os = "ios") {
-        *DATA_PATH.lock().unwrap() = Some("./Documents".to_owned());
+    #[cfg(target_os = "ios")]
+    unsafe {
+        use prpr::objc::*;
+        #[allow(improper_ctypes)]
+        extern "C" {
+            pub fn NSSearchPathForDirectoriesInDomains(
+                directory: std::os::raw::c_ulong,
+                domain_mask: std::os::raw::c_ulong,
+                expand_tilde: bool,
+            ) -> *mut NSArray<*mut NSString>;
+        }
+        let directories = NSSearchPathForDirectoriesInDomains(9, 1, true);
+        let first: &mut NSString = msg_send![directories, firstObject];
+        let path = first.as_str().to_owned();
+        *DATA_PATH.lock().unwrap() = Some(path);
     }
 
     let dir = dir::root()?;

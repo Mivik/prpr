@@ -13,7 +13,14 @@ Cargo.lock
 
 ._*
 /run_ios.sh
+/build_ios.sh
+/build
+/*.ipa
 /prpr.app
+/Assets.xcassets
+/LaunchScreen.storyboard
+/prpr.xcodeproj
+/dist
 
 # Test
 

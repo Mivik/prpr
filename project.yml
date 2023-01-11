@@ -1,0 +1,46 @@
+name: prpr
+options:
+  bundleIdPrefix: com.mivik
+configs:
+  Debug: debug
+  Release: release
+targets:
+  cargo_ios:
+    type: ""
+    platform: iOS
+    legacy:
+      toolPath: "/Users/sjfhsjfh/.cargo/bin/cargo"
+      arguments: "build --release --target aarch64-apple-ios --bin prpr-client-main"
+      workingDirectory: "."
+  prpr:
+    sources:
+      - path: target/aarch64-apple-ios/release/prpr-client-main
+        buildPhase:
+          copyFiles:
+            destination: executables
+      - path: prpr.app/LaunchScreen.storyboardc
+        buildPhase: resources
+      - path: assets
+        type: folder
+        buildPhase: resources
+    type: application
+    platform: iOS
+    deploymentTarget: "15.6.1"
+    scheme:
+      environmentVariables:
+        - variable: RUST_BACKTRACE
+          value: 1
+          isEnabled: true
+        - variable: RUST_LOG
+          value: info
+          isEnabled: true
+        - variable: METAL_DEVICE_WRAPPER_TYPE
+          value: 1
+          isEnabled: true
+    dependencies:
+      - target: cargo_ios
+        embed: false
+    info:
+      path: prpr.app/Info.plist
+      properties:
+        UILaunchStoryboardName: LaunchScreen

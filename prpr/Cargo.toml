@@ -35,6 +35,9 @@ rfd = "0.10"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc = "*"
+objc-foundation = "0.1.1"
+objc_id = "*"
+block = "0.1.6"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-context = "0.1"

@@ -70,12 +70,45 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
             }
         } else if #[cfg(target_os = "ios")] {
             unsafe {
-                use objc::*;
-                pub type ObjcId = *mut runtime::Object;
-                let shared: ObjcId = msg_send![class!(UIApplication), shared];
-                // let app_delegate: ObjcId = msg_send![shared, delegate];
-                // let window: ObjcId = msg_send![app_delegate, window];
-                show_message(&format!("哈哈 {}", shared as u64));
+                use crate::objc::*;
+                let view_ctrl = *miniquad::native::ios::VIEW_CTRL_OBJ.lock().unwrap();
+
+                let alert: ObjcId = msg_send![
+                    class!(UIAlertController),
+                    alertControllerWithTitle: str_to_ns("输入")
+                    message: str_to_ns("请输入文字")
+                    preferredStyle: 1
+                ];
+
+                let action: ObjcId = msg_send![
+                    class!(UIAlertAction),
+                    actionWithTitle: str_to_ns("OK")
+                    style: 0
+                    handler: ConcreteBlock::new({
+                        let alert = alert; // TODO strong ptr?
+                        move |_: ObjcId| {
+                            let fields: ObjcId = msg_send![alert, textFields];
+                            let field: ObjcId = msg_send![fields, firstObject];
+                            let text: *const NSString = msg_send![field, text];
+                            *INPUT_TEXT.lock().unwrap() = Some((*text).as_str().to_owned());
+                        }
+                    }).copy()
+                ];
+                let _: () = msg_send![alert, addAction: action];
+
+                let text = text.to_owned();
+                let _: () = msg_send![alert, addTextFieldWithConfigurationHandler: ConcreteBlock::new(move |field: ObjcId| {
+                    let _: () = msg_send![field, setPlaceholder: str_to_ns("文字")];
+                    let _: () = msg_send![field, setText: str_to_ns(&text)];
+                }).copy()];
+
+                let _: () = msg_send![
+                    view_ctrl as ObjcId,
+                    presentViewController: alert
+                    animated: runtime::YES
+                    completion: 0 as ObjcId
+                ];
+                show_message(&format!("哈哈 {}", 123));
             }
         } else {
             *INPUT_TEXT.lock().unwrap() = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
@@ -111,7 +144,63 @@ pub fn request_file(id: impl Into<String>) {
                 (**env).CallVoidMethod.unwrap()(env, ctx, method);
             }
         } else if #[cfg(target_os = "ios")] {
-            warn!("TODO");
+            use once_cell::sync::Lazy;
+            unsafe {
+                use crate::objc::*;
+                static PICKER_DELEGATE: Lazy<u64> = Lazy::new(|| unsafe {
+                    let mut decl = ClassDecl::new("PickerDelegate", class!(NSObject)).unwrap();
+                    extern "C" fn document_picker(_: &Object, _: Sel, _: ObjcId, documents: ObjcId) {
+                        unsafe {
+                            let url: ObjcId = msg_send![documents, firstObject];
+                            let data: ObjcId = msg_send![class!(NSData), dataWithContentsOfURL: url];
+                            if data.is_null() {
+                                show_message("读取文件失败");
+                            } else {
+                                extern "C" {
+                                    #[allow(improper_ctypes)]
+                                    pub fn NSTemporaryDirectory() -> *mut NSString;
+                                }
+                                let dir = NSTemporaryDirectory();
+                                let uuid: ObjcId = msg_send![class!(NSUUID), UUID];
+                                let uuid: *mut NSString = msg_send![uuid, UUIDString];
+                                let path = format!("{}{}", (*dir).as_str(), (*uuid).as_str());
+                                let _: () = msg_send![data, writeToFile: str_to_ns(&path) atomically: YES];
+                                *CHOSEN_FILE.lock().unwrap() = Some(path);
+                            }
+                        }
+                    }
+                    decl.add_method(sel!(documentPicker: didPickDocumentsAtURLs:), document_picker as extern "C" fn(&Object, Sel, ObjcId, ObjcId));
+                    decl.register() as *const _ as _
+                });
+
+                let picker: ObjcId = msg_send![class!(UIDocumentPickerViewController), alloc];
+                let picker: ObjcId = if available("14.0.0") {
+                    let tp_cls = class!(UTType);
+                    let ext = |e: &str| {
+                        let tp: ObjcId = msg_send![tp_cls, typeWithFilenameExtension: str_to_ns(e)];
+                        std::mem::transmute::<_, ShareId<NSObject>>(ShareId::from_ptr(tp))
+                    };
+                    let types = NSArray::from_slice(&[ext("zip"), ext("pez")]);
+                    let types: ObjcId = std::mem::transmute(types);
+                    msg_send![picker, initForOpeningContentTypes: types]
+                } else {
+                    let ext = |e: &str| str_to_ns(e);
+                    let types = NSArray::from_vec(vec![ext("zip"), ext("pez")]);
+                    let types: ObjcId = std::mem::transmute(types);
+                    msg_send![picker, documentTypes: types inMode: 0]
+                };
+                let dlg_obj: ObjcId = msg_send![*PICKER_DELEGATE as ObjcId, alloc];
+                let dlg_obj: ObjcId = msg_send![dlg_obj, init];
+                let _: () = msg_send![picker, setDelegate: dlg_obj];
+
+                let view_ctrl = *miniquad::native::ios::VIEW_CTRL_OBJ.lock().unwrap();
+                let _: () = msg_send![
+                    view_ctrl as ObjcId,
+                    presentViewController: picker
+                    animated: runtime::YES
+                    completion: 0 as ObjcId
+                ];
+            }
         } else {
             *CHOSEN_FILE.lock().unwrap() = rfd::FileDialog::new().pick_file().map(|it| it.display().to_string());
         }
