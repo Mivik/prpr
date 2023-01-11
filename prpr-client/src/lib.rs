@@ -89,7 +89,7 @@ async fn the_main() -> Result<()> {
                 expand_tilde: bool,
             ) -> *mut NSArray<*mut NSString>;
         }
-        let directories = NSSearchPathForDirectoriesInDomains(9, 1, true);
+        let directories = NSSearchPathForDirectoriesInDomains(5, 1, true);
         let first: &mut NSString = msg_send![directories, firstObject];
         let path = first.as_str().to_owned();
         *DATA_PATH.lock().unwrap() = Some(path);
