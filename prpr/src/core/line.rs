@@ -1,4 +1,4 @@
-use super::{Anim, AnimFloat, Matrix, Note, Object, Point, RenderConfig, Resource, Vector, EPS};
+use super::{Anim, AnimFloat, Matrix, Note, Object, Point, RenderConfig, Resource, Vector};
 use crate::{
     ext::{draw_text_aligned, NotNanExt, SafeTexture},
     judge::JudgeStatus,
@@ -149,7 +149,7 @@ impl JudgeLine {
                 ..Default::default()
             };
             if alpha < 0.0 {
-                let w = (-(alpha * 255.).round()) as u32;
+                let w = (-alpha).floor() as u32;
                 match w {
                     1 => {
                         return;
@@ -166,10 +166,6 @@ impl JudgeLine {
                     _ => {}
                 }
             }
-            if (alpha + 1.0).abs() < EPS {
-                return;
-            }
-            if -1000.0 < alpha && alpha <= -100.0 {}
             let (vw, vh) = (1.1, 1.);
             let p = [
                 res.screen_to_world(Point::new(-vw, -vh)),

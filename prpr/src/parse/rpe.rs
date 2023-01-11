@@ -317,7 +317,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
         r: &mut BpmList,
         event_layers: &[RPEEventLayer],
         get: impl Fn(&RPEEventLayer) -> &Option<Vec<RPEEvent>>,
-        f: impl Fn(f32) -> f32,
+        factor: f32,
         desc: &str,
     ) -> Result<AnimFloat> {
         let anis: Vec<_> = event_layers
@@ -326,7 +326,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
             .collect::<Result<_>>()
             .with_context(|| format!("Failed to parse {desc} events"))?;
         let mut res = AnimFloat::chain(anis);
-        res.map_value(f);
+        res.map_value(|v| v * factor);
         Ok(res)
     }
     let mut height = parse_speed_events(r, &event_layers, max_time)?;
@@ -334,11 +334,11 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
     let cache = JudgeLineCache::new(&mut notes);
     Ok(JudgeLine {
         object: Object {
-            alpha: events_with_factor(r, &event_layers, |it| &it.alpha_events, |v| v / 255., "alpha")?,
-            rotation: events_with_factor(r, &event_layers, |it| &it.rotate_events, |v| -v, "rotate")?,
+            alpha: events_with_factor(r, &event_layers, |it| &it.alpha_events, 1. / 255., "alpha")?,
+            rotation: events_with_factor(r, &event_layers, |it| &it.rotate_events, -1., "rotate")?,
             translation: AnimVector(
-                events_with_factor(r, &event_layers, |it| &it.move_x_events, |v| v * 2. / RPE_WIDTH, "move X")?,
-                events_with_factor(r, &event_layers, |it| &it.move_y_events, |v| v * 2. / RPE_HEIGHT, "move Y")?,
+                events_with_factor(r, &event_layers, |it| &it.move_x_events, 2. / RPE_WIDTH, "move X")?,
+                events_with_factor(r, &event_layers, |it| &it.move_y_events, 2. / RPE_HEIGHT, "move Y")?,
             ),
             scale: {
                 fn parse(r: &mut BpmList, opt: &Option<Vec<RPEEvent>>, factor: f32) -> Result<AnimFloat> {
