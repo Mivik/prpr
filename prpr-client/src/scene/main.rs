@@ -44,6 +44,7 @@ const CARD_PADDING: f32 = 0.02;
 
 const SWITCH_TIME: f32 = 0.4;
 const TRANSIT_TIME: f32 = 0.4;
+const RESET_WAIT: f32 = 0.8;
 
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
 pub static UPDATE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
@@ -161,6 +162,7 @@ pub struct MainScene {
     import_button: RectButton,
     import_task: Task<Result<LocalChart>>,
     load_skin_task: LocalTask<Result<(SkinPack, Option<String>)>>,
+    reset_time: f32,
 
     account_page: AccountPage,
 
@@ -229,6 +231,7 @@ impl MainScene {
             import_button: RectButton::new(),
             import_task: Task::pending(),
             load_skin_task: None,
+            reset_time: f32::NEG_INFINITY,
 
             account_page: AccountPage::new(),
 
@@ -338,6 +341,8 @@ impl MainScene {
                         &mut self.emitter,
                         &mut self.chal_buttons,
                         &mut self.load_skin_task,
+                        &mut self.reset_time,
+                        t,
                     )
                 }) && self.tab_index == 3
                 {
@@ -455,6 +460,8 @@ GitHub: https://github.com/Mivik/prpr";
         emitter: &mut ParticleEmitter,
         chal_buttons: &mut [RectButton; 6],
         skin_task: &mut LocalTask<Result<(SkinPack, Option<String>)>>,
+        reset_time: &mut f32,
+        t: f32,
     ) -> bool {
         let config = &mut get_data_mut().config;
         let s = 0.01;
@@ -531,6 +538,22 @@ GitHub: https://github.com/Mivik/prpr";
                 r.w = 0.1;
                 if ui.button("reset_skin", r, "重置") {
                     *skin_task = Self::new_skin_task(None);
+                }
+                ui.dy(r.h + s * 2.);
+                r.x -= 0.3 + 0.02;
+                r.w = 0.4;
+                if ui.button("reset_all", r, if reset_time.is_finite() { "确定？" } else { "恢复默认设定" }) {
+                    if reset_time.is_finite() {
+                        *config = prpr::config::Config::default();
+                        if let Err(err) = save_data() {
+                            show_error(err.context("保存失败"));
+                        } else {
+                            *skin_task = Self::new_skin_task(None);
+                            show_message("设定恢复成功");
+                        }
+                    } else {
+                        *reset_time = t;
+                    }
                 }
             });
 
@@ -1004,6 +1027,9 @@ impl Scene for MainScene {
         if let Some(tex) = UPDATE_TEXTURE.lock().unwrap().take() {
             let Some((id, ..)) = self.transit else { unreachable!() };
             self.charts_local[id as usize].illustration = tex;
+        }
+        if t > self.reset_time + RESET_WAIT {
+            self.reset_time = f32::NEG_INFINITY;
         }
         Ok(())
     }
