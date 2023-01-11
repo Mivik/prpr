@@ -27,3 +27,7 @@ tokio = { version = "*", features = ["rt-multi-thread", "sync"] }
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.2"
 ndk-context = "0.1"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc = "*"
+objc-foundation = "*"

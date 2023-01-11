@@ -599,7 +599,11 @@ impl Ui {
 
     fn clicked(&mut self, rect: Rect, entry: &mut Option<u64>) -> bool {
         let rect = self.rect_to_global(rect);
-        if let Some(touch) = self.ensure_touches().iter().find(|it| rect.contains(it.position)) {
+        let mut exists = false;
+        if let Some(touch) = self.ensure_touches().iter().find(|it| {
+            exists = exists || *entry == Some(it.id);
+            rect.contains(it.position)
+        }) {
             match touch.phase {
                 TouchPhase::Started => {
                     *entry = Some(touch.id);
@@ -618,7 +622,7 @@ impl Ui {
                     }
                 }
             }
-        } else {
+        } else if exists {
             *entry = None;
         }
         false

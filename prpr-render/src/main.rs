@@ -327,7 +327,7 @@ async fn the_main() -> Result<()> {
     let frames = (video_length / frame_delta as f64).ceil() as u64;
     let start_time = Instant::now();
 
-    for frame in 0..400 {
+    for frame in 0..frames {
         *my_time.borrow_mut() = (frame as f32 * frame_delta).max(0.) as f64;
         gl.quad_gl.render_pass(Some(mst.output().render_pass));
         clear_background(BLACK);
