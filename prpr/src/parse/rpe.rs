@@ -9,7 +9,7 @@ use crate::{
     judge::JudgeStatus,
 };
 use anyhow::{anyhow, bail, Context, Result};
-use macroquad::prelude::Color;
+use macroquad::prelude::{Color, Vec2};
 use serde::Deserialize;
 use std::{collections::HashMap, rc::Rc};
 
@@ -134,6 +134,7 @@ struct RPEMetadata {
 #[serde(untagged)]
 enum Variable {
     Float(Vec<RPEEvent<f32>>),
+    Vec2(Vec<RPEEvent<(f32, f32)>>),
     Color(Vec<RPEEvent<[u8; 4]>>),
 }
 
@@ -393,6 +394,7 @@ async fn parse_effect(r: &mut BpmList, rpe: RPEEffect, fs: &mut dyn FileSystem) 
         .map(|(name, var)| -> Result<Box<dyn Uniform>> {
             Ok(match var {
                 Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events, None)?)),
+                Variable::Vec2(events) => Box::new((name, parse_events::<Vec2, (f32, f32)>(r, &events, None)?)),
                 Variable::Color(events) => Box::new((name, parse_events::<Color, [u8; 4]>(r, &events, None)?)),
             })
         })

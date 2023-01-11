@@ -1,4 +1,4 @@
-use macroquad::prelude::Color;
+use macroquad::prelude::{vec2, Color, Vec2};
 use once_cell::sync::Lazy;
 use std::{ops::Range, rc::Rc};
 
@@ -192,6 +192,16 @@ impl Tweenable for f32 {
 
     fn add(x: &Self, y: &Self) -> Self {
         x + y
+    }
+}
+
+impl Tweenable for Vec2 {
+    fn tween(x: &Self, y: &Self, t: f32) -> Self {
+        vec2(f32::tween(&x.x, &y.x, t), f32::tween(&x.y, &y.y, t))
+    }
+
+    fn add(x: &Self, y: &Self) -> Self {
+        vec2(x.x + y.x, x.y + y.y)
     }
 }
 
