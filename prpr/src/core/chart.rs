@@ -1,11 +1,15 @@
-use super::{Effect, JudgeLine, Matrix, Resource, UIElement, Vector};
+use std::cell::RefCell;
+
+use super::{BpmList, Effect, JudgeLine, Matrix, Resource, UIElement, Vector};
 use crate::{judge::JudgeStatus, ui::Ui};
 use macroquad::prelude::*;
 
-#[derive(Default)]
 pub struct Chart {
     pub offset: f32,
     pub lines: Vec<JudgeLine>,
+    pub bpm_list: RefCell<BpmList>,
+    pub pe_alpha_extension: bool,
+
     pub effects: Vec<Effect>,
     pub global_effects: Vec<Effect>,
     pub order: Vec<usize>,
@@ -13,7 +17,7 @@ pub struct Chart {
 }
 
 impl Chart {
-    pub fn new(offset: f32, lines: Vec<JudgeLine>, effects: Vec<Effect>) -> Self {
+    pub fn new(offset: f32, lines: Vec<JudgeLine>, bpm_list: BpmList, effects: Vec<Effect>) -> Self {
         let mut attach_ui = [None; 7];
         let mut order = (0..lines.len())
             .filter(|it| {
@@ -30,6 +34,9 @@ impl Chart {
         Self {
             offset,
             lines,
+            bpm_list: RefCell::new(bpm_list),
+            pe_alpha_extension: false,
+
             effects,
             global_effects,
             order,
@@ -75,9 +82,11 @@ impl Chart {
 
     pub fn render(&self, res: &mut Resource) {
         res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
+            let mut guard = self.bpm_list.borrow_mut();
             for id in &self.order {
-                self.lines[*id].render(res, &self.lines);
+                self.lines[*id].render(res, &self.lines, &mut guard, self.pe_alpha_extension);
             }
+            drop(guard);
             res.note_buffer.borrow_mut().draw_all();
             if !res.no_effect {
                 if res.config.sample_count > 1 {

@@ -1,6 +1,6 @@
 use super::process_lines;
 use crate::{
-    core::{Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, HEIGHT_RATIO},
+    core::{Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, HEIGHT_RATIO, BpmList},
     ext::NotNanExt,
     judge::JudgeStatus,
 };
@@ -231,5 +231,5 @@ pub fn parse_phigros(source: &str) -> Result<Chart> {
         .map(|(id, pgr)| parse_judge_line(pgr, max_time).with_context(|| format!("In judge line #{id}")))
         .collect::<Result<Vec<_>>>()?;
     process_lines(&mut lines);
-    Ok(Chart::new(pgr.offset, lines, Vec::new()))
+    Ok(Chart::new(pgr.offset, lines, BpmList::default(), Vec::new()))
 }

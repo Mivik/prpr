@@ -51,3 +51,68 @@ pub fn init_assets() {
     }
     set_pc_assets_folder("assets");
 }
+
+#[derive(serde::Deserialize)]
+pub struct Triple(i32, u32, u32);
+
+impl Triple {
+    pub fn beats(&self) -> f32 {
+        self.0 as f32 + self.1 as f32 / self.2 as f32
+    }
+}
+
+#[derive(Default)] // the default is a dummy
+pub struct BpmList {
+    elements: Vec<(f32, f32, f32)>, // (beats, time, bpm)
+    cursor: usize,
+}
+
+impl BpmList {
+    pub fn new(ranges: Vec<(f32, f32)> /*(beat, bpm)*/) -> Self {
+        let mut elements = Vec::new();
+        let mut time = 0.0;
+        let mut last_beats = 0.0;
+        let mut last_bpm: Option<f32> = None;
+        for (now_beats, bpm) in ranges {
+            if let Some(bpm) = last_bpm {
+                time += (now_beats - last_beats) * (60. / bpm);
+            }
+            last_beats = now_beats;
+            last_bpm = Some(bpm);
+            elements.push((now_beats, time, bpm));
+        }
+        BpmList { elements, cursor: 0 }
+    }
+
+    pub fn time_beats(&mut self, beats: f32) -> f32 {
+        while let Some(kf) = self.elements.get(self.cursor + 1) {
+            if kf.0 > beats {
+                break;
+            }
+            self.cursor += 1;
+        }
+        while self.cursor != 0 && self.elements[self.cursor].0 > beats {
+            self.cursor -= 1;
+        }
+        let (start_beats, time, bpm) = &self.elements[self.cursor];
+        time + (beats - start_beats) * (60. / bpm)
+    }
+
+    pub fn time(&mut self, triple: &Triple) -> f32 {
+        self.time_beats(triple.beats())
+    }
+
+    pub fn beat(&mut self, time: f32) -> f32 {
+        while let Some(kf) = self.elements.get(self.cursor + 1) {
+            if kf.1 > time {
+                break;
+            }
+            self.cursor += 1;
+        }
+        while self.cursor != 0 && self.elements[self.cursor].1 > time {
+            self.cursor -= 1;
+        }
+        let (beats, start_time, bpm) = &self.elements[self.cursor];
+        beats + (time - start_time) / (60. / bpm)
+    }
+}

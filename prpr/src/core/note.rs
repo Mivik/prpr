@@ -1,4 +1,4 @@
-use super::{Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
+use super::{Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR, BpmList};
 use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
 
@@ -144,9 +144,17 @@ impl Note {
         self.object.now(res).append_translation(&Vector::new(0., base)) * self.object.now_scale()
     }
 
-    pub fn render(&self, res: &mut Resource, line_height: f32, config: &RenderConfig) {
-        if self.time - config.appear_before > res.time || (matches!(self.judge, JudgeStatus::Judged) && !matches!(self.kind, NoteKind::Hold { .. })) {
+    pub fn render(&self, res: &mut Resource, line_height: f32, config: &RenderConfig, bpm_list: &mut BpmList) {
+        if matches!(self.judge, JudgeStatus::Judged) && !matches!(self.kind, NoteKind::Hold { .. }) {
             return;
+        }
+        if config.appear_before.is_finite() {
+            // TODO optimize
+            let beat = bpm_list.beat(self.time);
+            let time = bpm_list.time_beats(beat - config.appear_before);
+            if time > res.time {
+                return;
+            }
         }
         let scale = (if self.multiple_hint {
             res.skin.note_style_mh.click.width() / res.skin.note_style.click.width()

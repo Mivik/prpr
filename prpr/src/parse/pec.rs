@@ -1,6 +1,6 @@
-use super::{process_lines, BpmList, TWEEN_MAP};
+use super::{process_lines, TWEEN_MAP};
 use crate::{
-    core::{Anim, AnimFloat, AnimVector, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, TweenId, EPS},
+    core::{Anim, AnimFloat, AnimVector, BpmList, Chart, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object, TweenId, EPS},
     ext::NotNanExt,
     judge::JudgeStatus,
 };
@@ -199,8 +199,8 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                bail!("No note has been inserted yet");
-            };
+                                        bail!("No note has been inserted yet");
+                                    };
             lines[last_line].notes.last_mut().unwrap()
         }};
     }
@@ -345,5 +345,9 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
         .map(|(id, line)| parse_judge_line(line, id, max_time).with_context(|| format!("In judge line #{id}")))
         .collect::<Result<Vec<_>>>()?;
     process_lines(&mut lines);
-    Ok(Chart::new(offset.unwrap(), lines, Vec::new()))
+    ensure_bpm(&mut r, &mut bpm_list);
+    Ok(Chart {
+        pe_alpha_extension: true,
+        ..Chart::new(offset.unwrap(), lines, r.unwrap(), Vec::new())
+    })
 }

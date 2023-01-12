@@ -1,8 +1,8 @@
-use super::{process_lines, BpmList, Triple, TWEEN_MAP};
+use super::{process_lines, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, Chart, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object,
-        StaticTween, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
+        Anim, AnimFloat, AnimVector, BpmList, Chart, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind,
+        Object, StaticTween, Triple, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
     fs::FileSystem,
@@ -485,5 +485,5 @@ pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
     for (id, rpe) in rpe.effects.into_iter().flatten().enumerate() {
         effects.push(parse_effect(&mut r, rpe, fs).await.with_context(|| format!("In effect #{id}"))?);
     }
-    Ok(Chart::new(rpe.meta.offset as f32 / 1000.0, lines, effects))
+    Ok(Chart::new(rpe.meta.offset as f32 / 1000.0, lines, r, effects))
 }
