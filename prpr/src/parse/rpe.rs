@@ -349,7 +349,12 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
                 let factor = if rpe.texture == "line.png" { 1. } else { 1.5 / RPE_WIDTH };
                 rpe.extended
                     .as_ref()
-                    .map(|e| -> Result<_> { Ok(AnimVector(parse(r, &e.scale_x_events, factor)?, parse(r, &e.scale_y_events, factor)?)) })
+                    .map(|e| -> Result<_> {
+                        Ok(AnimVector(
+                            parse(r, &e.scale_x_events, factor * if rpe.texture == "line.png" { 0.5 } else { 1. })?,
+                            parse(r, &e.scale_y_events, factor)?,
+                        ))
+                    })
                     .transpose()?
                     .unwrap_or_default()
             },

@@ -585,9 +585,6 @@ impl Judge {
             chart.lines[line_id].notes[id as usize].object.set_time(t);
             let line = &chart.lines[line_id];
             let note = &line.notes[id as usize];
-            if matches!(judgement, Judgement::Miss) {
-                warn!("MISS {:?}", note.kind);
-            }
             let line_tr = line.now_transform(res, &chart.lines);
             self.commit(
                 judgement,
