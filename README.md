@@ -18,18 +18,6 @@ For compactness's sake, `font.ttf` used to render the text is not included in th
 wget https://mivik.moe/prpr/font.ttf -O assets/font.ttf
 ```
 
-If your chart contains textures, place them in the `assets/texture` folder. Now the folder structure should be like this:
-
-```
-prpr
-├── assets
-|   ├── texture
-|   │   └── ...
-|   ├── (font.ttf)
-|   └── ...
-└── ...
-```
-
 Finally, run `prpr` with your chart's path.
 
 ```shell
@@ -84,6 +72,7 @@ aspectRatio: (float, overrides the aspect ratio of chart) (default: none)
 autoplay: (bool, enables the auto play mode) (default: true)
 challengeColor: (enum, the color of the challenge mode badge, one of 'white', 'green', 'blue', 'red', 'golden', 'rainbow') (default: golden)
 challengeRank: (int, the rank in the challenge mode badge) (default: 45)
+disableEffect: (bool, whether to disable effects) (default: false)
 fixAspectRatio: (bool, forces to keep the aspect ratio specified in chart) (default: false)
 fxaa: (bool, whether FXAA is enabled) (default: false)
 interactive: (bool, whether the GUI is interactive) (default: true)
