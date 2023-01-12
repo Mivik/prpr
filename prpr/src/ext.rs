@@ -161,7 +161,7 @@ pub fn draw_text_aligned_scale(
     let rect = Rect::new(x - dim.width * anchor.0, y - (if baseline { dim.offset_y } else { dim.height }) * anchor.1, dim.width, dim.offset_y);
     let gl = unsafe { get_internal_gl() }.quad_gl;
     let ct = rect.center();
-    gl.push_model_matrix(nalgebra_to_glm(&scale_mat.prepend_translation(&Vector::new(ct.x, ct.y + dim.offset_y))));
+    gl.push_model_matrix(nalgebra_to_glm(&scale_mat.append_translation(&Vector::new(ct.x, ct.y + dim.offset_y))));
     draw_text_ex(
         text,
         -rect.w / 2.,

@@ -153,8 +153,8 @@ impl Note {
         } else {
             1.0
         }) * res.note_width;
-        let mut color = WHITE;
-        color.a = res.alpha;
+        let mut color = self.object.now_color();
+        color.a *= res.alpha;
 
         let line_height = line_height / res.aspect_ratio * self.speed;
         let height = self.height / res.aspect_ratio * self.speed;
@@ -283,7 +283,7 @@ impl BadNote {
                 self.kind.order(),
                 res.note_width,
                 Color::new(0.423529, 0.262745, 0.262745, (self.time - res.time).max(-1.) / BAD_TIME + 1.),
-            )
+            );
         });
         true
     }

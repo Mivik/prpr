@@ -41,7 +41,9 @@ impl Chart {
     pub fn with_element(&self, ui: &mut Ui, res: &Resource, element: UIElement, f: impl FnOnce(&mut Ui, f32, Matrix)) {
         if let Some(id) = self.attach_ui[element as usize] {
             let obj = &self.lines[id].object;
-            ui.with(obj.now(res), |ui| f(ui, obj.now_alpha(), obj.now_scale()));
+            let mut tr = obj.now_translation(res);
+            tr.y = -tr.y;
+            ui.with(obj.now_rotation().append_translation(&tr), |ui| f(ui, obj.now_alpha(), obj.now_scale()));
         } else {
             f(ui, 1., Matrix::identity());
         }

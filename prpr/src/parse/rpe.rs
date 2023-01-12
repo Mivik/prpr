@@ -273,7 +273,7 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
                         let alpha = note.alpha.min(255) as f32 / 255.;
                         AnimFloat::new(vec![Keyframe::new(0.0, 0.0, 0), Keyframe::new(time - note.visible_time, alpha, 0)])
                     },
-                    translation: AnimVector(AnimFloat::fixed(note.position_x / (RPE_WIDTH / 2.)), AnimFloat::default()),
+                    translation: AnimVector(AnimFloat::fixed(note.position_x / (RPE_WIDTH / 2.)), AnimFloat::fixed(y_offset)),
                     scale: AnimVector(
                         if note.size == 1.0 {
                             AnimFloat::default()
@@ -291,7 +291,7 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
                         height.set_time(end_time);
                         NoteKind::Hold {
                             end_time,
-                            end_height: height.now() + y_offset,
+                            end_height: height.now(),
                         }
                     }
                     3 => NoteKind::Flick,
@@ -299,7 +299,7 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
                     _ => bail!("Unknown note type: {}", note.kind),
                 },
                 time,
-                height: note_height + y_offset,
+                height: note_height,
                 speed: note.speed,
 
                 above: note.above == 1,
@@ -351,7 +351,22 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
                     .as_ref()
                     .map(|e| -> Result<_> {
                         Ok(AnimVector(
-                            parse(r, &e.scale_x_events, factor * if rpe.texture == "line.png" { 0.5 } else { 1. })?,
+                            parse(
+                                r,
+                                &e.scale_x_events,
+                                factor
+                                    * if rpe.texture == "line.png"
+                                        && rpe
+                                            .extended
+                                            .as_ref()
+                                            .map_or(true, |it| it.text_events.as_ref().map_or(true, |it| it.is_empty()))
+                                        && rpe.attach_ui.is_none()
+                                    {
+                                        0.5
+                                    } else {
+                                        1.
+                                    },
+                            )?,
                             parse(r, &e.scale_y_events, factor)?,
                         ))
                     })

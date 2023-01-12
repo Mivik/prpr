@@ -202,7 +202,7 @@ impl GameScene {
                 .draw();
         });
         self.chart.with_element(ui, res, UIElement::Pause, |ui, alpha, scale| {
-            let mut r = Rect::new(pause_w * 2.2 - 1., top + eps * 3.5, pause_w, pause_h);
+            let mut r = Rect::new(pause_w * 3.0 - 1., top + eps * 3.5, pause_w, pause_h);
             let ct = Vector::new(r.x + pause_w, r.y + r.h / 2.);
             let c = Color { a: c.a * alpha, ..c };
             ui.with(scale.prepend_translation(&-ct).append_translation(&ct), |ui| {
