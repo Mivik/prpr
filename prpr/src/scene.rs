@@ -16,7 +16,7 @@ use crate::{
 };
 use anyhow::{Error, Result};
 use macroquad::prelude::*;
-use std::{cell::RefCell, sync::Mutex, ops::DerefMut};
+use std::{cell::RefCell, ops::DerefMut, sync::Mutex};
 
 #[derive(Default)]
 pub enum NextScene {
@@ -105,15 +105,15 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
                 ];
             }
         } else {
-            INPUT_TEXT.lock().unwrap().1 =Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
+            INPUT_TEXT.lock().unwrap().1 = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
             show_message("从剪贴板加载成功");
         }
     }
 }
 
 pub fn take_input() -> Option<(String, String)> {
-    let w = std::mem::take(INPUT_TEXT.lock().unwrap().deref_mut());
-    w.0.zip(w.1)
+    let mut w = INPUT_TEXT.lock().unwrap();
+    w.0.clone().zip(std::mem::take(&mut w.1))
 }
 
 pub fn return_input(id: String, text: String) {
@@ -198,8 +198,8 @@ pub fn request_file(id: impl Into<String>) {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn take_file() -> Option<(String, String)> {
-    let w = std::mem::take(CHOSEN_FILE.lock().unwrap().deref_mut());
-    w.0.zip(w.1)
+    let mut w = CHOSEN_FILE.lock().unwrap();
+    w.0.clone().zip(std::mem::take(&mut w.1))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
