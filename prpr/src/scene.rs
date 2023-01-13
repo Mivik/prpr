@@ -16,7 +16,7 @@ use crate::{
 };
 use anyhow::{Error, Result};
 use macroquad::prelude::*;
-use std::{cell::RefCell, ops::DerefMut, sync::Mutex};
+use std::{cell::RefCell, sync::Mutex, ops::DerefMut};
 
 #[derive(Default)]
 pub enum NextScene {
@@ -47,17 +47,12 @@ pub fn show_message(msg: impl Into<String>) {
     });
 }
 
-thread_local! {
-    static CURRENT_INPUT: RefCell<String> = RefCell::default();
-    #[cfg(not(target_arch = "wasm32"))]
-    static CURRENT_CHOOSE_FILE: RefCell<String> = RefCell::default();
-}
-pub static INPUT_TEXT: Mutex<Option<String>> = Mutex::new(None);
+pub static INPUT_TEXT: Mutex<(Option<String>, Option<String>)> = Mutex::new((None, None));
 #[cfg(not(target_arch = "wasm32"))]
-pub static CHOSEN_FILE: Mutex<Option<String>> = Mutex::new(None);
+pub static CHOSEN_FILE: Mutex<(Option<String>, Option<String>)> = Mutex::new((None, None));
 
 pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &str) {
-    CURRENT_INPUT.with(|it| *it.borrow_mut() = id.into());
+    *INPUT_TEXT.lock().unwrap() = (Some(id.into()), None);
     cfg_if! {
         if #[cfg(target_os = "android")] {
             unsafe {
@@ -110,29 +105,24 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
                 ];
             }
         } else {
-            *INPUT_TEXT.lock().unwrap() = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
+            INPUT_TEXT.lock().unwrap().1 =Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
             show_message("从剪贴板加载成功");
         }
     }
 }
 
 pub fn take_input() -> Option<(String, String)> {
-    INPUT_TEXT
-        .lock()
-        .unwrap()
-        .take()
-        .map(|text| (CURRENT_INPUT.with(|it| std::mem::take(it.borrow_mut().deref_mut())), text))
+    let w = std::mem::take(INPUT_TEXT.lock().unwrap().deref_mut());
+    w.0.zip(w.1)
 }
 
 pub fn return_input(id: String, text: String) {
-    CURRENT_INPUT.with(|it| *it.borrow_mut() = id);
-    *INPUT_TEXT.lock().unwrap() = Some(text);
+    *INPUT_TEXT.lock().unwrap() = (Some(id), Some(text));
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn request_file(id: impl Into<String>) {
-    CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id.into());
-    *CHOSEN_FILE.lock().unwrap() = None;
+    *CHOSEN_FILE.lock().unwrap() = (Some(id.into()), None);
     cfg_if! {
         if #[cfg(target_os = "android")] {
             unsafe {
@@ -201,24 +191,20 @@ pub fn request_file(id: impl Into<String>) {
                 ];
             }
         } else {
-            *CHOSEN_FILE.lock().unwrap() = rfd::FileDialog::new().pick_file().map(|it| it.display().to_string());
+            CHOSEN_FILE.lock().unwrap().1 = rfd::FileDialog::new().pick_file().map(|it| it.display().to_string());
         }
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn take_file() -> Option<(String, String)> {
-    CHOSEN_FILE
-        .lock()
-        .unwrap()
-        .take()
-        .map(|file| (CURRENT_CHOOSE_FILE.with(|it| std::mem::take(it.borrow_mut().deref_mut())), file))
+    let w = std::mem::take(CHOSEN_FILE.lock().unwrap().deref_mut());
+    w.0.zip(w.1)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn return_file(id: String, file: String) {
-    CURRENT_CHOOSE_FILE.with(|it| *it.borrow_mut() = id);
-    *CHOSEN_FILE.lock().unwrap() = Some(file);
+    *CHOSEN_FILE.lock().unwrap() = (Some(id), Some(file));
 }
 
 pub trait Scene {

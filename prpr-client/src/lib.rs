@@ -198,7 +198,15 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setChosenFile(_: *mut std:
     use prpr::scene::CHOSEN_FILE;
 
     let env = crate::miniquad::native::attach_jni_env();
-    *CHOSEN_FILE.lock().unwrap() = Some(string_from_java(env, file));
+    CHOSEN_FILE.lock().unwrap().1 = Some(string_from_java(env, file));
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "C" fn Java_quad_1native_QuadNative_markImport(_: *mut std::ffi::c_void, _: *const std::ffi::c_void) {
+    use prpr::scene::CHOSEN_FILE;
+
+    CHOSEN_FILE.lock().unwrap().0 = Some("_import".to_owned());
 }
 
 #[cfg(target_os = "android")]
@@ -207,5 +215,5 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setInputText(_: *mut std::
     use prpr::scene::INPUT_TEXT;
 
     let env = crate::miniquad::native::attach_jni_env();
-    *INPUT_TEXT.lock().unwrap() = Some(string_from_java(env, text));
+    INPUT_TEXT.lock().unwrap().1 = Some(string_from_java(env, text));
 }

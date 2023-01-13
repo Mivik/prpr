@@ -959,8 +959,9 @@ impl Scene for MainScene {
             }
         }
         if let Some((id, file)) = take_file() {
+            warn!("{}", id);
             match id.as_str() {
-                "chart" => {
+                "chart" | "_import" => {
                     async fn import(from: String) -> Result<LocalChart> {
                         let file = NamedTempFile::new_in(dir::custom_charts()?)?.keep()?.1;
                         std::fs::copy(from, &file).context("Failed to save")?;
