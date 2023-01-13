@@ -171,22 +171,17 @@ impl GameScene {
         let pause_w = 0.015;
         let pause_h = pause_w * 3.2;
         let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
-        if Self::interactive(res, &self.state) && !tm.paused() && self.pause_rewind.is_none() && {
-            let mut touched = false;
-            ui.retain_touches(|touch| {
+        if Self::interactive(res, &self.state)
+            && !tm.paused()
+            && self.pause_rewind.is_none()
+            && Judge::get_touches().iter().any(|touch| {
                 touch.phase == TouchPhase::Started && {
                     let p = touch.position;
                     let p = Point::new(p.x, p.y);
-                    if (pause_center - p).norm() < 0.05 {
-                        touched = true;
-                        false
-                    } else {
-                        true
-                    }
+                    (pause_center - p).norm() < 0.05
                 }
-            });
-            touched
-        } {
+            })
+        {
             res.audio.pause(&mut self.audio_handle)?;
             tm.pause();
         }
@@ -304,9 +299,9 @@ impl GameScene {
             );
             if Self::interactive(res, &self.state) {
                 let mut clicked = None;
-                ui.retain_touches(|touch| {
+                for touch in Judge::get_touches() {
                     if touch.phase != TouchPhase::Started {
-                        return true;
+                        continue;
                     }
                     let p = touch.position;
                     let p = Point::new(p.x, p.y);
@@ -315,11 +310,10 @@ impl GameScene {
                         let d = p - ct;
                         if d.x.abs() <= s && d.y.abs() <= s {
                             clicked = Some(i);
-                            return false;
+                            break;
                         }
                     }
-                    true
-                });
+                }
                 match clicked {
                     Some(-1) => {
                         self.should_exit = true;

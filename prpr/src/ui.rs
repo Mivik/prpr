@@ -454,11 +454,6 @@ impl Ui {
         self.touches = Some(touches);
     }
 
-    #[inline]
-    pub fn retain_touches(&mut self, f: impl FnMut(&mut Touch) -> bool) {
-        self.ensure_touches().retain_mut(f)
-    }
-
     pub fn builder(&self, shading: impl Into<Shading>) -> VertexBuilder {
         VertexBuilder::new(self.get_matrix(), shading.into())
     }
