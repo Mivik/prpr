@@ -77,7 +77,6 @@ impl<T: Tweenable> Anim<T> {
     }
 
     pub fn set_time(&mut self, time: f32) {
-        assert!(time >= 0.0);
         if self.keyframes.is_empty() || time == self.time {
             self.time = time;
             return;
