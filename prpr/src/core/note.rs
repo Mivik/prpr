@@ -54,9 +54,11 @@ impl Default for RenderConfig {
 
 fn draw_tex(res: &Resource, texture: Texture2D, order: i8, x: f32, y: f32, color: Color, mut params: DrawTextureParams, clip: bool) {
     let Vec2 { x: w, y: h } = params.dest_size.unwrap();
+    if h < 0. {
+        return;
+    }
     let mut p = [Point::new(x, y), Point::new(x + w, y), Point::new(x + w, y + h), Point::new(x, y + h)];
     if clip {
-        assert!(h >= 0.);
         if y + h <= 0. {
             return;
         }
