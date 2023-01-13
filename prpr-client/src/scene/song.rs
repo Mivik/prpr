@@ -1,18 +1,19 @@
-use super::main::{illustration_task, ChartItem, TRANSIT_ID, UPDATE_INFO, UPDATE_TEXTURE};
+use super::main::{illustration_task, ChartItem, SHOULD_UPDATE, TRANSIT_ID, UPDATE_INFO, UPDATE_TEXTURE};
 use crate::{
     cloud::{Client, LCChartItem, Pointer, UserManager},
-    data::BriefChartInfo,
+    data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut, save_data,
     task::Task,
 };
 use anyhow::{bail, Context, Result};
+use futures_util::StreamExt;
 use image::DynamicImage;
 use macroquad::prelude::*;
 use pollster::FutureExt;
 use prpr::{
     config::Config,
     core::Tweenable,
-    ext::{poll_future, screen_aspect, JoinToString, LocalTask, SafeTexture, ScaleType, BLACK_TEXTURE},
+    ext::{poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, ZipFileSystem},
     info::ChartInfo,
     scene::{show_error, show_message, LoadingScene, NextScene, Scene},
@@ -20,12 +21,19 @@ use prpr::{
     ui::{render_chart_info, ChartInfoEdit, Dialog, RectButton, Scroll, Ui},
 };
 use std::{
+    cell::RefCell,
+    collections::HashMap,
     ops::DerefMut,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Mutex,
+        Arc, Mutex,
     },
 };
+use tokio::io::AsyncWriteExt;
+
+thread_local! {
+    static DOWNLOADING: RefCell<HashMap<String, (String, Arc<Mutex<f32>>, Task<Result<LocalChart>>)>> = RefCell::new(HashMap::new());
+}
 
 const FADEIN_TIME: f32 = 0.3;
 const EDIT_TRANSIT: f32 = 0.32;
@@ -118,12 +126,13 @@ pub struct SongScene {
     illustration: SafeTexture,
     icon_edit: SafeTexture,
     icon_back: SafeTexture,
+    icon_download: SafeTexture,
     icon_play: SafeTexture,
     bin: TrashBin,
 
     edit_button: RectButton,
     back_button: RectButton,
-    play_button: RectButton,
+    center_button: RectButton,
 
     scroll: Scroll,
     edit_scroll: Scroll,
@@ -141,6 +150,29 @@ pub struct SongScene {
     upload_task: Option<Task<Result<()>>>,
     info_edit: Option<ChartInfoEdit>,
     edit_enter_time: f32,
+
+    remote: bool,
+}
+
+fn create_info_task(path: String, brief: BriefChartInfo) -> Task<ChartInfo> {
+    Task::new(async move {
+        let info: Result<ChartInfo> = async {
+            let mut fs = fs_from_path(&path)?;
+            fs::load_info(fs.deref_mut()).await
+        }
+        .await;
+        match info {
+            Err(err) => {
+                show_error(err.context("加载谱面信息失败"));
+                brief.into_full()
+            }
+            Ok(ok) => ChartInfo {
+                intro: brief.intro,
+                tags: brief.tags,
+                ..ok
+            },
+        }
+    })
 }
 
 impl SongScene {
@@ -149,8 +181,10 @@ impl SongScene {
         illustration: SafeTexture,
         icon_edit: SafeTexture,
         icon_back: SafeTexture,
+        icon_download: SafeTexture,
         icon_play: SafeTexture,
         bin: TrashBin,
+        remote: bool,
     ) -> Self {
         if let Some(user) = chart.info.uploader.as_ref() {
             UserManager::request(&user.id);
@@ -165,34 +199,18 @@ impl SongScene {
             illustration,
             icon_edit,
             icon_back,
+            icon_download,
             icon_play,
             bin,
 
             edit_button: RectButton::new(),
             back_button: RectButton::new(),
-            play_button: RectButton::new(),
+            center_button: RectButton::new(),
 
             scroll: Scroll::new(),
             edit_scroll: Scroll::new(),
 
-            info_task: Some(Task::new(async move {
-                let info: Result<ChartInfo> = async {
-                    let mut fs = fs_from_path(&path)?;
-                    fs::load_info(fs.deref_mut()).await
-                }
-                .await;
-                match info {
-                    Err(err) => {
-                        show_error(err.context("加载谱面信息失败"));
-                        brief.into_full()
-                    }
-                    Ok(ok) => ChartInfo {
-                        intro: brief.intro,
-                        tags: brief.tags,
-                        ..ok
-                    },
-                }
-            })),
+            info_task: if remote { None } else { Some(create_info_task(path, brief)) },
             illustration_task: None,
             chart_info: None,
             scene_task: None,
@@ -205,6 +223,8 @@ impl SongScene {
             upload_task: None,
             info_edit: None,
             edit_enter_time: f32::INFINITY,
+
+            remote,
         }
     }
 
@@ -220,19 +240,30 @@ impl SongScene {
         let p = ((t + FADEIN_TIME) / FADEIN_TIME).min(1.);
         let color = Color::new(1., 1., 1., p * (1. - sp));
         let r = Rect::new(-1. + 0.02, -ui.top + 0.02, 0.07, 0.07);
-        ui.fill_rect(r, (*self.icon_back, r, ScaleType::Scale, color));
+        ui.fill_rect(r, (*self.icon_back, r, ScaleType::Fit, color));
         self.back_button.set(ui, r);
 
         let s = 0.1;
         let r = Rect::new(-s, -s, s * 2., s * 2.);
-        ui.fill_rect(r, (*self.icon_play, r, ScaleType::Fit, color));
-        self.play_button.set(ui, r);
+        ui.fill_rect(r, (if self.remote { *self.icon_download } else { *self.icon_play }, r, ScaleType::Fit, color));
+        if self.remote {
+            let p = DOWNLOADING.with(|it| {
+                it.borrow()
+                    .get(self.chart.info.id.as_ref().unwrap())
+                    .map(|(_, p, _)| *p.lock().unwrap())
+                    .unwrap_or(0.)
+            });
+            let r = r.feather(0.04);
+            ui.fill_rect(Rect::new(r.x, r.y + r.h * (1. - p), r.w, r.h * p), color);
+        }
+        self.center_button.set(ui, r);
 
         ui.scope(|ui| {
             ui.dx(1. - 0.03);
             ui.dy(-ui.top + 0.03);
             let s = 0.08;
             let mut r = Rect::new(-s, 0., s, s);
+            let color = if self.remote { Color { a: color.a * 0.4, ..color } } else { color };
             self.bin.render(ui, r, color);
             r.x -= s + 0.02;
             ui.fill_rect(r, (*self.icon_edit, r, ScaleType::Fit, color));
@@ -403,11 +434,59 @@ impl SongScene {
     }
 
     fn update_chart_info(&mut self, mut info: BriefChartInfo) {
+        assert!(!self.remote);
         info.uploader = self.chart.info.uploader.clone();
         self.chart.info = info.clone();
         get_data_mut().chart_mut(TRANSIT_ID.load(Ordering::SeqCst) as usize).info = info;
         let _ = save_data();
         UPDATE_INFO.store(true, Ordering::SeqCst);
+    }
+
+    fn start_download(&mut self) -> Result<()> {
+        let id = self.chart.info.id.as_ref().unwrap();
+        dir::downloaded_charts()?;
+        let path = format!("download/{id}");
+        if get_data().charts().any(|it| it.path == path) {
+            show_message("已经下载过"); // TODO redirect instead of showing this
+            return Ok(());
+        }
+        show_message("正在下载");
+        let url = self.chart.path.clone();
+        let chart = LocalChart {
+            info: self.chart.info.clone(),
+            path,
+        };
+        DOWNLOADING.with(|it| -> Result<()> {
+            let progress = Arc::new(Mutex::new(0.));
+            let prog_cl = Arc::clone(&progress);
+            it.borrow_mut().insert(
+                id.clone(),
+                (
+                    chart.info.name.clone(),
+                    progress,
+                    Task::new({
+                        let path = format!("{}/{}", dir::downloaded_charts()?, id);
+                        async move {
+                            let mut file = tokio::fs::File::create(path).await?;
+                            let res = reqwest::get(url).await.context("请求失败")?;
+                            let size = res.content_length();
+                            let mut stream = res.bytes_stream();
+                            let mut count = 0;
+                            while let Some(chunk) = stream.next().await {
+                                let chunk = chunk.context("下载失败")?;
+                                file.write_all(&chunk).await?;
+                                count += chunk.len() as u64;
+                                if let Some(size) = size {
+                                    *prog_cl.lock().unwrap() = count.min(size) as f32 / size as f32;
+                                }
+                            }
+                            Ok(chart)
+                        }
+                    }),
+                ),
+            );
+            Ok(())
+        })
     }
 }
 
@@ -429,7 +508,7 @@ impl Scene for SongScene {
         let loaded = self.chart_info.is_some();
         if self.scroll_progress() < 0.4 {
             if self.edit_enter_time.is_infinite() {
-                if loaded {
+                if loaded || self.remote {
                     if self.bin.touch(&touch, tm.now() as _) {
                         return Ok(true);
                     }
@@ -438,22 +517,30 @@ impl Scene for SongScene {
                         self.edit_enter_time = tm.now() as _;
                         return Ok(true);
                     }
-                    if self.play_button.touch(&touch) {
-                        let fs = fs_from_path(&self.chart.path)?;
-                        let info = self.chart_info.clone().unwrap();
-                        self.scene_task = Some(Box::pin(async move {
-                            LoadingScene::new(
-                                info,
-                                Config {
-                                    player_name: get_data().me.as_ref().map(|it| it.name.clone()).unwrap_or_else(|| "游客".to_string()),
-                                    ..get_data().config.clone()
-                                },
-                                fs,
-                                get_data().me.as_ref().and_then(|it| UserManager::get_avatar(&it.id)),
-                                None,
-                            )
-                            .await
-                        }));
+                    if self.center_button.touch(&touch) {
+                        if self.remote {
+                            if DOWNLOADING.with(|it| it.borrow_mut().remove(self.chart.info.id.as_ref().unwrap()).is_some()) {
+                                show_message("已取消");
+                            } else {
+                                self.start_download()?;
+                            }
+                        } else {
+                            let fs = fs_from_path(&self.chart.path)?;
+                            let info = self.chart_info.clone().unwrap();
+                            self.scene_task = Some(Box::pin(async move {
+                                LoadingScene::new(
+                                    info,
+                                    Config {
+                                        player_name: get_data().me.as_ref().map(|it| it.name.clone()).unwrap_or_else(|| "游客".to_string()),
+                                        ..get_data().config.clone()
+                                    },
+                                    fs,
+                                    get_data().me.as_ref().and_then(|it| UserManager::get_avatar(&it.id)),
+                                    None,
+                                )
+                                .await
+                            }));
+                        }
                         return Ok(true);
                     }
                 }
@@ -578,6 +665,34 @@ impl Scene for SongScene {
                 Client::create(item).await?;
                 Ok(())
             }));
+        }
+        let mut downloaded = Vec::new();
+        DOWNLOADING.with(|it| {
+            it.borrow_mut().retain(|_, (name, _, task)| {
+                if task.ok() {
+                    downloaded.push((name.clone(), task.take().unwrap()));
+                    false
+                } else {
+                    true
+                }
+            })
+        });
+        for (name, res) in downloaded {
+            match res {
+                Err(err) => {
+                    show_error(err.context(format!("{name} 下载失败")));
+                }
+                Ok(chart) => {
+                    self.chart.info = chart.info.clone();
+                    self.chart.path = chart.path.clone();
+                    self.info_task = Some(create_info_task(chart.path.clone(), chart.info.clone()));
+                    get_data_mut().add_chart(chart);
+                    save_data()?;
+                    SHOULD_UPDATE.store(true, Ordering::SeqCst);
+                    self.remote = false;
+                    show_message(format!("{name} 下载完成"));
+                }
+            }
         }
         Ok(())
     }

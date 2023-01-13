@@ -5,7 +5,7 @@ use crate::{
     dir, get_data, get_data_mut, save_data,
     task::Task,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use image::{imageops::FilterType, DynamicImage};
 use lyon::{
     math as lm,
@@ -26,7 +26,6 @@ use prpr::{
 use regex::Regex;
 use serde_json::json;
 use std::{
-    collections::HashMap,
     future::Future,
     io::Cursor,
     ops::DerefMut,
@@ -47,6 +46,7 @@ const TRANSIT_TIME: f32 = 0.4;
 const RESET_WAIT: f32 = 0.8;
 
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
+pub static SHOULD_UPDATE: AtomicBool = AtomicBool::new(false);
 pub static UPDATE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
 pub static UPDATE_INFO: AtomicBool = AtomicBool::new(false);
 pub static TRANSIT_ID: AtomicU32 = AtomicU32::new(0);
@@ -130,6 +130,7 @@ pub struct MainScene {
     tex: SafeTexture,
     click_texture: SafeTexture,
     icon_back: SafeTexture,
+    icon_download: SafeTexture,
     icon_play: SafeTexture,
     icon_edit: SafeTexture,
     icon_delete: SafeTexture,
@@ -168,8 +169,7 @@ pub struct MainScene {
 
     chal_buttons: [RectButton; 6],
 
-    downloading: HashMap<String, (String, Task<Result<LocalChart>>)>,
-    transit: Option<(u32, f32, Rect, bool)>,
+    transit: Option<(bool, u32, f32, Rect, bool)>, // remote, id, start_time, rect, delete
 }
 
 impl MainScene {
@@ -203,6 +203,7 @@ impl MainScene {
             tex: tex.clone(),
             click_texture: skin.note_style.click.clone(),
             icon_back: load_tex!("back.png"),
+            icon_download: load_tex!("download.png"),
             icon_play: load_tex!("resume.png"),
             icon_edit: load_tex!("edit.png"),
             icon_delete: load_tex!("delete.png"),
@@ -241,7 +242,6 @@ impl MainScene {
 
             chal_buttons: [RectButton::new(); 6],
 
-            downloading: HashMap::new(),
             transit: None,
         })
     }
@@ -314,10 +314,10 @@ impl MainScene {
             self.tab_scroll.size(content_size);
             self.tab_scroll.render(ui, |ui| {
                 Self::render_scroll(ui, content_size, &mut self.scroll_local, &mut self.charts_local);
-                if let Some((id, _, rect, _)) = &mut self.transit {
+                if let Some((remote, id, _, rect, _)) = &mut self.transit {
                     *rect = ui.rect_to_global(Rect::new(
-                        (*id % ROW_NUM) as f32 * width / ROW_NUM as f32,
-                        (*id / ROW_NUM) as f32 * CARD_HEIGHT - self.scroll_local.y_scroller.offset(),
+                        (*id % ROW_NUM) as f32 * width / ROW_NUM as f32 + if *remote { content_size.0 } else { 0. },
+                        (*id / ROW_NUM) as f32 * CARD_HEIGHT - if *remote { &self.scroll_remote } else { &self.scroll_local }.y_scroller.offset(),
                         width / ROW_NUM as f32,
                         CARD_HEIGHT,
                     ));
@@ -682,13 +682,31 @@ GitHub: https://github.com/Mivik/prpr",
             ))
         }))
     }
+
+    pub fn song_scene(&self, chart: &ChartItem, remote: bool) -> Option<NextScene> {
+        Some(NextScene::Overlay(Box::new(SongScene::new(
+            ChartItem {
+                info: chart.info.clone(),
+                path: chart.path.clone(),
+                illustration: chart.illustration.clone(),
+                illustration_task: None,
+            },
+            chart.illustration.clone(),
+            self.icon_edit.clone(),
+            self.icon_back.clone(),
+            self.icon_download.clone(),
+            self.icon_play.clone(),
+            TrashBin::new(self.icon_delete.clone(), self.icon_question.clone()),
+            remote,
+        ))))
+    }
 }
 
 impl Scene for MainScene {
     fn enter(&mut self, tm: &mut TimeManager, target: Option<RenderTarget>) -> Result<()> {
         self.tab_start_time = f32::NEG_INFINITY;
         self.target = target;
-        if let Some((_, st, _, true)) = &mut self.transit {
+        if let Some((.., st, _, true)) = &mut self.transit {
             *st = tm.now() as _;
         } else {
             show_message("欢迎回来");
@@ -771,7 +789,7 @@ impl Scene for MainScene {
                             let id = id.unwrap();
                             if let Some(chart) = self.charts_local.get(id as usize) {
                                 if chart.illustration_task.is_none() {
-                                    self.transit = Some((id, tm.now() as _, Rect::default(), false));
+                                    self.transit = Some((false, id, tm.now() as _, Rect::default(), false));
                                     TRANSIT_ID.store(id, Ordering::SeqCst);
                                 } else {
                                     show_message("尚未加载完成");
@@ -793,37 +811,7 @@ impl Scene for MainScene {
                         if trigger {
                             let id = id.unwrap();
                             if id < self.charts_remote.len() as u32 {
-                                let chart_id = self.charts_remote[id as usize].info.id.as_ref().unwrap();
-                                dir::downloaded_charts()?;
-                                let path = format!("download/{}", chart_id);
-                                if get_data().charts().any(|it| it.path == path) {
-                                    show_message("已经下载");
-                                    return Ok(true);
-                                }
-                                if self.downloading.contains_key(chart_id) {
-                                    show_message("已经在下载队列中");
-                                    return Ok(true);
-                                }
-                                show_message("正在下载");
-                                let chart = &self.charts_remote[id as usize];
-                                let url = chart.path.clone();
-                                let chart = LocalChart {
-                                    info: chart.info.clone(),
-                                    path,
-                                };
-                                self.downloading.insert(
-                                    chart_id.clone(),
-                                    (
-                                        chart.info.name.clone(),
-                                        Task::new({
-                                            let path = format!("{}/{}", dir::downloaded_charts()?, chart_id);
-                                            async move {
-                                                tokio::fs::write(path, reqwest::get(url).await?.bytes().await?).await?;
-                                                Ok(chart)
-                                            }
-                                        }),
-                                    ),
-                                );
+                                self.transit = Some((true, id, t, Rect::default(), false));
                                 return Ok(true);
                             }
                         }
@@ -876,28 +864,6 @@ impl Scene for MainScene {
             let p = 1. - (1. - p).powi(3);
             self.tab_scroll
                 .set_offset(f32::tween(&(self.tab_from_index as f32), &(self.tab_index as f32), p) * (1. - SIDE_PADDING) * 2., 0.);
-        }
-        let remove = self
-            .downloading
-            .iter_mut()
-            .map(|(key, (_, task))| (key, task.ok()))
-            .filter(|it| it.1)
-            .map(|it| it.0.clone())
-            .collect::<Vec<_>>();
-        for id in remove {
-            let mut task = self.downloading.remove(&id).unwrap();
-            let res = task.1.take().unwrap();
-            match res {
-                Err(err) => {
-                    show_error(err.context(format!("{} 下载失败", task.0)));
-                }
-                Ok(chart) => {
-                    get_data_mut().add_chart(chart);
-                    save_data()?;
-                    self.charts_local = load_local(&self.tex);
-                    show_message(format!("{} 下载完成", task.0));
-                }
-            }
         }
         if let Some(charts) = self.task_load.take() {
             self.loading_remote = false;
@@ -1052,7 +1018,9 @@ impl Scene for MainScene {
         });
         clear_background(GRAY);
         ui.scope(|ui| self.ui(ui, tm.now() as f32));
-        if let Some((id, st, rect, back)) = &mut self.transit {
+        if let Some((remote, id, st, rect, back)) = &mut self.transit {
+            let remote = *remote;
+            let id = *id as usize;
             let t = tm.now() as f32;
             let p = ((t - *st) / TRANSIT_TIME).min(1.);
             let mut p = 1. - (1. - p).powi(4);
@@ -1075,14 +1043,22 @@ impl Scene for MainScene {
                 );
                 path.build()
             };
-            let chart = &self.charts_local[*id as usize];
+            let dst = if remote { &mut self.charts_remote } else { &mut self.charts_local };
+            let chart = &dst[id];
             ui.fill_path(&path, (*chart.illustration, rect, ScaleType::Scale));
             ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
             if *back && p <= 0. {
                 if SHOULD_DELETE.fetch_and(false, Ordering::SeqCst) {
                     let err: Result<_> = (|| {
-                        let Some((id, ..)) = self.transit else {unreachable!()};
-                        let id = id as usize;
+                        let id = if remote {
+                            let path = format!("download/{}", self.charts_remote[id].info.id.as_ref().unwrap());
+                            self.charts_local
+                                .iter()
+                                .position(|it| it.path == path)
+                                .ok_or_else(|| anyhow!("找不到谱面"))?
+                        } else {
+                            id
+                        };
                         let path = format!("{}/{}", dir::charts()?, self.charts_local[id].path);
                         let path = std::path::Path::new(&path);
                         if path.is_file() {
@@ -1101,22 +1077,22 @@ impl Scene for MainScene {
                         show_message("删除成功");
                     }
                 }
+                if SHOULD_UPDATE.fetch_and(false, Ordering::SeqCst) {
+                    self.charts_local = load_local(&self.tex);
+                }
                 self.transit = None;
             } else if !*back && p >= 1. {
-                self.next_scene = Some(NextScene::Overlay(Box::new(SongScene::new(
-                    ChartItem {
-                        info: chart.info.clone(),
-                        path: chart.path.clone(),
-                        illustration: chart.illustration.clone(),
-                        illustration_task: None,
-                    },
-                    chart.illustration.clone(),
-                    self.icon_edit.clone(),
-                    self.icon_back.clone(),
-                    self.icon_play.clone(),
-                    TrashBin::new(self.icon_delete.clone(), self.icon_question.clone()),
-                ))));
                 *back = true;
+                self.next_scene = if remote {
+                    let path = format!("download/{}", self.charts_remote[id].info.id.as_ref().unwrap());
+                    if let Some(chart) = self.charts_local.iter().find(|it| it.path == path) {
+                        self.song_scene(chart, false)
+                    } else {
+                        self.song_scene(&self.charts_remote[id], true)
+                    }
+                } else {
+                    self.song_scene(&self.charts_local[id], false)
+                };
             }
         }
         Ok(())
