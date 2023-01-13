@@ -1,4 +1,4 @@
-use super::{Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR, BpmList};
+use super::{BpmList, Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
 use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
 
@@ -52,22 +52,28 @@ impl Default for RenderConfig {
     }
 }
 
-fn draw_tex(res: &Resource, texture: Texture2D, order: i8, x: f32, y: f32, color: Color, params: DrawTextureParams) {
-    let Vec2 { x: w, y: h } = params.dest_size.unwrap_or_else(|| {
-        params
-            .source
-            .map(|it| vec2(it.w, it.h))
-            .unwrap_or_else(|| vec2(texture.width(), texture.height()))
-    });
-    let p = [
-        res.world_to_screen(Point::new(x, y)),
-        res.world_to_screen(Point::new(x + w, y)),
-        res.world_to_screen(Point::new(x + w, y + h)),
-        res.world_to_screen(Point::new(x, y + h)),
-    ];
+fn draw_tex(res: &Resource, texture: Texture2D, order: i8, x: f32, y: f32, color: Color, mut params: DrawTextureParams, clip: bool) {
+    let Vec2 { x: w, y: h } = params.dest_size.unwrap();
+    let mut p = [Point::new(x, y), Point::new(x + w, y), Point::new(x + w, y + h), Point::new(x, y + h)];
+    if clip {
+        assert!(h >= 0.);
+        if y + h <= 0. {
+            return;
+        }
+        if y <= 0. {
+            let r = -y / (y + h);
+            p[0].y = 0.;
+            p[1].y = 0.;
+            let mut source = params.source.unwrap_or_else(|| Rect::new(0., 0., 1., 1.));
+            source.y += source.h * r;
+            params.source = Some(source);
+        }
+    }
+    params.flip_y = true;
     draw_tex_pts(res, texture, order, p, color, params);
 }
-fn draw_tex_pts(res: &Resource, texture: Texture2D, order: i8, mut p: [Point; 4], color: Color, params: DrawTextureParams) {
+fn draw_tex_pts(res: &Resource, texture: Texture2D, order: i8, p: [Point; 4], color: Color, params: DrawTextureParams) {
+    let mut p = p.map(|it| res.world_to_screen(it));
     if p[0].x.min(p[1].x.min(p[2].x.min(p[3].x))) > 1.
         || p[0].x.max(p[1].x.max(p[2].x.max(p[3].x))) < -1.
         || p[0].y.min(p[1].y.min(p[2].y.min(p[3].y))) > 1.
@@ -109,9 +115,9 @@ fn draw_center(res: &Resource, tex: Texture2D, order: i8, scale: f32, color: Col
         color,
         DrawTextureParams {
             dest_size: Some(hf * 2.),
-            flip_y: true,
             ..Default::default()
         },
+        false,
     );
 }
 
@@ -175,24 +181,31 @@ impl Note {
             return;
         }
         let order = self.kind.order();
-        res.with_model(self.now_transform(res, base), |res| {
-            let style = if res.config.multiple_hint && self.multiple_hint {
-                &res.skin.note_style_mh
-            } else {
-                &res.skin.note_style
-            };
-            let draw = |tex: Texture2D| {
-                let mut color = color;
-                if !config.draw_below {
-                    color.a *= (self.time - res.time).min(0.) / FADEOUT_TIME + 1.;
-                }
+        let style = if res.config.multiple_hint && self.multiple_hint {
+            &res.skin.note_style_mh
+        } else {
+            &res.skin.note_style
+        };
+        let draw = |res: &mut Resource, tex: Texture2D| {
+            let mut color = color;
+            if !config.draw_below {
+                color.a *= (self.time - res.time).min(0.) / FADEOUT_TIME + 1.;
+            }
+            res.with_model(self.now_transform(res, base), |res| {
                 draw_center(res, tex, order, scale, color);
-            };
-            match self.kind {
-                NoteKind::Click => {
-                    draw(*style.click);
-                }
-                NoteKind::Hold { end_time, end_height } => {
+            });
+        };
+        match self.kind {
+            NoteKind::Click => {
+                draw(res, *style.click);
+            }
+            NoteKind::Hold { end_time, end_height } => {
+                res.with_model(self.now_transform(res, 0.), |res| {
+                    let style = if res.config.multiple_hint && self.multiple_hint {
+                        &res.skin.note_style_mh
+                    } else {
+                        &res.skin.note_style
+                    };
                     if matches!(self.judge, JudgeStatus::Judged) {
                         // miss
                         color.a *= 0.5;
@@ -201,69 +214,75 @@ impl Note {
                         return;
                     }
                     let end_height = end_height / res.aspect_ratio * self.speed;
-                    let base = height - line_height;
-                    let pt = |x: f32, y: f32| res.world_to_screen(Point::new(x, y));
+
+                    let clip = !config.draw_below;
 
                     let h = if self.time <= res.time { line_height } else { height };
-                    let th = h - line_height - base;
-                    let btn = [pt(-scale, th), pt(scale, th)];
-                    let th = end_height - line_height - base;
-                    let top = [pt(-scale, th), pt(scale, th)];
+                    let bottom = h - line_height;
+                    let top = end_height - line_height;
                     let tex = &style.hold;
                     let ratio = style.hold_ratio();
                     // head
                     if res.time < self.time {
                         let r = style.hold_head_rect();
                         let hf = vec2(scale, r.h / r.w * scale * ratio);
-                        draw_tex_pts(
+                        draw_tex(
                             res,
                             **tex,
                             order,
-                            [btn[0], btn[1], pt(hf.x, -hf.y * 2.), pt(-hf.x, -hf.y * 2.)],
+                            -scale,
+                            bottom - hf.y * 2.,
                             color,
                             DrawTextureParams {
                                 source: Some(r),
+                                dest_size: Some(hf * 2.),
                                 ..Default::default()
                             },
+                            clip,
                         );
                     }
                     // body
                     // TODO (end_height - height) is not always total height
-                    draw_tex_pts(
+                    draw_tex(
                         res,
                         **tex,
                         order,
-                        [top[0], top[1], btn[1], btn[0]],
+                        -scale,
+                        bottom,
                         color,
                         DrawTextureParams {
                             source: Some(style.hold_body_rect()),
+                            dest_size: Some(vec2(scale * 2., top - bottom)),
                             ..Default::default()
                         },
+                        clip,
                     );
                     // tail
                     let r = style.hold_tail_rect();
                     let hf = vec2(scale, r.h / r.w * scale * ratio);
-                    let th = th + hf.y * 2.;
-                    draw_tex_pts(
+                    draw_tex(
                         res,
                         **tex,
                         order,
-                        [pt(-scale, th), pt(scale, th), top[1], top[0]],
+                        -scale,
+                        top,
                         color,
                         DrawTextureParams {
                             source: Some(r),
+                            dest_size: Some(hf * 2.),
                             ..Default::default()
                         },
+                        clip,
                     );
-                }
-                NoteKind::Flick => {
-                    draw(*style.flick);
-                }
-                NoteKind::Drag => {
-                    draw(*style.drag);
-                }
+                });
             }
-        });
+            NoteKind::Flick => {
+                draw(res, *style.flick);
+            }
+            NoteKind::Drag => {
+                draw(res, *style.drag);
+            }
+        }
     }
 }
 

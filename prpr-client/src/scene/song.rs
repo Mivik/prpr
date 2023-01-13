@@ -157,6 +157,9 @@ impl SongScene {
         }
         let path = chart.path.clone();
         let brief = chart.info.clone();
+        if let Some(user) = brief.uploader.as_ref() {
+            UserManager::request(&user.id);
+        }
         Self {
             chart,
             illustration,

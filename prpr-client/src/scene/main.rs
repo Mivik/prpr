@@ -191,6 +191,10 @@ impl MainScene {
         }
         let skin = SkinPack::load(fs::fs_from_assets("skin/")?.deref_mut()).await?;
         let emitter = ParticleEmitter::new(&skin, get_data().config.note_scale, skin.info.hide_particles)?;
+
+        if let Some(me) = get_data().me.as_ref() {
+            UserManager::request(&me.id);
+        }
         Ok(Self {
             target: None,
             next_scene: None,

@@ -45,7 +45,6 @@ impl UserManager {
         if let Some((name, _)) = names.get(user_id) {
             return Some(name.clone());
         }
-        Self::request(user_id);
         None
     }
 
@@ -65,9 +64,6 @@ impl UserManager {
             }
         } else {
             drop(guard);
-            if !RESULTS.lock().unwrap().contains_key(user_id) {
-                Self::request(user_id);
-            }
         }
         RESULTS.lock().unwrap().get(user_id).and_then(|it| it.1.clone())
     }
