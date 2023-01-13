@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, screen_aspect, SafeTexture, ScaleType, PARALLELOGRAM_SLOPE},
     info::ChartInfo,
-    judge::PlayResult,
+    judge::{Judge, PlayResult},
     ui::Ui,
 };
 use anyhow::Result;
@@ -259,20 +259,10 @@ impl Scene for EndingScene {
         }
         gl.pop_model_matrix();
 
-        fn touched(ui: &mut Ui, rect: Rect) -> bool {
-            let mut res = false;
-            ui.retain_touches(|touch| {
-                if touch.phase != TouchPhase::Ended {
-                    return true;
-                }
-                if rect.contains(touch.position) {
-                    res = true;
-                    false
-                } else {
-                    true
-                }
-            });
-            res
+        fn touched(rect: Rect) -> bool {
+            Judge::get_touches()
+                .iter()
+                .any(|touch| touch.phase == TouchPhase::Ended && rect.contains(touch.position))
         }
 
         let dy = 0.006;
@@ -292,7 +282,7 @@ impl Scene for EndingScene {
         let ct = r.center();
         draw_texture_ex(*self.icon_retry, ct.x - hs, ct.y - hs, WHITE, params.clone());
         gl.pop_model_matrix();
-        if p <= 0. && touched(ui, r) {
+        if p <= 0. && touched(r) {
             self.next = 1;
         }
 
@@ -303,7 +293,7 @@ impl Scene for EndingScene {
         let ct = r.center();
         draw_texture_ex(*self.icon_proceed, ct.x - hs, ct.y - hs, WHITE, params);
         gl.pop_model_matrix();
-        if p <= 0. && touched(ui, r) {
+        if p <= 0. && touched(r) {
             self.next = 2;
         }
 

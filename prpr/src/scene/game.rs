@@ -258,7 +258,7 @@ impl GameScene {
         Ok(())
     }
 
-    fn overlay_ui(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
+    fn overlay_ui(&mut self, tm: &mut TimeManager) -> Result<()> {
         let c = Color::new(1., 1., 1., self.res.alpha);
         let t = tm.now();
         let res = &mut self.res;
@@ -535,7 +535,7 @@ impl Scene for GameScene {
             res.emitter.draw(dt);
         }
         self.ui(tm, ui)?;
-        self.overlay_ui(tm, ui)?;
+        self.overlay_ui(tm)?;
 
         if !self.res.no_effect {
             push_camera_state();
