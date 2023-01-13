@@ -711,9 +711,13 @@ impl Scene for MainScene {
         } else {
             show_message("欢迎回来");
         }
+        if SHOULD_UPDATE.fetch_and(false, Ordering::SeqCst) {
+            self.charts_local = load_local(&self.tex);
+        }
         if UPDATE_INFO.fetch_and(false, Ordering::SeqCst) {
-            let Some((id, ..)) = self.transit else { unreachable!() };
-            self.charts_local[id as usize].info = get_data().chart(id as _).info.clone();
+            if let Some((true, id, ..)) = self.transit {
+                self.charts_local[id as usize].info = get_data().chart(id as _).info.clone();
+            }
         }
         Ok(())
     }
@@ -1001,8 +1005,9 @@ impl Scene for MainScene {
             }
         }
         if let Some(tex) = UPDATE_TEXTURE.lock().unwrap().take() {
-            let Some((id, ..)) = self.transit else { unreachable!() };
-            self.charts_local[id as usize].illustration = tex;
+            if let Some((true, id, ..)) = self.transit {
+                self.charts_local[id as usize].illustration = tex;
+            }
         }
         if t > self.reset_time + RESET_WAIT {
             self.reset_time = f32::NEG_INFINITY;
@@ -1076,9 +1081,6 @@ impl Scene for MainScene {
                     } else {
                         show_message("删除成功");
                     }
-                }
-                if SHOULD_UPDATE.fetch_and(false, Ordering::SeqCst) {
-                    self.charts_local = load_local(&self.tex);
                 }
                 self.transit = None;
             } else if !*back && p >= 1. {
