@@ -85,7 +85,7 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
                             let fields: ObjcId = msg_send![alert, textFields];
                             let field: ObjcId = msg_send![fields, firstObject];
                             let text: *const NSString = msg_send![field, text];
-                            *INPUT_TEXT.lock().unwrap() = Some((*text).as_str().to_owned());
+                            INPUT_TEXT.lock().unwrap().1 = Some((*text).as_str().to_owned());
                         }
                     }).copy()
                 ];
@@ -154,7 +154,7 @@ pub fn request_file(id: impl Into<String>) {
                                 let uuid: *mut NSString = msg_send![uuid, UUIDString];
                                 let path = format!("{}{}", (*dir).as_str(), (*uuid).as_str());
                                 let _: () = msg_send![data, writeToFile: str_to_ns(&path) atomically: YES];
-                                *CHOSEN_FILE.lock().unwrap() = Some(path);
+                                CHOSEN_FILE.lock().unwrap().1 = Some(path);
                             }
                         }
                     }
