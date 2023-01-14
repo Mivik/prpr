@@ -929,7 +929,6 @@ impl Scene for MainScene {
             }
         }
         if let Some((id, file)) = take_file() {
-            warn!("{}", id);
             match id.as_str() {
                 "chart" | "_import" => {
                     async fn import(from: String) -> Result<LocalChart> {

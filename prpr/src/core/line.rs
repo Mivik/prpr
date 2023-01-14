@@ -118,15 +118,14 @@ impl JudgeLine {
                     JudgeLineKind::Texture(texture) => {
                         let mut color = color.unwrap_or(WHITE);
                         color.a = alpha.max(0.0);
-                        let hw = texture.width() / 2.;
-                        let hh = texture.height() / 2.;
+                        let hf = vec2(texture.width() / res.aspect_ratio, texture.height() / res.aspect_ratio);
                         draw_texture_ex(
                             **texture,
-                            -hw,
-                            -hh,
+                            -hf.x / 2.,
+                            -hf.y / 2.,
                             color,
                             DrawTextureParams {
-                                dest_size: Some(vec2(hw * 2., hh * 2.)),
+                                dest_size: Some(hf),
                                 flip_y: true,
                                 ..Default::default()
                             },

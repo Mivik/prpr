@@ -518,6 +518,8 @@ impl Judge {
                                 *up_time = t;
                             }
                             continue;
+                        } else {
+                            *up_time = f32::INFINITY;
                         }
                     }
                 }
