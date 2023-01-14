@@ -511,19 +511,13 @@ impl Scene for GameScene {
         pop_camera_state();
 
         self.gl.quad_gl.render_pass(chart_onto.map(|it| it.render_pass));
-        let vp = {
-            let upscale = res.config.upscale;
-            let mp = move |p: i32| (p as f32 * upscale) as i32;
-            res.camera.viewport.map(|it| (mp(it.0), mp(it.1), mp(it.2), mp(it.3)))
-        };
-        self.gl.quad_gl.viewport(vp);
+        self.gl.quad_gl.viewport(res.camera.viewport);
 
         let h = 1. / res.aspect_ratio;
         draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
 
         self.chart.render(res);
 
-        self.gl.quad_gl.viewport(vp);
         self.gl
             .quad_gl
             .render_pass(res.chart_target.as_ref().map(|it| it.output().render_pass).or(res.camera.render_pass()));

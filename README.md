@@ -85,7 +85,6 @@ playerRks: (float, the ranking score of the player) (default: 15)
 sampleCount: (float, MSAA sampling count) (default: 4)
 skinPath: (string, optional, the path to the custom skin (can be folder or ZIP archive)) (default: none)
 speed: (float, the speed of the chart) (default: 1)
-upscale: (float, scaling ratio of supersampling) (default: 1)
 volumeMusic: (float, the volume of the music) (default: 1)
 volumeSfx: (float, the volume of sound effects) (default: 1)
 ```

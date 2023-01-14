@@ -37,7 +37,6 @@ pub struct Config {
     pub sample_count: u32,
     pub skin_path: Option<String>,
     pub speed: f32,
-    pub upscale: f32,
     pub volume_music: f32,
     pub volume_sfx: f32,
 }
@@ -64,7 +63,6 @@ impl Default for Config {
             player_rks: 15.,
             sample_count: 4,
             speed: 1.,
-            upscale: 1.,
             volume_music: 1.,
             volume_sfx: 1.,
         }
