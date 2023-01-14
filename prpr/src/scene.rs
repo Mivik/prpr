@@ -16,7 +16,7 @@ use crate::{
 };
 use anyhow::{Error, Result};
 use macroquad::prelude::*;
-use std::{cell::RefCell, ops::DerefMut, sync::Mutex};
+use std::{cell::RefCell, sync::Mutex};
 
 #[derive(Default)]
 pub enum NextScene {

@@ -1,4 +1,4 @@
-use crate::ext::screen_aspect;
+use crate::ext::{get_viewport, screen_aspect};
 
 use super::{Anim, Resource, Tweenable};
 use anyhow::{anyhow, bail, Result};
@@ -167,20 +167,16 @@ impl Effect {
             uniform.apply(&self.material);
         }
         self.material.set_uniform("time", self.t);
-        let screen_dim = if let Some(pass) = gl.quad_gl.get_active_render_pass() {
-            let tex = pass.texture(gl.quad_context);
-            vec2(tex.width as _, tex.height as _)
-        } else {
-            vec2(screen_width(), screen_height())
-        };
-        self.material.set_uniform("screenSize", screen_dim);
-        let vp = gl.quad_gl.get_viewport();
-        self.material.set_uniform("UVScale", vec2(vp.2 as _, vp.3 as _) / screen_dim);
-
         let target = res.chart_target.as_mut().unwrap();
         target.swap();
-        self.material.set_texture("screenTexture", target.old().texture);
+        let tex = target.old().texture;
+        self.material.set_texture("screenTexture", tex);
+        let screen_dim = vec2(tex.width(), tex.height());
+        self.material.set_uniform("screenSize", screen_dim);
         gl.quad_gl.render_pass(Some(target.output().render_pass));
+
+        let vp = get_viewport();
+        self.material.set_uniform("UVScale", vec2(vp.2 as _, vp.3 as _) / screen_dim);
 
         gl_use_material(self.material);
         let top = 1. / if self.global { screen_aspect() } else { res.aspect_ratio };

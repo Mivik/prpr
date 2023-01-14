@@ -50,7 +50,7 @@ pub trait LCObject: DeserializeOwned {
     const CLASS_NAME: &'static str;
 }
 
-const API_URL: &str = "https://uxjq2roe.lc-cn-n1-shared.com/1.1";
+const API_URL: &str = "https://lcserver.mivik.cn/1.1";
 const API_ID: &str = "uxjq2ROe26ucGlFXIbWYOhEW-gzGzoHsz";
 const API_KEY: &str = "LW6yy6lkSFfXDqZo0442oFjT";
 
