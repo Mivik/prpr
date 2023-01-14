@@ -19,6 +19,7 @@ pub const LIMIT_PERFECT: f32 = 0.08;
 pub const LIMIT_GOOD: f32 = 0.18;
 pub const LIMIT_BAD: f32 = 0.22;
 pub const UP_TOLERANCE: f32 = 0.01;
+pub const DIST_FACTOR: f32 = 1.;
 
 pub struct VelocityTracker {
     movements: VecDeque<(f32, Point)>,
@@ -369,7 +370,7 @@ impl Judge {
             if !(click || flick) {
                 continue;
             }
-            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD, /*exact*/ false);
+            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD);
             for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter_mut()).enumerate() {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
@@ -402,16 +403,12 @@ impl Judge {
                         } else {
                             0.
                         };
-                    // non exact: compare dist
-                    // one exact: exact goes first (== compare dist)
-                    // both exact: compare time
-                    let exact = dist < res.note_width / 2.;
-                    if if exact && closest.3 { dt < closest.2 } else { dist < closest.1 } {
-                        closest = (Some((line_id, *id)), dist, dt + 0.01, exact);
+                    if dt + (dist / res.note_width - 1.).max(0.) * DIST_FACTOR < closest.2 + (closest.1 / res.note_width - 1.).max(0.) * DIST_FACTOR {
+                        closest = (Some((line_id, *id)), dist, dt + 0.01);
                     }
                 }
             }
-            if let (Some((line_id, id)), _, dt, _) = closest {
+            if let (Some((line_id, id)), _, dt) = closest {
                 let line = &mut chart.lines[line_id];
                 if matches!(line.notes[id as usize].kind, NoteKind::Drag) {
                     continue;
@@ -517,10 +514,10 @@ impl Judge {
                             } else if up_time.is_infinite() {
                                 *up_time = t;
                             }
-                            continue;
                         } else {
                             *up_time = f32::INFINITY;
                         }
+                        continue;
                     }
                 }
                 if !matches!(note.judge, JudgeStatus::NotJudged) {
