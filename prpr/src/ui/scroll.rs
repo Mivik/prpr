@@ -90,7 +90,7 @@ impl Scroller {
         } else if !unlock && self.offset > self.size {
             self.speed = (self.size - self.offset) * K;
         } else {
-            self.speed *= (0.5_f32).powf((t - self.last_time) / 0.9);
+            self.speed *= (0.5_f32).powf((t - self.last_time) / 0.4);
         }
         self.last_time = t;
         if self.pulled {
