@@ -50,7 +50,7 @@ impl EndingScene {
         config: &Config,
         bgm_bytes: Vec<u8>,
     ) -> Result<Self> {
-        let audio = DefaultAudio::new()?;
+        let audio = DefaultAudio::new(config.audio_buffer_size)?;
         let bgm = audio.create_clip(bgm_bytes)?.0;
         Ok(Self {
             background,

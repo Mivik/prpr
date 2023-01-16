@@ -55,7 +55,7 @@ impl Audio for WebAudio {
     type Clip = AudioBuffer;
     type Handle = AudioHandle;
 
-    fn new() -> Result<Self> {
+    fn new(_buffer_size: Option<u32>) -> Result<Self> {
         Ok(Self(AudioContext::new().map_err(js_err)?))
     }
 

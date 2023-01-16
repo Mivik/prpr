@@ -14,13 +14,14 @@ impl Audio for KiraAudio {
     type Clip = StaticSoundData;
     type Handle = StaticSoundHandle;
 
-    fn new() -> Result<Self> {
+    fn new(buffer_size: Option<u32>) -> Result<Self> {
         Ok(Self(AudioManager::new(AudioManagerSettings {
             capacities: Capacities {
                 sound_capacity: 2048,
                 command_capacity: 2048,
                 ..Default::default()
             },
+            backend_settings: buffer_size,
             ..Default::default()
         })?))
     }

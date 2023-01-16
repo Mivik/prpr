@@ -22,7 +22,7 @@ pub trait Audio: Sized {
     type Clip: Clone;
     type Handle;
 
-    fn new() -> Result<Self>;
+    fn new(buffer_size: Option<u32>) -> Result<Self>;
     fn create_clip(&self, data: Vec<u8>) -> Result<(Self::Clip, f64)>;
     fn position(&self, handle: &Self::Handle) -> Result<f64>;
     fn paused(&self, handle: &Self::Handle) -> Result<bool>;
@@ -38,7 +38,7 @@ impl Audio for DummyAudio {
     type Clip = ();
     type Handle = ();
 
-    fn new() -> Result<Self> {
+    fn new(_: Option<u32>) -> Result<Self> {
         Ok(Self)
     }
     fn create_clip(&self, _: Vec<u8>) -> Result<(Self::Clip, f64)> {

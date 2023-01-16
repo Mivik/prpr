@@ -175,7 +175,7 @@ pub struct MainScene {
 impl MainScene {
     pub async fn new() -> Result<Self> {
         let tex: SafeTexture = Texture2D::from_image(&load_image("player.jpg").await?).into();
-        let audio = DefaultAudio::new()?;
+        let audio = DefaultAudio::new(get_data().config.audio_buffer_size)?;
         let cali_clip = audio.create_clip(load_file("cali.ogg").await?)?.0;
         let cali_hit_clip = audio.create_clip(load_file("cali_hit.ogg").await?)?.0;
 
@@ -551,6 +551,22 @@ GitHub: https://github.com/Mivik/prpr",
                 ui.dy(r.h + s * 2.);
                 r.x -= 0.3 + 0.02;
                 r.w = 0.4;
+                let label = "音频缓冲区";
+                let mut input = config.audio_buffer_size.map(|it| it.to_string()).unwrap_or_else(|| "[默认]".to_owned());
+                ui.input(label, &mut input, 0.3);
+                if input.trim().is_empty() || input == "默认" {
+                    config.audio_buffer_size = None;
+                } else {
+                    match input.parse::<u32>() {
+                        Err(_) => {
+                            show_message("输入非法");
+                        }
+                        Ok(value) => {
+                            config.audio_buffer_size = Some(value);
+                        }
+                    }
+                }
+                ui.dy(r.h + s * 2.);
                 if ui.button("reset_all", r, if reset_time.is_finite() { "确定？" } else { "恢复默认设定" }) {
                     if reset_time.is_finite() {
                         *config = prpr::config::Config::default();

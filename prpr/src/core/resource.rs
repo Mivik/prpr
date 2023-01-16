@@ -333,7 +333,7 @@ impl Resource {
             ..Default::default()
         };
 
-        let audio = DefaultAudio::new()?;
+        let audio = DefaultAudio::new(config.audio_buffer_size)?;
         macro_rules! load_sfx {
             ($path:literal) => {
                 audio.create_clip(load_file($path).await?)?.0
