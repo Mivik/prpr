@@ -508,7 +508,7 @@ impl Scene for SongScene {
         let loaded = self.chart_info.is_some();
         if self.scroll_progress() < 0.4 {
             if self.edit_enter_time.is_infinite() {
-                if loaded {
+                if loaded || self.remote {
                     if !self.remote && self.bin.touch(&touch, tm.now() as _) {
                         return Ok(true);
                     }
