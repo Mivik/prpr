@@ -92,7 +92,7 @@ impl Data {
                 self.charts.push(LocalChart {
                     info: BriefChartInfo { id: None, ..info.into() },
                     path: filename,
-                })
+                });
             }
         }
         Ok(())

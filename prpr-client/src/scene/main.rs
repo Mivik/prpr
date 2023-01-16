@@ -715,7 +715,7 @@ impl Scene for MainScene {
             self.charts_local = load_local(&self.tex);
         }
         if UPDATE_INFO.fetch_and(false, Ordering::SeqCst) {
-            if let Some((true, id, ..)) = self.transit {
+            if let Some((false, id, ..)) = self.transit {
                 self.charts_local[id as usize].info = get_data().chart(id as _).info.clone();
             }
         }
