@@ -508,11 +508,11 @@ impl Scene for SongScene {
         let loaded = self.chart_info.is_some();
         if self.scroll_progress() < 0.4 {
             if self.edit_enter_time.is_infinite() {
-                if loaded || self.remote {
-                    if self.bin.touch(&touch, tm.now() as _) {
+                if loaded {
+                    if !self.remote && self.bin.touch(&touch, tm.now() as _) {
                         return Ok(true);
                     }
-                    if self.edit_button.touch(&touch) {
+                    if !self.remote && self.edit_button.touch(&touch) {
                         self.info_edit = Some(ChartInfoEdit::new(self.chart_info.clone().unwrap()));
                         self.edit_enter_time = tm.now() as _;
                         return Ok(true);
