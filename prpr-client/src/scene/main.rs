@@ -554,7 +554,7 @@ GitHub: https://github.com/Mivik/prpr",
                 let label = "音频缓冲区";
                 let mut input = config.audio_buffer_size.map(|it| it.to_string()).unwrap_or_else(|| "[默认]".to_owned());
                 ui.input(label, &mut input, 0.3);
-                if input.trim().is_empty() || input == "默认" {
+                if input.trim().is_empty() || input == "[默认]" {
                     config.audio_buffer_size = None;
                 } else {
                     match input.parse::<u32>() {

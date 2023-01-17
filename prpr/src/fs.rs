@@ -218,9 +218,12 @@ fn infer_diff(info: &mut ChartInfo, level: &str) {
     }
 }
 
-fn info_from_kv<'a>(it: impl Iterator<Item = (&'a str, String)>) -> Result<ChartInfo> {
+fn info_from_kv<'a>(it: impl Iterator<Item = (&'a str, String)>, csv: bool) -> Result<ChartInfo> {
     let mut info = ChartInfo::default();
     for (key, value) in it {
+        if csv && value.trim().is_empty() {
+            continue;
+        }
         let key = key.trim();
         if key == "Path" {
             continue;
@@ -273,7 +276,7 @@ fn info_from_txt(text: &str) -> Result<ChartInfo> {
             Ok((key, value.to_string()))
         })
         .collect::<Result<Vec<_>>>()?;
-    info_from_kv(kvs.into_iter())
+    info_from_kv(kvs.into_iter(), false)
 }
 
 fn info_from_csv(bytes: Vec<u8>) -> Result<ChartInfo> {
@@ -286,6 +289,7 @@ fn info_from_csv(bytes: Vec<u8>) -> Result<ChartInfo> {
             .iter()
             .zip(record.into_iter())
             .map(|(key, value)| (key.as_str(), value.to_owned())),
+            true,
     )
 }
 
