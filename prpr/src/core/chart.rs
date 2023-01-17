@@ -4,11 +4,25 @@ use super::{BpmList, Effect, JudgeLine, Matrix, Resource, UIElement, Vector};
 use crate::{judge::JudgeStatus, ui::Ui};
 use macroquad::prelude::*;
 
+pub struct ChartSettings {
+    pub pe_alpha_extension: bool,
+    pub hold_partial_cover: bool,
+}
+
+impl Default for ChartSettings {
+    fn default() -> Self {
+        Self {
+            pe_alpha_extension: false,
+            hold_partial_cover: false,
+        }
+    }
+}
+
 pub struct Chart {
     pub offset: f32,
     pub lines: Vec<JudgeLine>,
     pub bpm_list: RefCell<BpmList>,
-    pub pe_alpha_extension: bool,
+    pub settings: ChartSettings,
 
     pub effects: Vec<Effect>,
     pub global_effects: Vec<Effect>,
@@ -17,7 +31,7 @@ pub struct Chart {
 }
 
 impl Chart {
-    pub fn new(offset: f32, lines: Vec<JudgeLine>, bpm_list: BpmList, effects: Vec<Effect>) -> Self {
+    pub fn new(offset: f32, lines: Vec<JudgeLine>, bpm_list: BpmList, effects: Vec<Effect>, settings: ChartSettings) -> Self {
         let mut attach_ui = [None; 7];
         let mut order = (0..lines.len())
             .filter(|it| {
@@ -35,7 +49,7 @@ impl Chart {
             offset,
             lines,
             bpm_list: RefCell::new(bpm_list),
-            pe_alpha_extension: false,
+            settings,
 
             effects,
             global_effects,
@@ -84,17 +98,17 @@ impl Chart {
         res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
             let mut guard = self.bpm_list.borrow_mut();
             for id in &self.order {
-                self.lines[*id].render(res, &self.lines, &mut guard, self.pe_alpha_extension);
+                self.lines[*id].render(res, &self.lines, &mut guard, &self.settings);
             }
             drop(guard);
             res.note_buffer.borrow_mut().draw_all();
-            if !res.no_effect {
-                if res.config.sample_count > 1 {
-                    unsafe { get_internal_gl() }.flush();
-                    if let Some(target) = &res.chart_target {
-                        target.blit();
-                    }
+            if res.config.sample_count > 1 {
+                unsafe { get_internal_gl() }.flush();
+                if let Some(target) = &res.chart_target {
+                    target.blit();
                 }
+            }
+            if !res.no_effect {
                 for effect in &self.effects {
                     effect.render(res);
                 }

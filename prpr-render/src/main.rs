@@ -41,10 +41,8 @@ struct VideoConfig {
 impl Default for VideoConfig {
     fn default() -> Self {
         Self {
-            // fps: 60,
-            // resolution: (1920, 1080),
-            fps: 30,
-            resolution: (960, 540),
+            fps: 60,
+            resolution: (1920, 1080),
             hardware_accel: false,
             ending_length: 27.5,
             bitrate: "7M".to_string(),

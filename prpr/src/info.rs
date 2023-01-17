@@ -33,6 +33,8 @@ pub struct ChartInfo {
 
     pub intro: String,
     pub tags: Vec<String>,
+
+    pub hold_partial_cover: bool,
 }
 
 impl Default for ChartInfo {
@@ -59,6 +61,8 @@ impl Default for ChartInfo {
 
             intro: String::new(),
             tags: Vec::new(),
+
+            hold_partial_cover: false,
         }
     }
 }

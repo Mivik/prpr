@@ -1,4 +1,4 @@
-use super::{Anim, AnimFloat, Matrix, Note, Object, Point, RenderConfig, Resource, Vector, BpmList};
+use super::{Anim, AnimFloat, Matrix, Note, Object, Point, RenderConfig, Resource, Vector, BpmList, chart::ChartSettings};
 use crate::{
     ext::{draw_text_aligned, NotNanExt, SafeTexture},
     judge::JudgeStatus,
@@ -103,7 +103,7 @@ impl JudgeLine {
         }
     }
 
-    pub fn render(&self, res: &mut Resource, lines: &[JudgeLine], bpm_list: &mut BpmList, pe_alpha_extension: bool) {
+    pub fn render(&self, res: &mut Resource, lines: &[JudgeLine], bpm_list: &mut BpmList, settings: &ChartSettings) {
         let alpha = self.object.alpha.now_opt().unwrap_or(1.0) * res.alpha;
         let color = self.color.now_opt();
         res.with_model(self.now_transform(res, lines), |res| {
@@ -143,11 +143,12 @@ impl JudgeLine {
             });
             let height = self.height.now();
             let mut config = RenderConfig {
+                settings,
+                appear_before: f32::INFINITY,
                 draw_below: self.show_below,
-                ..Default::default()
             };
             if alpha < 0.0 {
-                if !pe_alpha_extension {
+                if !settings.pe_alpha_extension {
                     return;
                 }
                 let w = (-alpha).floor() as u32;

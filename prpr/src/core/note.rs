@@ -1,4 +1,4 @@
-use super::{BpmList, Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
+use super::{chart::ChartSettings, BpmList, Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
 use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
 
@@ -38,18 +38,10 @@ pub struct Note {
     pub judge: JudgeStatus,
 }
 
-pub struct RenderConfig {
+pub struct RenderConfig<'a> {
+    pub settings: &'a ChartSettings,
     pub appear_before: f32,
     pub draw_below: bool,
-}
-
-impl Default for RenderConfig {
-    fn default() -> Self {
-        Self {
-            appear_before: f32::INFINITY,
-            draw_below: true,
-        }
-    }
 }
 
 fn draw_tex(res: &Resource, texture: Texture2D, order: i8, x: f32, y: f32, color: Color, mut params: DrawTextureParams, clip: bool) {
@@ -222,6 +214,9 @@ impl Note {
                     let h = if self.time <= res.time { line_height } else { height };
                     let bottom = h - line_height;
                     let top = end_height - line_height;
+                    if res.time < self.time && bottom <= 0. && !config.settings.hold_partial_cover {
+                        return;
+                    }
                     let tex = &style.hold;
                     let ratio = style.hold_ratio();
                     // head

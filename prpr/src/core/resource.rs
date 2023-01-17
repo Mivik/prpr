@@ -414,7 +414,7 @@ impl Resource {
             return false;
         }
         self.last_screen_size = dim;
-        if !self.no_effect {
+        if !self.no_effect || self.config.sample_count != 1 {
             self.chart_target = Some(MSRenderTarget::new(dim, self.config.sample_count));
         }
         fn viewport(aspect_ratio: f32, (w, h): (u32, u32)) -> (i32, i32, i32, i32) {

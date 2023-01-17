@@ -1,8 +1,8 @@
 use super::{process_lines, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, BpmList, Chart, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind,
-        Object, StaticTween, Triple, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
+        Anim, AnimFloat, AnimVector, BpmList, Chart, ChartSettings, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note,
+        NoteKind, Object, StaticTween, Triple, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
     fs::FileSystem,
@@ -41,7 +41,7 @@ struct RPEEvent<T = f32> {
     easing_left: f32,
     #[serde(default = "f32_one")]
     easing_right: f32,
-    easing_type: u8,
+    easing_type: i32,
     start: T,
     end: T,
     start_time: Triple,
@@ -173,7 +173,7 @@ fn parse_events<T: Tweenable, V: Clone + Into<T>>(r: &mut BpmList, rpe: &[RPEEve
             time: r.time(&e.start_time),
             value: e.start.clone().into(),
             tween: {
-                let tween = TWEEN_MAP[e.easing_type as usize];
+                let tween = TWEEN_MAP[e.easing_type.max(1) as usize];
                 if e.easing_left.abs() < EPS && (e.easing_right - 1.0).abs() < EPS {
                     StaticTween::get_rc(tween)
                 } else {
@@ -346,7 +346,11 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
                     res.map_value(|v| v * factor);
                     Ok(res)
                 }
-                let factor = if rpe.texture == "line.png" { 1. } else { 2.57 / RPE_WIDTH /*TODO tweak*/ };
+                let factor = if rpe.texture == "line.png" {
+                    1.
+                } else {
+                    2.57 / RPE_WIDTH /*TODO tweak*/
+                };
                 rpe.extended
                     .as_ref()
                     .map(|e| -> Result<_> {
@@ -485,5 +489,5 @@ pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
     for (id, rpe) in rpe.effects.into_iter().flatten().enumerate() {
         effects.push(parse_effect(&mut r, rpe, fs).await.with_context(|| format!("In effect #{id}"))?);
     }
-    Ok(Chart::new(rpe.meta.offset as f32 / 1000.0, lines, r, effects))
+    Ok(Chart::new(rpe.meta.offset as f32 / 1000.0, lines, r, effects, ChartSettings::default()))
 }

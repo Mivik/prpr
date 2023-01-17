@@ -96,11 +96,13 @@ impl GameScene {
                 ChartFormat::Pec
             }
         });
-        match format {
+        let mut chart = match format {
             ChartFormat::Rpe => parse_rpe(&text, fs.deref_mut()).await,
             ChartFormat::Pgr => parse_phigros(&text),
             ChartFormat::Pec => parse_pec(&text),
-        }
+        }?;
+        chart.settings.hold_partial_cover = info.hold_partial_cover;
+        Ok(chart)
     }
 
     pub async fn new(
@@ -531,22 +533,20 @@ impl Scene for GameScene {
         self.ui(tm, ui)?;
         self.overlay_ui(tm)?;
 
-        if !self.res.no_effect {
+        if !self.res.no_effect && !self.effects.is_empty() {
             push_camera_state();
-            if !self.effects.is_empty() {
-                set_camera(&Camera2D {
-                    zoom: vec2(1., asp),
-                    ..Default::default()
-                });
-                for e in &self.effects {
-                    e.render(&mut self.res);
-                }
-            }
-            // render the texture onto screen
             set_camera(&Camera2D {
-                render_target: self.res.camera.render_target,
+                zoom: vec2(1., asp),
                 ..Default::default()
             });
+            for e in &self.effects {
+                e.render(&mut self.res);
+            }
+            pop_camera_state();
+        }
+        if msaa || !self.res.no_effect {
+            self.gl.flush();
+            // render the texture onto screen
             if let Some(target) = &self.res.chart_target {
                 copy_fbo(
                     target.output().render_pass.gl_internal_id(self.gl.quad_context),
@@ -557,7 +557,6 @@ impl Scene for GameScene {
                     dim,
                 );
             }
-            pop_camera_state();
         }
         Ok(())
     }
