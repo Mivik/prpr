@@ -1006,6 +1006,7 @@ impl Scene for MainScene {
                     }
                     Ok(user) => {
                         if let Some(user) = user {
+                            UserManager::request(&user.id);
                             get_data_mut().me = Some(user);
                             save_data()?;
                         }
