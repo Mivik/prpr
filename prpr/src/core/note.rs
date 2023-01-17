@@ -209,12 +209,12 @@ impl Note {
                     }
                     let end_height = end_height / res.aspect_ratio * self.speed;
 
-                    let clip = !config.draw_below;
+                    let clip = !config.draw_below && config.settings.hold_partial_cover;
 
                     let h = if self.time <= res.time { line_height } else { height };
                     let bottom = h - line_height;
                     let top = end_height - line_height;
-                    if res.time < self.time && bottom <= 0. && !config.settings.hold_partial_cover {
+                    if res.time < self.time && bottom < -1e-6 && !config.settings.hold_partial_cover {
                         return;
                     }
                     let tex = &style.hold;
