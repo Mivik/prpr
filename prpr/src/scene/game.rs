@@ -545,9 +545,9 @@ impl Scene for GameScene {
             pop_camera_state();
         }
         if msaa || !self.res.no_effect {
-            self.gl.flush();
             // render the texture onto screen
             if let Some(target) = &self.res.chart_target {
+                self.gl.flush();
                 copy_fbo(
                     target.output().render_pass.gl_internal_id(self.gl.quad_context),
                     self.res
