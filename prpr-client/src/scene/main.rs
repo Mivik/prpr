@@ -764,9 +764,6 @@ impl Scene for MainScene {
                 self.tab_from_index = self.tab_index;
                 self.tab_index = tab_id;
                 self.tab_start_time = tm.now() as f32;
-                if self.tab_from_index == 2 {
-                    save_data()?;
-                }
                 if tab_id == 1 && self.remote_first_time {
                     self.remote_first_time = false;
                     self.refresh_remote();
@@ -783,6 +780,7 @@ impl Scene for MainScene {
                     self.cali_tm.reset();
                 }
                 if self.tab_from_index == 3 {
+                    save_data()?;
                     if let Some(handle) = &mut self.cali_handle {
                         self.audio.pause(handle)?;
                     }
