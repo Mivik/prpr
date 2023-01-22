@@ -98,17 +98,20 @@ async fn the_main() -> Result<()> {
         (path, config)
     };
 
-    let mut fs = fs::fs_from_file(std::path::Path::new(&path))?;
-    let info = fs::load_info(fs.deref_mut()).await?;
+    let mut fs = fs::fs_from_file(std::path::Path::new(&path)).context("加载谱面失败")?;
+    let info = fs::load_info(fs.deref_mut()).await.context("加载谱面信息失败")?;
 
-    let chart = GameScene::load_chart(&mut fs, &info).await?;
+    let chart = GameScene::load_chart(&mut fs, &info).await.context("加载谱面内容失败")?;
     macro_rules! ld {
         ($path:literal) => {
-            StaticSoundData::from_cursor(Cursor::new(load_file($path).await?), StaticSoundSettings::default())?
+            StaticSoundData::from_cursor(Cursor::new(load_file($path).await?), StaticSoundSettings::default())
+                .with_context(|| format!("加载音效 `{}` 失败", $path))?
         };
     }
-    let music = StaticSoundData::from_cursor(Cursor::new(fs.load_file(&info.music).await?), StaticSoundSettings::default())?;
-    let ending = StaticSoundData::from_cursor(Cursor::new(load_file("ending.mp3").await?), StaticSoundSettings::default())?;
+    let music: Result<_> =
+        async { Ok(StaticSoundData::from_cursor(Cursor::new(fs.load_file(&info.music).await?), StaticSoundSettings::default())?) }.await;
+    let music = music.context("加载音乐失败")?;
+    let ending = ld!("ending.mp3");
     let track_length = music.frames.len() as f64 / music.sample_rate as f64;
     let sfx_click = ld!("click.ogg");
     let sfx_drag = ld!("drag.ogg");
