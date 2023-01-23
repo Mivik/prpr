@@ -11,10 +11,17 @@ use prpr::{
 };
 use std::ops::DerefMut;
 
-struct BaseScene(Option<NextScene>);
+struct BaseScene(Option<NextScene>, bool);
 impl Scene for BaseScene {
     fn on_result(&mut self, _tm: &mut TimeManager, result: Box<dyn std::any::Any>) -> Result<()> {
         show_error(result.downcast::<anyhow::Error>().unwrap().context("加载谱面失败"));
+        self.1 = true;
+        Ok(())
+    }
+    fn enter(&mut self, _tm: &mut TimeManager, _target: Option<RenderTarget>) -> Result<()> {
+        if self.0.is_none() && !self.1 {
+            self.0 = Some(NextScene::Exit);
+        }
         Ok(())
     }
     fn update(&mut self, _tm: &mut TimeManager) -> Result<()> {
@@ -90,7 +97,7 @@ async fn main() -> Result<()> {
     let tm = TimeManager::default();
     let ctm = TimeManager::from_config(&config); // strange variable name...
     let mut main =
-        Main::new(Box::new(BaseScene(Some(NextScene::Overlay(Box::new(LoadingScene::new(info, config, fs, None, None).await?))))), ctm, None)?;
+        Main::new(Box::new(BaseScene(Some(NextScene::Overlay(Box::new(LoadingScene::new(info, config, fs, None, None).await?))), false)), ctm, None)?;
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;

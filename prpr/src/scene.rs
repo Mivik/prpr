@@ -300,8 +300,8 @@ impl Main {
             NextScene::PopWithResult(result) => {
                 self.scenes.pop();
                 self.tm.seek_to(self.times.pop().unwrap());
-                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
                 self.scenes.last_mut().unwrap().on_result(&mut self.tm, result)?;
+                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
             }
             NextScene::Exit => {
                 self.should_exit = true;
