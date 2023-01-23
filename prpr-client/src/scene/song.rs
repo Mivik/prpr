@@ -1,8 +1,10 @@
-use super::main::{illustration_task, ChartItem, SHOULD_UPDATE, TRANSIT_ID, UPDATE_INFO, UPDATE_TEXTURE};
+use super::main::{illustration_task, SHOULD_UPDATE, UPDATE_INFO, UPDATE_TEXTURE};
 use crate::{
     cloud::{Client, LCChartItem, Pointer, UserManager},
     data::{BriefChartInfo, LocalChart},
-    dir, get_data, get_data_mut, save_data,
+    dir, get_data, get_data_mut,
+    page::{TRANSIT_ID, ChartItem},
+    save_data,
     task::Task,
 };
 use anyhow::{bail, Context, Result};
@@ -549,7 +551,7 @@ impl Scene for SongScene {
                         return Ok(true);
                     }
                 }
-                if self.back_button.touch(&touch) {
+                if self.back_button.touch(&touch) && (!self.remote || DOWNLOADING.with(|it| !it.borrow().contains_key(self.chart.info.id.as_ref().unwrap()))) {
                     self.next_scene = Some(NextScene::Pop);
                     return Ok(true);
                 }

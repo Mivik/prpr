@@ -322,6 +322,7 @@ impl Main {
         if !touches.is_empty() {
             let now = self.tm.now();
             let delta = (now - self.last_update_time) / touches.len() as f64;
+            let start_time = self.tm.start_time;
             DIALOG.with(|it| -> Result<()> {
                 let mut index = 1;
                 touches.retain_mut(|touch| {
@@ -342,7 +343,7 @@ impl Main {
                 });
                 Ok(())
             })?;
-            self.tm.seek_to(now);
+            self.tm.start_time = start_time;
         }
         self.touches = Some(touches);
         self.last_update_time = self.tm.now();
