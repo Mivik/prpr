@@ -491,6 +491,11 @@ impl SongScene {
 }
 
 impl Scene for SongScene {
+    fn on_result(&mut self, _tm: &mut TimeManager, result: Box<dyn std::any::Any>) -> Result<()> {
+        show_error(result.downcast::<anyhow::Error>().unwrap().context("加载谱面失败"));
+        Ok(())
+    }
+
     fn enter(&mut self, tm: &mut TimeManager, target: Option<RenderTarget>) -> Result<()> {
         self.target = target;
         tm.reset();

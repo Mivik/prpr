@@ -25,7 +25,7 @@ pub struct LoadingScene {
     illustration: SafeTexture,
     font: Font,
     load_task: LocalTask<Result<GameScene>>,
-    next_scene: Option<Box<dyn Scene>>,
+    next_scene: Option<NextScene>,
     finish_time: f32,
     target: Option<RenderTarget>,
 }
@@ -112,7 +112,8 @@ impl Scene for LoadingScene {
                     }
                     Some(game_scene) => {
                         self.load_task = None;
-                        self.next_scene = Some(Box::new(game_scene?));
+                        self.next_scene =
+                            Some(game_scene.map_or_else(|e| NextScene::PopWithResult(Box::new(e)), |it| NextScene::Replace(Box::new(it))));
                         self.finish_time = tm.now() as f32 + BEFORE_TIME;
                         break;
                     }
@@ -208,9 +209,12 @@ impl Scene for LoadingScene {
     }
 
     fn next_scene(&mut self, tm: &mut TimeManager) -> NextScene {
+        if matches!(self.next_scene, Some(NextScene::PopWithResult(_))) {
+            return self.next_scene.take().unwrap();
+        }
         if tm.now() as f32 > self.finish_time + TRANSITION_TIME + WAIT_TIME {
             if let Some(scene) = self.next_scene.take() {
-                return NextScene::Replace(scene);
+                return scene;
             }
         }
         NextScene::None

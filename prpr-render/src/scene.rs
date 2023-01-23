@@ -6,7 +6,7 @@ use prpr::{
     ext::{poll_future, screen_aspect, LocalTask},
     fs::{FileSystem, PatchedFileSystem},
     info::ChartInfo,
-    scene::{show_message, LoadingScene, NextScene, Scene},
+    scene::{show_error, show_message, LoadingScene, NextScene, Scene},
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Scroll, Ui},
 };
@@ -42,6 +42,11 @@ impl MainScene {
 }
 
 impl Scene for MainScene {
+    fn on_result(&mut self, _tm: &mut TimeManager, result: Box<dyn std::any::Any>) -> Result<()> {
+        show_error(result.downcast::<anyhow::Error>().unwrap().context("加载谱面失败"));
+        Ok(())
+    }
+
     fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
         Ok(self.scroll.touch(&touch, tm.now() as _))
     }

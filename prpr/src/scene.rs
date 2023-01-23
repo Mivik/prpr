@@ -16,7 +16,7 @@ use crate::{
 };
 use anyhow::{Error, Result};
 use macroquad::prelude::*;
-use std::{cell::RefCell, sync::Mutex};
+use std::{any::Any, cell::RefCell, sync::Mutex};
 
 #[derive(Default)]
 pub enum NextScene {
@@ -24,6 +24,7 @@ pub enum NextScene {
     None,
     Pop,
     PopN(usize),
+    PopWithResult(Box<dyn Any>),
     Exit,
     Overlay(Box<dyn Scene>),
     Replace(Box<dyn Scene>),
@@ -217,6 +218,9 @@ pub trait Scene {
     fn resume(&mut self, _tm: &mut TimeManager) -> Result<()> {
         Ok(())
     }
+    fn on_result(&mut self, _tm: &mut TimeManager, _result: Box<dyn Any>) -> Result<()> {
+        Ok(())
+    }
     fn touch(&mut self, _tm: &mut TimeManager, _touch: &Touch) -> Result<bool> {
         Ok(false)
     }
@@ -292,6 +296,12 @@ impl Main {
                     self.tm.seek_to(self.times.pop().unwrap());
                 }
                 self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
+            }
+            NextScene::PopWithResult(result) => {
+                self.scenes.pop();
+                self.tm.seek_to(self.times.pop().unwrap());
+                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
+                self.scenes.last_mut().unwrap().on_result(&mut self.tm, result)?;
             }
             NextScene::Exit => {
                 self.should_exit = true;

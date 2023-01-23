@@ -1,8 +1,32 @@
-use std::ops::DerefMut;
-
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
-use prpr::{build_conf, core::init_assets, fs, scene::LoadingScene, time::TimeManager, ui::Ui, Main};
+use prpr::{
+    build_conf,
+    core::init_assets,
+    fs,
+    scene::{show_error, LoadingScene, NextScene, Scene},
+    time::TimeManager,
+    ui::Ui,
+    Main,
+};
+use std::ops::DerefMut;
+
+struct BaseScene(Option<NextScene>);
+impl Scene for BaseScene {
+    fn on_result(&mut self, _tm: &mut TimeManager, result: Box<dyn std::any::Any>) -> Result<()> {
+        show_error(result.downcast::<anyhow::Error>().unwrap().context("加载谱面失败"));
+        Ok(())
+    }
+    fn update(&mut self, _tm: &mut TimeManager) -> Result<()> {
+        Ok(())
+    }
+    fn render(&mut self, _tm: &mut TimeManager, _ui: &mut Ui) -> Result<()> {
+        Ok(())
+    }
+    fn next_scene(&mut self, _tm: &mut TimeManager) -> prpr::scene::NextScene {
+        self.0.take().unwrap_or_default()
+    }
+}
 
 #[macroquad::main(build_conf)]
 async fn main() -> Result<()> {
@@ -65,7 +89,8 @@ async fn main() -> Result<()> {
 
     let tm = TimeManager::default();
     let ctm = TimeManager::from_config(&config); // strange variable name...
-    let mut main = Main::new(Box::new(LoadingScene::new(info, config, fs, None, None).await?), ctm, None)?;
+    let mut main =
+        Main::new(Box::new(BaseScene(Some(NextScene::Overlay(Box::new(LoadingScene::new(info, config, fs, None, None).await?))))), ctm, None)?;
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;
