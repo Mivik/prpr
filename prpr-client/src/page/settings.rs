@@ -274,6 +274,7 @@ impl Page for SettingsPage {
                     },
                 ) {
                     if self.reset_time.is_finite() {
+                        self.reset_time = f32::NEG_INFINITY;
                         *config = prpr::config::Config::default();
                         if let Err(err) = save_data() {
                             show_error(err.context("保存失败"));
