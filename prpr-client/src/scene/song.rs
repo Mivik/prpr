@@ -3,7 +3,7 @@ use crate::{
     cloud::{Client, LCChartItem, Pointer, UserManager},
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut,
-    page::{TRANSIT_ID, ChartItem},
+    page::{ChartItem, TRANSIT_ID},
     save_data,
     task::Task,
 };
@@ -23,8 +23,6 @@ use prpr::{
     ui::{render_chart_info, ChartInfoEdit, Dialog, RectButton, Scroll, Ui},
 };
 use std::{
-    cell::RefCell,
-    collections::HashMap,
     ops::DerefMut,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -32,10 +30,6 @@ use std::{
     },
 };
 use tokio::io::AsyncWriteExt;
-
-thread_local! {
-    static DOWNLOADING: RefCell<HashMap<String, (String, Arc<Mutex<f32>>, Task<Result<LocalChart>>)>> = RefCell::new(HashMap::new());
-}
 
 const FADEIN_TIME: f32 = 0.3;
 const EDIT_TRANSIT: f32 = 0.32;
@@ -153,6 +147,7 @@ pub struct SongScene {
     info_edit: Option<ChartInfoEdit>,
     edit_enter_time: f32,
 
+    downloading: Option<(String, Arc<Mutex<f32>>, Task<Result<LocalChart>>)>,
     remote: bool,
 }
 
@@ -226,6 +221,7 @@ impl SongScene {
             info_edit: None,
             edit_enter_time: f32::INFINITY,
 
+            downloading: None,
             remote,
         }
     }
@@ -249,12 +245,7 @@ impl SongScene {
         let r = Rect::new(-s, -s, s * 2., s * 2.);
         ui.fill_rect(r, (if self.remote { *self.icon_download } else { *self.icon_play }, r, ScaleType::Fit, color));
         if self.remote {
-            let p = DOWNLOADING.with(|it| {
-                it.borrow()
-                    .get(self.chart.info.id.as_ref().unwrap())
-                    .map(|(_, p, _)| *p.lock().unwrap())
-                    .unwrap_or(0.)
-            });
+            let p = self.downloading.as_ref().map_or(0., |(_, p, _)| *p.lock().unwrap());
             let r = r.feather(0.04);
             ui.fill_rect(Rect::new(r.x, r.y + r.h * (1. - p), r.w, r.h * p), color);
         }
@@ -458,37 +449,32 @@ impl SongScene {
             info: self.chart.info.clone(),
             path,
         };
-        DOWNLOADING.with(|it| -> Result<()> {
-            let progress = Arc::new(Mutex::new(0.));
-            let prog_cl = Arc::clone(&progress);
-            it.borrow_mut().insert(
-                id.clone(),
-                (
-                    chart.info.name.clone(),
-                    progress,
-                    Task::new({
-                        let path = format!("{}/{}", dir::downloaded_charts()?, id);
-                        async move {
-                            let mut file = tokio::fs::File::create(path).await?;
-                            let res = reqwest::get(url).await.context("请求失败")?;
-                            let size = res.content_length();
-                            let mut stream = res.bytes_stream();
-                            let mut count = 0;
-                            while let Some(chunk) = stream.next().await {
-                                let chunk = chunk.context("下载失败")?;
-                                file.write_all(&chunk).await?;
-                                count += chunk.len() as u64;
-                                if let Some(size) = size {
-                                    *prog_cl.lock().unwrap() = count.min(size) as f32 / size as f32;
-                                }
-                            }
-                            Ok(chart)
+        let progress = Arc::new(Mutex::new(0.));
+        let prog_cl = Arc::clone(&progress);
+        self.downloading = Some((
+            chart.info.name.clone(),
+            progress,
+            Task::new({
+                let path = format!("{}/{}", dir::downloaded_charts()?, id);
+                async move {
+                    let mut file = tokio::fs::File::create(path).await?;
+                    let res = reqwest::get(url).await.context("请求失败")?;
+                    let size = res.content_length();
+                    let mut stream = res.bytes_stream();
+                    let mut count = 0;
+                    while let Some(chunk) = stream.next().await {
+                        let chunk = chunk.context("下载失败")?;
+                        file.write_all(&chunk).await?;
+                        count += chunk.len() as u64;
+                        if let Some(size) = size {
+                            *prog_cl.lock().unwrap() = count.min(size) as f32 / size as f32;
                         }
-                    }),
-                ),
-            );
-            Ok(())
-        })
+                    }
+                    Ok(chart)
+                }
+            }),
+        ));
+        Ok(())
     }
 }
 
@@ -526,7 +512,7 @@ impl Scene for SongScene {
                     }
                     if self.center_button.touch(&touch) {
                         if self.remote {
-                            if DOWNLOADING.with(|it| it.borrow_mut().remove(self.chart.info.id.as_ref().unwrap()).is_some()) {
+                            if self.downloading.take().is_some() {
                                 show_message("已取消");
                             } else {
                                 self.start_download()?;
@@ -551,7 +537,7 @@ impl Scene for SongScene {
                         return Ok(true);
                     }
                 }
-                if self.back_button.touch(&touch) && (!self.remote || DOWNLOADING.with(|it| !it.borrow().contains_key(self.chart.info.id.as_ref().unwrap()))) {
+                if self.back_button.touch(&touch) && (!self.remote || self.downloading.is_none()) {
                     self.next_scene = Some(NextScene::Pop);
                     return Ok(true);
                 }
@@ -674,16 +660,12 @@ impl Scene for SongScene {
             }));
         }
         let mut downloaded = Vec::new();
-        DOWNLOADING.with(|it| {
-            it.borrow_mut().retain(|_, (name, _, task)| {
-                if task.ok() {
-                    downloaded.push((name.clone(), task.take().unwrap()));
-                    false
-                } else {
-                    true
-                }
-            })
-        });
+        if let Some((name, _, task)) = &mut self.downloading {
+            if task.ok() {
+                downloaded.push((name.clone(), task.take().unwrap()));
+                self.downloading = None;
+            }
+        }
         for (name, res) in downloaded {
             match res {
                 Err(err) => {
