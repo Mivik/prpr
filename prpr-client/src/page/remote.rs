@@ -73,11 +73,9 @@ impl Page for RemotePage {
     }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {
-        if !self.focus && focus {
-            if self.remote_first_time {
-                self.remote_first_time = false;
-                self.refresh_remote(state);
-            }
+        if !self.focus && focus && self.remote_first_time {
+            self.remote_first_time = false;
+            self.refresh_remote(state);
         }
         self.focus = focus;
 
@@ -107,16 +105,14 @@ impl Page for RemotePage {
         if self.scroll_remote.touch(touch, t) {
             self.choose_remote = None;
             return Ok(true);
-        } else {
-            if let Some(pos) = self.scroll_remote.position(&touch) {
-                let id = get_touched(pos);
-                let trigger = trigger_grid(touch.phase, &mut self.choose_remote, id);
-                if trigger {
-                    let id = id.unwrap();
-                    if id < state.charts_remote.len() as u32 {
-                        state.transit = Some((true, id, t, Rect::default(), false));
-                        return Ok(true);
-                    }
+        } else if let Some(pos) = self.scroll_remote.position(touch) {
+            let id = get_touched(pos);
+            let trigger = trigger_grid(touch.phase, &mut self.choose_remote, id);
+            if trigger {
+                let id = id.unwrap();
+                if id < state.charts_remote.len() as u32 {
+                    state.transit = Some((true, id, t, Rect::default(), false));
+                    return Ok(true);
                 }
             }
         }

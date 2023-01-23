@@ -502,15 +502,15 @@ impl Scene for SongScene {
         if self.scroll_progress() < 0.4 {
             if self.edit_enter_time.is_infinite() {
                 if loaded || self.remote {
-                    if !self.remote && self.bin.touch(&touch, tm.now() as _) {
+                    if !self.remote && self.bin.touch(touch, tm.now() as _) {
                         return Ok(true);
                     }
-                    if !self.remote && self.edit_button.touch(&touch) {
+                    if !self.remote && self.edit_button.touch(touch) {
                         self.info_edit = Some(ChartInfoEdit::new(self.chart_info.clone().unwrap()));
                         self.edit_enter_time = tm.now() as _;
                         return Ok(true);
                     }
-                    if self.center_button.touch(&touch) {
+                    if self.center_button.touch(touch) {
                         if self.remote {
                             if self.downloading.take().is_some() {
                                 show_message("已取消");
@@ -537,7 +537,7 @@ impl Scene for SongScene {
                         return Ok(true);
                     }
                 }
-                if self.back_button.touch(&touch) && (!self.remote || self.downloading.is_none()) {
+                if self.back_button.touch(touch) && (!self.remote || self.downloading.is_none()) {
                     self.next_scene = Some(NextScene::Pop);
                     return Ok(true);
                 }
@@ -550,12 +550,12 @@ impl Scene for SongScene {
                     self.edit_enter_time = -tm.now() as _;
                     return Ok(true);
                 }
-                if self.edit_scroll.touch(&touch, tm.now() as _) {
+                if self.edit_scroll.touch(touch, tm.now() as _) {
                     return Ok(true);
                 }
             }
         }
-        if self.edit_enter_time.is_infinite() && self.scroll.touch(&touch, tm.now() as _) {
+        if self.edit_enter_time.is_infinite() && self.scroll.touch(touch, tm.now() as _) {
             return Ok(true);
         }
         Ok(false)

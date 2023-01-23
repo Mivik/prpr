@@ -80,24 +80,22 @@ impl Page for LocalPage {
 
     fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool> {
         let t = state.t;
-        if self.scroll_local.touch(&touch, t) {
+        if self.scroll_local.touch(touch, t) {
             self.choose_local = None;
             return Ok(true);
-        } else {
-            if let Some(pos) = self.scroll_local.position(&touch) {
-                let id = get_touched(pos);
-                let trigger = trigger_grid(touch.phase, &mut self.choose_local, id);
-                if trigger {
-                    let id = id.unwrap();
-                    if let Some(chart) = state.charts_local.get(id as usize) {
-                        if chart.illustration_task.is_none() {
-                            state.transit = Some((false, id, t, Rect::default(), false));
-                            TRANSIT_ID.store(id, Ordering::SeqCst);
-                        } else {
-                            show_message("尚未加载完成");
-                        }
-                        return Ok(true);
+        } else if let Some(pos) = self.scroll_local.position(touch) {
+            let id = get_touched(pos);
+            let trigger = trigger_grid(touch.phase, &mut self.choose_local, id);
+            if trigger {
+                let id = id.unwrap();
+                if let Some(chart) = state.charts_local.get(id as usize) {
+                    if chart.illustration_task.is_none() {
+                        state.transit = Some((false, id, t, Rect::default(), false));
+                        TRANSIT_ID.store(id, Ordering::SeqCst);
+                    } else {
+                        show_message("尚未加载完成");
                     }
+                    return Ok(true);
                 }
             }
         }

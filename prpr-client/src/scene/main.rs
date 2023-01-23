@@ -211,7 +211,7 @@ impl Scene for MainScene {
         if tm.real_time() as f32 <= self.switch_start_time + SWITCH_TIME || self.shared_state.transit.is_some() {
             return Ok(false);
         }
-        if let Some(page_id) = self.page_buttons.iter_mut().position(|it| it.touch(&touch)) {
+        if let Some(page_id) = self.page_buttons.iter_mut().position(|it| it.touch(touch)) {
             if page_id != self.page_index {
                 self.page_from_index = self.page_index;
                 self.page_index = page_id;

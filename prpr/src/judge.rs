@@ -149,7 +149,7 @@ pub struct Judge {
     pub num_of_notes: u32,
 }
 
-static SUBSCRIBER_ID: Lazy<usize> = Lazy::new(|| register_input_subscriber());
+static SUBSCRIBER_ID: Lazy<usize> = Lazy::new(register_input_subscriber);
 thread_local! {
     static TOUCHES: RefCell<(Vec<Touch>, u32, u32)> = RefCell::default();
 }

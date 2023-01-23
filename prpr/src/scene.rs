@@ -330,7 +330,7 @@ impl Main {
                     index += 1;
                     let mut guard = it.borrow_mut();
                     if let Some(dialog) = guard.as_mut() {
-                        if !dialog.touch(&touch, t as _) {
+                        if !dialog.touch(touch, t as _) {
                             drop(guard);
                             *it.borrow_mut() = None;
                         }

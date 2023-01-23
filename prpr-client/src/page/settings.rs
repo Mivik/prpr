@@ -153,7 +153,7 @@ impl Page for SettingsPage {
 
     fn touch(&mut self, touch: &Touch, _state: &mut SharedState) -> Result<bool> {
         for (id, button) in self.chal_buttons.iter_mut().enumerate() {
-            if button.touch(&touch) {
+            if button.touch(touch) {
                 use prpr::config::ChallengeModeColor::*;
                 get_data_mut().config.challenge_color = [White, Green, Blue, Red, Golden, Rainbow][id].clone();
                 save_data()?;

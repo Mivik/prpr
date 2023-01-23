@@ -143,7 +143,7 @@ impl Page for AccountPage {
     }
 
     fn touch(&mut self, touch: &Touch, _state: &mut SharedState) -> Result<bool> {
-        if self.task.is_none() && get_data().me.is_some() && self.avatar_button.touch(&touch) {
+        if self.task.is_none() && get_data().me.is_some() && self.avatar_button.touch(touch) {
             request_file("avatar");
             return Ok(true);
         }

@@ -522,7 +522,7 @@ impl Scene for GameScene {
 
         self.gl
             .quad_gl
-            .render_pass(res.chart_target.as_ref().map(|it| it.output().render_pass).or(res.camera.render_pass()));
+            .render_pass(res.chart_target.as_ref().map(|it| it.output().render_pass).or_else(|| res.camera.render_pass()));
 
         self.bad_notes.retain(|dummy| dummy.render(res));
         let t = tm.real_time();

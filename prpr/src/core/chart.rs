@@ -4,18 +4,10 @@ use super::{BpmList, Effect, JudgeLine, Matrix, Resource, UIElement, Vector};
 use crate::{judge::JudgeStatus, ui::Ui};
 use macroquad::prelude::*;
 
+#[derive(Default)]
 pub struct ChartSettings {
     pub pe_alpha_extension: bool,
     pub hold_partial_cover: bool,
-}
-
-impl Default for ChartSettings {
-    fn default() -> Self {
-        Self {
-            pe_alpha_extension: false,
-            hold_partial_cover: false,
-        }
-    }
 }
 
 pub struct Chart {
