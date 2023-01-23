@@ -324,8 +324,9 @@ impl Scene for MainScene {
                 *back = true;
                 self.next_scene = if remote {
                     let path = format!("download/{}", self.shared_state.charts_remote[id].info.id.as_ref().unwrap());
-                    if let Some(chart) = self.shared_state.charts_local.iter().find(|it| it.path == path) {
-                        self.song_scene(chart, false)
+                    if let Some(index) = self.shared_state.charts_local.iter().position(|it| it.path == path) {
+                        self.shared_state.charts_local[index].illustration = self.shared_state.charts_remote[id].illustration.clone();
+                        self.song_scene(&self.shared_state.charts_local[index], false)
                     } else {
                         self.song_scene(&self.shared_state.charts_remote[id], true)
                     }
