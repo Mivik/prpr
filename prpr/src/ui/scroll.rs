@@ -43,16 +43,17 @@ impl Scroller {
     pub fn touch(&mut self, id: u64, phase: TouchPhase, val: f32, t: f32) -> bool {
         match phase {
             TouchPhase::Started => {
-                self.tracker.push(t, Point::new(val, 0.));
-                self.speed = 0.;
-                if self.touch.is_none() && 0. <= val && val < self.bound {
+                if 0. <= val && val < self.bound {
+                    self.tracker.reset();
+                    self.tracker.push(t, Point::new(val, 0.));
+                    self.speed = 0.;
                     self.touch = Some((id, val, self.offset, false));
                 }
             }
             TouchPhase::Stationary | TouchPhase::Moved => {
-                self.tracker.push(t, Point::new(val, 0.));
                 if let Some((sid, st, st_off, unlock)) = &mut self.touch {
                     if *sid == id {
+                        self.tracker.push(t, Point::new(val, 0.));
                         if (*st - val).abs() > THRESHOLD {
                             *unlock = true;
                         }
@@ -63,18 +64,20 @@ impl Scroller {
                 }
             }
             TouchPhase::Ended | TouchPhase::Cancelled => {
-                self.tracker.push(t, Point::new(val, 0.));
-                let speed = self.tracker.speed().x;
-                if speed.abs() > 0.2 {
-                    self.speed = -speed * 0.4;
-                    self.last_time = t;
+                if matches!(self.touch, Some((sid, ..)) if sid == id) {
+                    self.tracker.push(t, Point::new(val, 0.));
+                    let speed = self.tracker.speed().x;
+                    if speed.abs() > 0.2 {
+                        self.speed = -speed * 0.4;
+                        self.last_time = t;
+                    }
+                    if self.offset <= -EXTEND * 0.7 {
+                        self.pulled = true;
+                    }
+                    let res = self.touch.map(|it| it.3).unwrap_or_default();
+                    self.touch = None;
+                    return res;
                 }
-                if self.offset <= -EXTEND * 0.7 {
-                    self.pulled = true;
-                }
-                let res = self.touch.map(|it| it.3).unwrap_or_default();
-                self.touch = None;
-                return res;
             }
         }
         self.touch.map(|it| it.3).unwrap_or_default()
