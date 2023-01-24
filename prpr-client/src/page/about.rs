@@ -1,4 +1,4 @@
-use super::{Page, SIDE_PADDING, SharedState};
+use super::{Page, SharedState, SIDE_PADDING};
 use anyhow::Result;
 use macroquad::prelude::Touch;
 use prpr::ui::Ui;

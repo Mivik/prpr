@@ -1,12 +1,16 @@
 use super::{Page, SharedState};
-use crate::cloud::Message;
-use crate::{cloud::Client, task::Task};
-use crate::{get_data, get_data_mut, save_data};
+use crate::{
+    cloud::{Client, Message},
+    get_data, get_data_mut, save_data,
+    task::Task,
+};
 use anyhow::Result;
-use chrono::{DateTime, Local, Utc};
+use chrono::{Local, Utc};
 use macroquad::prelude::*;
-use prpr::scene::show_error;
-use prpr::ui::{RectButton, Scroll, Ui};
+use prpr::{
+    scene::show_error,
+    ui::{RectButton, Scroll, Ui},
+};
 
 pub struct MessagePage {
     list_scroll: Scroll,
