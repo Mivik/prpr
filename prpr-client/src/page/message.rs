@@ -112,6 +112,8 @@ impl Page for MessagePage {
                     .max_width(r.w)
                     .draw();
                 btn.set(ui, r);
+                ui.dy(r.h);
+                h += r.h;
             }
             (width, h)
         });
