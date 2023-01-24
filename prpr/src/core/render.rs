@@ -12,15 +12,14 @@ pub struct MSRenderTarget {
     output: [Option<RenderTarget>; 2],
 }
 
-pub fn copy_fbo(src: GLuint, dst: GLuint, dim: (u32, u32)) {
+pub fn copy_fbo(src: GLuint, dst: GLuint, dim: (u32, u32)) -> bool {
     unsafe {
         use miniquad::gl::*;
         glBindFramebuffer(GL_READ_FRAMEBUFFER, src);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst);
-        let buf = [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2];
-        glDrawBuffers(3, &buf as *const _);
         let (w, h) = (dim.0 as i32, dim.1 as i32);
         glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glGetError() == GL_NO_ERROR
     }
 }
 

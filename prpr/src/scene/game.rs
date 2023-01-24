@@ -40,6 +40,7 @@ pub struct GameScene {
     pub chart: Chart,
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
+    compatible_mode: bool,
     effects: Vec<Effect>,
 
     pub audio_handle: AudioHandle,
@@ -138,6 +139,7 @@ impl GameScene {
             chart,
             judge,
             gl: unsafe { get_internal_gl() },
+            compatible_mode: false,
             effects,
 
             audio_handle,
@@ -520,9 +522,12 @@ impl Scene for GameScene {
 
         self.chart.render(res);
 
-        self.gl
-            .quad_gl
-            .render_pass(res.chart_target.as_ref().map(|it| it.output().render_pass).or_else(|| res.camera.render_pass()));
+        self.gl.quad_gl.render_pass(
+            res.chart_target
+                .as_ref()
+                .map(|it| it.output().render_pass)
+                .or_else(|| res.camera.render_pass()),
+        );
 
         self.bad_notes.retain(|dummy| dummy.render(res));
         let t = tm.real_time();
@@ -548,14 +553,38 @@ impl Scene for GameScene {
             // render the texture onto screen
             if let Some(target) = &self.res.chart_target {
                 self.gl.flush();
-                copy_fbo(
-                    target.output().render_pass.gl_internal_id(self.gl.quad_context),
-                    self.res
-                        .camera
-                        .render_target
-                        .map_or(0, |it| it.render_pass.gl_internal_id(self.gl.quad_context)),
-                    dim,
-                );
+                if !self.compatible_mode {
+                    if !copy_fbo(
+                        target.output().render_pass.gl_internal_id(self.gl.quad_context),
+                        self.res
+                            .camera
+                            .render_target
+                            .map_or(0, |it| it.render_pass.gl_internal_id(self.gl.quad_context)),
+                        dim,
+                    ) {
+                        self.compatible_mode = true;
+                    }
+                }
+                if self.compatible_mode {
+                    push_camera_state();
+                    self.gl.quad_gl.viewport(None);
+                    set_camera(&Camera2D {
+                        zoom: vec2(1., screen_aspect()),
+                        render_target: self.res.camera.render_target,
+                        ..Default::default()
+                    });
+                    draw_texture_ex(
+                        target.output().texture,
+                        -1.,
+                        -ui.top,
+                        WHITE,
+                        DrawTextureParams {
+                            dest_size: Some(vec2(2., ui.top * 2.)),
+                            ..Default::default()
+                        },
+                    );
+                    pop_camera_state();
+                }
             }
         }
         Ok(())

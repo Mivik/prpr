@@ -361,6 +361,7 @@ impl Main {
         }
         ui.set_touches(self.touches.take().unwrap());
         ui.scope(|ui| self.scenes.last_mut().unwrap().render(&mut self.tm, ui))?;
+        unsafe{get_internal_gl()}.quad_gl.render_pass(None);
         if self.show_billboard {
             BILLBOARD.with(|it| {
                 let mut guard = it.borrow_mut();
