@@ -14,12 +14,12 @@ use prpr::{
 pub struct RemotePage {
     focus: bool,
 
-    scroll_remote: Scroll,
-    choose_remote: Option<u32>,
+    scroll: Scroll,
+    choose: Option<u32>,
 
     task_load: Task<Result<Vec<ChartItem>>>,
-    remote_first_time: bool,
-    loading_remote: bool,
+    first_time: bool,
+    loading: bool,
 }
 
 impl RemotePage {
@@ -27,22 +27,22 @@ impl RemotePage {
         Self {
             focus: false,
 
-            scroll_remote: Scroll::new(),
-            choose_remote: None,
+            scroll: Scroll::new(),
+            choose: None,
 
             task_load: Task::pending(),
-            remote_first_time: true,
-            loading_remote: false,
+            first_time: true,
+            loading: false,
         }
     }
 
     fn refresh_remote(&mut self, state: &mut SharedState) {
-        if self.loading_remote {
+        if self.loading {
             return;
         }
         state.charts_remote.clear();
         show_message("正在加载");
-        self.loading_remote = true;
+        self.loading = true;
         self.task_load = Task::new({
             let tex = state.tex.clone();
             async move {
@@ -73,26 +73,26 @@ impl Page for RemotePage {
     }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {
-        if !self.focus && focus && self.remote_first_time {
-            self.remote_first_time = false;
+        if !self.focus && focus && self.first_time {
+            self.first_time = false;
             self.refresh_remote(state);
         }
         self.focus = focus;
 
         let t = state.t;
-        if self.scroll_remote.y_scroller.pulled {
+        if self.scroll.y_scroller.pulled {
             self.refresh_remote(state);
         }
-        self.scroll_remote.update(t);
+        self.scroll.update(t);
         if let Some(charts) = self.task_load.take() {
-            self.loading_remote = false;
+            self.loading = false;
             match charts {
                 Ok(charts) => {
                     show_message("加载完成");
                     state.charts_remote = charts;
                 }
                 Err(err) => {
-                    self.remote_first_time = true;
+                    self.first_time = true;
                     show_error(err.context("加载失败"));
                 }
             }
@@ -102,12 +102,12 @@ impl Page for RemotePage {
 
     fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool> {
         let t = state.t;
-        if self.scroll_remote.touch(touch, t) {
-            self.choose_remote = None;
+        if self.scroll.touch(touch, t) {
+            self.choose = None;
             return Ok(true);
-        } else if let Some(pos) = self.scroll_remote.position(touch) {
+        } else if let Some(pos) = self.scroll.position(touch) {
             let id = get_touched(pos);
-            let trigger = trigger_grid(touch.phase, &mut self.choose_remote, id);
+            let trigger = trigger_grid(touch.phase, &mut self.choose, id);
             if trigger {
                 let id = id.unwrap();
                 if id < state.charts_remote.len() as u32 {
@@ -120,12 +120,12 @@ impl Page for RemotePage {
     }
 
     fn render(&mut self, ui: &mut Ui, state: &mut SharedState) -> Result<()> {
-        SharedState::render_scroll(ui, state.content_size, &mut self.scroll_remote, &mut state.charts_remote);
+        SharedState::render_scroll(ui, state.content_size, &mut self.scroll, &mut state.charts_remote);
         if let Some((true, id, _, rect, _)) = &mut state.transit {
             let width = state.content_size.0;
             *rect = ui.rect_to_global(Rect::new(
                 (*id % ROW_NUM) as f32 * width / ROW_NUM as f32,
-                (*id / ROW_NUM) as f32 * CARD_HEIGHT - self.scroll_remote.y_scroller.offset(),
+                (*id / ROW_NUM) as f32 * CARD_HEIGHT - self.scroll.y_scroller.offset(),
                 width / ROW_NUM as f32,
                 CARD_HEIGHT,
             ));
