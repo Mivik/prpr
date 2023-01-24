@@ -1,5 +1,6 @@
 use super::LCObject;
 use crate::data::BriefChartInfo;
+use chrono::{Utc, DateTime};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -81,6 +82,7 @@ impl LCObject for User {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LCChartItem {
     #[serde(rename = "objectId")]
     pub id: Option<String>,
@@ -90,9 +92,21 @@ pub struct LCChartItem {
 
     pub file: LCFile,
     pub illustration: LCFile,
-    pub verified: Option<bool>,
 }
 
 impl LCObject for LCChartItem {
     const CLASS_NAME: &'static str = "Chart";
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Message {
+    pub title: String,
+    pub content: String,
+    pub author: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl LCObject for Message {
+    const CLASS_NAME: &'static str = "Message";
 }

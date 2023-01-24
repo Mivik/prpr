@@ -150,6 +150,9 @@ impl Scroll {
         let Some(matrix) = self.matrix else { return false; };
         let pt = touch.position;
         let pt = matrix.transform_point(&Point::new(pt.x, pt.y));
+        if pt.x < 0. || pt.y < 0. || pt.x > self.size.0 || pt.y > self.size.1 {
+            return false;
+        }
         // self.x_scroller.touch(touch.id, touch.phase, pt.x, t) |
         self.y_scroller.touch(touch.id, touch.phase, pt.y, t)
     }
@@ -184,5 +187,9 @@ impl Scroll {
         self.size = size;
         self.x_scroller.bound(size.0);
         self.y_scroller.bound(size.1);
+    }
+
+    pub fn rect(&self) -> Rect {
+        Rect::new(0., 0., self.size.0, self.size.1)
     }
 }

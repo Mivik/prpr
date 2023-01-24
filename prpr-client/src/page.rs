@@ -7,6 +7,9 @@ pub use account::AccountPage;
 mod local;
 pub use local::LocalPage;
 
+mod message;
+pub use message::MessagePage;
+
 mod remote;
 pub use remote::RemotePage;
 

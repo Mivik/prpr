@@ -29,6 +29,7 @@ use std::{
     },
 };
 
+const PAGE_NUM: usize = 6;
 const SIDE_PADDING: f32 = 0.02;
 const CARD_PADDING: f32 = 0.02;
 
@@ -72,12 +73,12 @@ pub struct MainScene {
 
     page_scroll: Scroll,
     page_index: usize,
-    page_buttons: [RectButton; 5],
+    page_buttons: [RectButton; PAGE_NUM],
     switch_start_time: f32,
     page_from_index: usize,
 
     shared_state: SharedState,
-    pages: [Box<dyn Page>; 5],
+    pages: [Box<dyn Page>; PAGE_NUM],
 }
 
 impl MainScene {
@@ -103,7 +104,7 @@ impl MainScene {
 
             page_scroll: Scroll::new(),
             page_index: 0,
-            page_buttons: [RectButton::new(); 5],
+            page_buttons: [RectButton::new(); PAGE_NUM],
             switch_start_time: f32::NEG_INFINITY,
             page_from_index: 0,
 
@@ -112,6 +113,7 @@ impl MainScene {
                 Box::new(page::LocalPage::new().await?),
                 Box::new(page::RemotePage::new()),
                 Box::new(page::AccountPage::new()),
+                Box::new(page::MessagePage::new()),
                 Box::new(page::SettingsPage::new().await?),
                 Box::new(page::AboutPage::new()),
             ],

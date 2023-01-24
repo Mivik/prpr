@@ -229,4 +229,8 @@ impl Client {
         recv_lc(Self::request(Method::DELETE, format!("/files/{id}")).with_session()).await?;
         Ok(())
     }
+
+    pub async fn messages() -> Result<Vec<Message>> {
+        Self::query::<Message>().order("-updatedAt").send().await
+    }
 }
