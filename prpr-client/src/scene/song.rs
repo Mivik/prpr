@@ -1,9 +1,9 @@
-use super::main::{illustration_task, SHOULD_UPDATE, UPDATE_INFO, UPDATE_TEXTURE};
+use super::main::{UPDATE_INFO, UPDATE_TEXTURE};
 use crate::{
     cloud::{Client, LCChartItem, Pointer, UserManager},
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut,
-    page::{ChartItem, TRANSIT_ID},
+    page::{illustration_task, ChartItem, SHOULD_UPDATE},
     save_data,
     task::Task,
 };
@@ -341,7 +341,7 @@ impl SongScene {
                 let h = 0.11;
                 let pad = 0.03;
                 let width = EDIT_CHART_INFO_WIDTH - pad;
-                
+
                 let vpad = 0.02;
                 let hpad = 0.01;
                 let dx = width / 3.;
@@ -432,13 +432,7 @@ impl SongScene {
         assert!(!self.remote);
         info.uploader = self.chart.info.uploader.clone();
         self.chart.info = info.clone();
-        get_data_mut()
-            .chart_mut(if self.chart.path.starts_with("download/") {
-                get_data().charts().position(|it| it.path == self.chart.path).unwrap()
-            } else {
-                TRANSIT_ID.load(Ordering::SeqCst) as usize
-            })
-            .info = info;
+        get_data_mut().charts[get_data().find_chart(&self.chart).unwrap()].info = info;
         let _ = save_data();
         UPDATE_INFO.store(true, Ordering::SeqCst);
     }
@@ -447,7 +441,7 @@ impl SongScene {
         let id = self.chart.info.id.as_ref().unwrap();
         dir::downloaded_charts()?;
         let path = format!("download/{id}");
-        if get_data().charts().any(|it| it.path == path) {
+        if get_data().charts.iter().any(|it| it.path == path) {
             show_message("已经下载过"); // TODO redirect instead of showing this
             return Ok(());
         }
@@ -682,7 +676,7 @@ impl Scene for SongScene {
                     self.chart.info = chart.info.clone();
                     self.chart.path = chart.path.clone();
                     self.info_task = Some(create_info_task(chart.path.clone(), chart.info.clone()));
-                    get_data_mut().add_chart(chart);
+                    get_data_mut().charts.push(chart);
                     save_data()?;
                     SHOULD_UPDATE.store(true, Ordering::SeqCst);
                     self.remote = false;

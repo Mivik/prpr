@@ -1,5 +1,4 @@
 mod ending;
-use cfg_if::cfg_if;
 pub use ending::EndingScene;
 
 mod game;
@@ -15,6 +14,7 @@ use crate::{
     ui::{BillBoard, Dialog, Ui},
 };
 use anyhow::{Error, Result};
+use cfg_if::cfg_if;
 use macroquad::prelude::*;
 use std::{any::Any, cell::RefCell, sync::Mutex};
 
@@ -361,7 +361,7 @@ impl Main {
         }
         ui.set_touches(self.touches.take().unwrap());
         ui.scope(|ui| self.scenes.last_mut().unwrap().render(&mut self.tm, ui))?;
-        unsafe{get_internal_gl()}.quad_gl.render_pass(None);
+        unsafe { get_internal_gl() }.quad_gl.render_pass(None);
         if self.show_billboard {
             BILLBOARD.with(|it| {
                 let mut guard = it.borrow_mut();

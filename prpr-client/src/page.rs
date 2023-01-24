@@ -16,7 +16,7 @@ pub use remote::RemotePage;
 mod settings;
 pub use settings::SettingsPage;
 
-use crate::{data::BriefChartInfo, dir, get_data, task::Task};
+use crate::{data::BriefChartInfo, dir, get_data, scene::ChartOrder, task::Task};
 use anyhow::Result;
 use image::DynamicImage;
 use lyon::{
@@ -29,14 +29,14 @@ use prpr::{
     fs,
     ui::{Scroll, Ui},
 };
-use std::{ops::DerefMut, sync::atomic::AtomicU32};
+use std::{ops::DerefMut, sync::atomic::AtomicBool};
 
 const ROW_NUM: u32 = 4;
 const CARD_HEIGHT: f32 = 0.3;
 const CARD_PADDING: f32 = 0.02;
 const SIDE_PADDING: f32 = 0.02;
 
-pub static TRANSIT_ID: AtomicU32 = AtomicU32::new(0);
+pub static SHOULD_UPDATE: AtomicBool = AtomicBool::new(false);
 
 pub fn illustration_task(path: String) -> Task<Result<DynamicImage>> {
     Task::new(async move {
@@ -88,16 +88,22 @@ fn trigger_grid(phase: TouchPhase, choose: &mut Option<u32>, id: Option<u32>) ->
     }
 }
 
-fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
-    get_data()
-        .charts()
+pub fn load_local(tex: &SafeTexture, order: &(ChartOrder, bool)) -> Vec<ChartItem> {
+    let mut res = get_data()
+        .charts
+        .iter()
         .map(|it| ChartItem {
             info: it.info.clone(),
             path: it.path.clone(),
             illustration: tex.clone(),
             illustration_task: Some(illustration_task(it.path.clone())),
         })
-        .collect()
+        .collect();
+    order.0.apply(&mut res);
+    if order.1 {
+        res.reverse();
+    }
+    res
 }
 
 pub struct ChartItem {
@@ -121,7 +127,7 @@ pub struct SharedState {
 impl SharedState {
     pub async fn new() -> Result<Self> {
         let tex: SafeTexture = Texture2D::from_image(&load_image("player.jpg").await?).into();
-        let charts_local = load_local(&tex);
+        let charts_local = load_local(&tex, &(ChartOrder::Default, false));
         Ok(Self {
             t: 0.,
             content_size: (0., 0.),
@@ -168,7 +174,9 @@ impl SharedState {
 
 pub trait Page {
     fn label(&self) -> &'static str;
-    fn has_new(&self) -> bool { false }
+    fn has_new(&self) -> bool {
+        false
+    }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()>;
     fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool>;

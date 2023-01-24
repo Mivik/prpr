@@ -1,6 +1,7 @@
 use crate::{
     cloud::{Pointer, User},
     dir,
+    page::ChartItem,
 };
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -67,7 +68,7 @@ pub struct LocalChart {
 #[derive(Default, Serialize, Deserialize)]
 pub struct Data {
     pub me: Option<User>,
-    charts: Vec<LocalChart>,
+    pub charts: Vec<LocalChart>,
     pub config: Config,
     pub message_check_time: Option<DateTime<Utc>>,
 }
@@ -100,25 +101,7 @@ impl Data {
         Ok(())
     }
 
-    pub fn add_chart(&mut self, chart: LocalChart) {
-        self.charts.push(chart);
-    }
-
-    pub fn remove_chart(&mut self, id: usize) {
-        self.charts.remove(self.charts.len() - id - 1);
-    }
-
-    pub fn charts(&self) -> impl Iterator<Item = &LocalChart> {
-        self.charts.iter().rev()
-    }
-
-    pub fn chart(&self, id: usize) -> &LocalChart {
-        let id = self.charts.len() - id - 1;
-        &self.charts[id]
-    }
-
-    pub fn chart_mut(&mut self, id: usize) -> &mut LocalChart {
-        let id = self.charts.len() - id - 1;
-        &mut self.charts[id]
+    pub fn find_chart(&self, chart: &ChartItem) -> Option<usize> {
+        self.charts.iter().position(|it| it.path == chart.path)
     }
 }

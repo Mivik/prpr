@@ -1,12 +1,14 @@
-use super::{get_touched, load_local, trigger_grid, Page, SharedState, CARD_HEIGHT, ROW_NUM, TRANSIT_ID};
+use super::{get_touched, load_local, trigger_grid, Page, SharedState, CARD_HEIGHT, ROW_NUM, SHOULD_UPDATE};
 use crate::{
     data::{BriefChartInfo, LocalChart},
     dir, get_data_mut, save_data,
+    scene::ChartOrderBox,
     task::Task,
 };
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
 use prpr::{
+    ext::SafeTexture,
     fs,
     scene::{request_file, return_file, show_error, show_message, take_file},
     ui::{RectButton, Scroll, Ui},
@@ -18,15 +20,19 @@ pub struct LocalPage {
     scroll: Scroll,
     choose: Option<u32>,
 
+    order_box: ChartOrderBox,
+
     import_button: RectButton,
     import_task: Task<Result<LocalChart>>,
 }
 
 impl LocalPage {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(icon_play: SafeTexture) -> Result<Self> {
         Ok(Self {
             scroll: Scroll::new(),
             choose: None,
+
+            order_box: ChartOrderBox::new(icon_play),
 
             import_button: RectButton::new(),
             import_task: Task::pending(),
@@ -42,6 +48,9 @@ impl Page for LocalPage {
     fn update(&mut self, _focus: bool, state: &mut SharedState) -> Result<()> {
         let t = state.t;
         self.scroll.update(t);
+        if SHOULD_UPDATE.fetch_and(false, Ordering::SeqCst) {
+            state.charts_local = load_local(&state.tex, self.order_box.to_order());
+        }
         if let Some((id, file)) = take_file() {
             if id == "chart" || id == "_import" {
                 async fn import(from: String) -> Result<LocalChart> {
@@ -68,9 +77,9 @@ impl Page for LocalPage {
                     show_error(err.context("导入失败"));
                 }
                 Ok(chart) => {
-                    get_data_mut().add_chart(chart);
+                    get_data_mut().charts.push(chart);
                     save_data()?;
-                    state.charts_local = load_local(&state.tex);
+                    state.charts_local = load_local(&state.tex, self.order_box.to_order());
                     show_message("导入成功");
                 }
             }
@@ -79,6 +88,10 @@ impl Page for LocalPage {
     }
 
     fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool> {
+        if self.order_box.touch(touch) {
+            state.charts_local = load_local(&state.tex, self.order_box.to_order());
+            return Ok(true);
+        }
         if self.import_button.touch(touch) {
             request_file("chart");
             return Ok(true);
@@ -95,7 +108,6 @@ impl Page for LocalPage {
                 if let Some(chart) = state.charts_local.get(id as usize) {
                     if chart.illustration_task.is_none() {
                         state.transit = Some((false, id, t, Rect::default(), false));
-                        TRANSIT_ID.store(id, Ordering::SeqCst);
                     } else {
                         show_message("尚未加载完成");
                     }
@@ -107,6 +119,8 @@ impl Page for LocalPage {
     }
 
     fn render(&mut self, ui: &mut Ui, state: &mut SharedState) -> Result<()> {
+        let r = self.order_box.render(ui);
+        ui.dy(r.h);
         SharedState::render_scroll(ui, state.content_size, &mut self.scroll, &mut state.charts_local);
         if let Some((false, id, _, rect, _)) = &mut state.transit {
             let width = state.content_size.0;

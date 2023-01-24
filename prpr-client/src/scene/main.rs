@@ -4,10 +4,8 @@ use crate::{
     dir, get_data, get_data_mut,
     page::{self, ChartItem, Page, SharedState},
     save_data,
-    task::Task,
 };
 use anyhow::{anyhow, Result};
-use image::DynamicImage;
 use lyon::{
     math as lm,
     path::{builder::BorderRadii, Path, Winding},
@@ -16,50 +14,26 @@ use macroquad::{prelude::*, texture::RenderTarget};
 use prpr::{
     core::Tweenable,
     ext::{screen_aspect, SafeTexture, ScaleType},
-    fs,
     scene::{show_error, show_message, NextScene, Scene},
     time::TimeManager,
     ui::{RectButton, Scroll, Ui},
 };
-use std::{
-    ops::DerefMut,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
-    },
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
 };
 
 const PAGE_NUM: usize = 6;
 const SIDE_PADDING: f32 = 0.02;
 const CARD_PADDING: f32 = 0.02;
+pub const CHARTS_BAR_HEIGHT: f32 = 0.06;
 
 const SWITCH_TIME: f32 = 0.4;
 const TRANSIT_TIME: f32 = 0.4;
 
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
-pub static SHOULD_UPDATE: AtomicBool = AtomicBool::new(false);
 pub static UPDATE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
 pub static UPDATE_INFO: AtomicBool = AtomicBool::new(false);
-
-pub fn illustration_task(path: String) -> Task<Result<DynamicImage>> {
-    Task::new(async move {
-        let mut fs = fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
-        let info = fs::load_info(fs.deref_mut()).await?;
-        Ok(image::load_from_memory(&fs.load_file(&info.illustration).await?)?)
-    })
-}
-
-fn load_local(tex: &SafeTexture) -> Vec<ChartItem> {
-    get_data()
-        .charts()
-        .map(|it| ChartItem {
-            info: it.info.clone(),
-            path: it.path.clone(),
-            illustration: tex.clone(),
-            illustration_task: Some(illustration_task(it.path.clone())),
-        })
-        .collect()
-}
 
 pub struct MainScene {
     target: Option<RenderTarget>,
@@ -92,12 +66,13 @@ impl MainScene {
                 SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
             };
         }
+        let icon_play = load_tex!("resume.png");
         Ok(Self {
             target: None,
             next_scene: None,
             icon_back: load_tex!("back.png"),
             icon_download: load_tex!("download.png"),
-            icon_play: load_tex!("resume.png"),
+            icon_play: icon_play.clone(),
             icon_edit: load_tex!("edit.png"),
             icon_delete: load_tex!("delete.png"),
             icon_question: load_tex!("question.png"),
@@ -110,8 +85,8 @@ impl MainScene {
 
             shared_state,
             pages: [
-                Box::new(page::LocalPage::new().await?),
-                Box::new(page::RemotePage::new()),
+                Box::new(page::LocalPage::new(icon_play.clone()).await?),
+                Box::new(page::RemotePage::new(icon_play)),
                 Box::new(page::AccountPage::new()),
                 Box::new(page::MessagePage::new()),
                 Box::new(page::SettingsPage::new().await?),
@@ -160,7 +135,7 @@ impl MainScene {
             self.page_scroll.size(content_size);
             self.page_scroll.render(ui, |ui| {
                 self.shared_state.t = t;
-                self.shared_state.content_size = content_size;
+                self.shared_state.content_size = (content_size.0, content_size.1 - CHARTS_BAR_HEIGHT);
                 let must_render = rt < self.switch_start_time + SWITCH_TIME;
                 for (id, page) in self.pages.iter_mut().enumerate() {
                     if must_render || id == self.page_index {
@@ -201,12 +176,10 @@ impl Scene for MainScene {
         } else {
             show_message("欢迎回来");
         }
-        if SHOULD_UPDATE.fetch_and(false, Ordering::SeqCst) {
-            self.shared_state.charts_local = load_local(&self.shared_state.tex);
-        }
         if UPDATE_INFO.fetch_and(false, Ordering::SeqCst) {
             if let Some((false, id, ..)) = self.shared_state.transit {
-                self.shared_state.charts_local[id as usize].info = get_data().chart(id as _).info.clone();
+                let chart = &mut self.shared_state.charts_local[id as usize];
+                chart.info = get_data().charts[get_data().find_chart(chart).unwrap()].info.clone();
             }
         }
         Ok(())
@@ -306,14 +279,15 @@ impl Scene for MainScene {
                         } else {
                             id
                         };
-                        let path = format!("{}/{}", dir::charts()?, self.shared_state.charts_local[id].path);
+                        let chart = &self.shared_state.charts_local[id];
+                        let path = format!("{}/{}", dir::charts()?, chart.path);
                         let path = std::path::Path::new(&path);
                         if path.is_file() {
                             std::fs::remove_file(path)?;
                         } else {
                             std::fs::remove_dir_all(path)?;
                         }
-                        get_data_mut().remove_chart(id);
+                        get_data_mut().charts.remove(get_data().find_chart(chart).unwrap());
                         save_data()?;
                         self.shared_state.charts_local.remove(id);
                         Ok(())
