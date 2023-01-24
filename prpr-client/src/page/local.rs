@@ -79,6 +79,10 @@ impl Page for LocalPage {
     }
 
     fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool> {
+        if self.import_button.touch(touch) {
+            request_file("chart");
+            return Ok(true);
+        }
         let t = state.t;
         if self.scroll.touch(touch, t) {
             self.choose = None;
@@ -98,10 +102,6 @@ impl Page for LocalPage {
                     return Ok(true);
                 }
             }
-        }
-        if self.import_button.touch(touch) {
-            request_file("chart");
-            return Ok(true);
         }
         Ok(false)
     }
