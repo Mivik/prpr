@@ -341,24 +341,7 @@ impl SongScene {
                 let h = 0.11;
                 let pad = 0.03;
                 let width = EDIT_CHART_INFO_WIDTH - pad;
-                self.edit_scroll.size((width, ui.top * 2. - h));
-                self.edit_scroll.render(ui, |ui| {
-                    let (w, mut h) = render_chart_info(ui, self.info_edit.as_mut().unwrap(), width);
-                    ui.dx(0.02);
-                    ui.dy(h);
-                    let r = Rect::new(0., 0., EDIT_CHART_INFO_WIDTH - 0.2, 0.06);
-                    if ui.button("fix", r, "自动修复谱面") {
-                        if let Err(err) =
-                            fs::fix_info(fs_from_path(&self.chart.path).unwrap().deref_mut(), &mut self.info_edit.as_mut().unwrap().info).block_on()
-                        {
-                            show_error(err.context("修复失败"));
-                        } else {
-                            show_message("修复成功");
-                        }
-                    }
-                    h += r.h + s;
-                    (w, h)
-                });
+                
                 let vpad = 0.02;
                 let hpad = 0.01;
                 let dx = width / 3.;
@@ -414,7 +397,7 @@ impl SongScene {
                                     let bytes = update_zip(&mut zip.0.lock().unwrap(), patches).context("写入配置文件失败")?;
                                     std::fs::write(format!("{}/{}", dir::charts()?, path), bytes).context("保存文件失败")?;
                                 } else {
-                                    unreachable!()
+                                    unreachable!();
                                 }
                                 Ok(())
                             }));
@@ -422,6 +405,25 @@ impl SongScene {
                         self.update_chart_info(self.chart_info.clone().unwrap().into());
                     }
                 }
+
+                self.edit_scroll.size((width, ui.top * 2. - h));
+                self.edit_scroll.render(ui, |ui| {
+                    let (w, mut h) = render_chart_info(ui, self.info_edit.as_mut().unwrap(), width);
+                    ui.dx(0.02);
+                    ui.dy(h);
+                    let r = Rect::new(0., 0., EDIT_CHART_INFO_WIDTH - 0.2, 0.06);
+                    if ui.button("fix", r, "自动修复谱面") {
+                        if let Err(err) =
+                            fs::fix_info(fs_from_path(&self.chart.path).unwrap().deref_mut(), &mut self.info_edit.as_mut().unwrap().info).block_on()
+                        {
+                            show_error(err.context("修复失败"));
+                        } else {
+                            show_message("修复成功");
+                        }
+                    }
+                    h += r.h + s;
+                    (w, h)
+                });
             });
         }
     }
