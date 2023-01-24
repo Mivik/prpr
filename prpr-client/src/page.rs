@@ -168,6 +168,7 @@ impl SharedState {
 
 pub trait Page {
     fn label(&self) -> &'static str;
+    fn has_new(&self) -> bool { false }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()>;
     fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool>;

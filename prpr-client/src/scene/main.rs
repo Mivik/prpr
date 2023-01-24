@@ -129,8 +129,8 @@ impl MainScene {
             let mut max_height: f32 = 0.;
             let mut from_range = (0., 0.);
             let mut current_range = (0., 0.);
-            for (id, label) in self.pages.iter().map(|it| it.label()).enumerate() {
-                let r = ui.text(label).pos(dx, 0.).size(0.9).draw();
+            for (id, page) in self.pages.iter().enumerate() {
+                let r = ui.text(page.label()).pos(dx, 0.).size(0.9).draw();
                 self.page_buttons[id].set(ui, Rect::new(r.x, r.y, r.w, r.h + 0.01));
                 max_height = max_height.max(r.h);
                 let range = (dx, dx + r.w);
@@ -139,6 +139,9 @@ impl MainScene {
                 }
                 if self.page_index == id {
                     current_range = range;
+                }
+                if page.has_new() {
+                    ui.fill_circle(range.1 - 0.01, 0., 0.01, RED);
                 }
                 dx += r.w + 0.02;
             }

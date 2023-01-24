@@ -1,8 +1,9 @@
 use super::{Page, SharedState};
 use crate::cloud::Message;
 use crate::{cloud::Client, task::Task};
+use crate::{get_data, get_data_mut, save_data};
 use anyhow::Result;
-use chrono::Local;
+use chrono::{DateTime, Local, Utc};
 use macroquad::prelude::*;
 use prpr::scene::show_error;
 use prpr::ui::{RectButton, Scroll, Ui};
@@ -14,6 +15,7 @@ pub struct MessagePage {
 
     messages: Vec<(Message, RectButton)>,
     focus: Option<usize>,
+    has_new: bool,
 }
 
 impl MessagePage {
@@ -25,6 +27,7 @@ impl MessagePage {
 
             messages: Vec::new(),
             focus: None,
+            has_new: false,
         }
     }
 }
@@ -33,10 +36,14 @@ impl Page for MessagePage {
     fn label(&self) -> &'static str {
         "消息"
     }
+    fn has_new(&self) -> bool {
+        self.has_new
+    }
 
     fn update(&mut self, _focus: bool, state: &mut SharedState) -> Result<()> {
         let t = state.t;
         if self.list_scroll.y_scroller.pulled && self.load_task.is_none() {
+            self.has_new = false;
             self.focus = None;
             self.messages.clear();
             self.load_task = Some(Task::new(Client::messages()));
@@ -47,6 +54,9 @@ impl Page for MessagePage {
             if let Some(msgs) = task.take() {
                 match msgs {
                     Ok(msgs) => {
+                        self.has_new = msgs
+                            .first()
+                            .map_or(false, |it| get_data().message_check_time.map_or(true, |check| check < it.updated_at));
                         self.messages = msgs.into_iter().map(|it| (it, RectButton::new())).collect();
                     }
                     Err(err) => {
@@ -67,6 +77,11 @@ impl Page for MessagePage {
         for (id, (_, btn)) in self.messages.iter_mut().enumerate() {
             if btn.touch(touch) {
                 self.focus = if self.focus == Some(id) { None } else { Some(id) };
+                if self.has_new {
+                    get_data_mut().message_check_time = Some(Utc::now());
+                    save_data()?;
+                    self.has_new = false;
+                }
                 return Ok(true);
             }
         }

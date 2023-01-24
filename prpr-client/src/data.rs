@@ -3,6 +3,7 @@ use crate::{
     dir,
 };
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use prpr::{config::Config, info::ChartInfo};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, ops::DerefMut, path::Path};
@@ -68,6 +69,7 @@ pub struct Data {
     pub me: Option<User>,
     charts: Vec<LocalChart>,
     pub config: Config,
+    pub message_check_time: Option<DateTime<Utc>>,
 }
 
 impl Data {
