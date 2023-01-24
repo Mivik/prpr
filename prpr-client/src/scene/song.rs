@@ -430,13 +430,11 @@ impl SongScene {
         assert!(!self.remote);
         info.uploader = self.chart.info.uploader.clone();
         self.chart.info = info.clone();
-        let id = TRANSIT_ID.load(Ordering::SeqCst) as usize;
         get_data_mut()
-            .chart_mut(if self.remote {
-                let path = format!("download/{}", self.chart.info.id.as_ref().unwrap());
-                get_data().charts().position(|it| it.path == path).unwrap()
+            .chart_mut(if self.chart.path.starts_with("download/") {
+                get_data().charts().position(|it| it.path == self.chart.path).unwrap()
             } else {
-                id
+                TRANSIT_ID.load(Ordering::SeqCst) as usize
             })
             .info = info;
         let _ = save_data();
@@ -682,7 +680,6 @@ impl Scene for SongScene {
                     self.chart.info = chart.info.clone();
                     self.chart.path = chart.path.clone();
                     self.info_task = Some(create_info_task(chart.path.clone(), chart.info.clone()));
-                    println!("{:?}", get_data().charts().map(|it| &it.info.name).collect::<Vec<_>>());
                     get_data_mut().add_chart(chart);
                     save_data()?;
                     SHOULD_UPDATE.store(true, Ordering::SeqCst);
