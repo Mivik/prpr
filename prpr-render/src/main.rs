@@ -205,7 +205,7 @@ async fn the_main() -> Result<()> {
 
     let render_start_time = Instant::now();
 
-    info!("[1] 混音中...");
+    info!("[1] 混音中…");
     let sample_rate = 44100;
     assert_eq!(sample_rate, ending.sample_rate);
     assert_eq!(sample_rate, sfx_click.sample_rate);
