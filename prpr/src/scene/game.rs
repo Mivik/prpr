@@ -377,6 +377,7 @@ impl Scene for GameScene {
 
     fn pause(&mut self, tm: &mut TimeManager) -> Result<()> {
         if !tm.paused() {
+            self.pause_rewind = None;
             self.res.audio.pause(&mut self.audio_handle)?;
             tm.pause();
         }
