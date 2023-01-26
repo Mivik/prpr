@@ -19,7 +19,7 @@ pub const LIMIT_PERFECT: f32 = 0.08;
 pub const LIMIT_GOOD: f32 = 0.18;
 pub const LIMIT_BAD: f32 = 0.22;
 pub const UP_TOLERANCE: f32 = 0.01;
-pub const DIST_FACTOR: f32 = 1.;
+pub const DIST_FACTOR: f32 = 0.2;
 
 pub struct VelocityTracker {
     movements: VecDeque<(f32, Point)>,
