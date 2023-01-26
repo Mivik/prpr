@@ -134,16 +134,12 @@ fn parse_move_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimVector> {
     Ok(AnimVector(AnimFloat::new(kf1), AnimFloat::new(kf2)))
 }
 
-fn parse_notes(r: f32, pgr: Vec<PgrNote>, speed: &mut AnimFloat, height: &mut AnimFloat, above: bool) -> Result<Vec<Note>> {
+fn parse_notes(r: f32, mut pgr: Vec<PgrNote>, speed: &mut AnimFloat, height: &mut AnimFloat, above: bool) -> Result<Vec<Note>> {
     // is_sorted is unstable...
     if pgr.is_empty() {
         return Ok(Vec::new());
     }
-    for i in 0..(pgr.len() - 1) {
-        if pgr[i].time > pgr[i + 1].time {
-            bail!("Notes are not sorted");
-        }
-    }
+    pgr.sort_by_key(|it| it.time.not_nan());
     pgr.into_iter()
         .map(|pgr| {
             let time = pgr.time * r;
