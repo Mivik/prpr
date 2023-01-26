@@ -168,6 +168,20 @@ impl MainScene {
 }
 
 impl Scene for MainScene {
+    fn pause(&mut self, _tm: &mut TimeManager) -> Result<()> {
+        for page in &mut self.pages {
+            page.pause()?;
+        }
+        Ok(())
+    }
+
+    fn resume(&mut self, _tm: &mut TimeManager) -> Result<()> {
+        for page in &mut self.pages {
+            page.resume()?;
+        }
+        Ok(())
+    }
+
     fn enter(&mut self, tm: &mut TimeManager, target: Option<RenderTarget>) -> Result<()> {
         self.switch_start_time = f32::NEG_INFINITY;
         self.target = target;
