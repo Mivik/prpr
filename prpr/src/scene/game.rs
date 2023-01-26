@@ -384,6 +384,13 @@ impl Scene for GameScene {
         Ok(())
     }
 
+    fn resume(&mut self, tm: &mut TimeManager) -> Result<()> {
+        if !matches!(self.state, State::Playing) {
+            tm.resume();
+        }
+        Ok(())
+    }
+
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
         if matches!(self.state, State::Playing) {
             tm.update(self.res.audio.position(&self.audio_handle)?);
