@@ -29,6 +29,10 @@ tokio = { version = "*", features = ["rt-multi-thread", "sync"] }
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.2"
 ndk-context = "0.1"
+sasa = { path = "../../sasa", default-features = false, features = ["oboe"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+sasa = { path = "../../sasa" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc = "*"

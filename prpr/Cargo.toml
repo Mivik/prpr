@@ -41,20 +41,17 @@ block = "0.1.6"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-context = "0.1"
+sasa = { path = "../../sasa", default-features = false, features = ["oboe"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+sasa = { path = "../../sasa" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.23", features = ["rt-multi-thread", "fs"] }
-kira = { git = "https://github.com/Mivik/prpr-kira" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = "1.23"
 web-sys = { version = "0.3", features = [
-	"AudioBuffer",
-	"AudioBufferSourceNode",
-	"AudioContext",
-	"AudioDestinationNode",
-	"AudioParam",
-	"GainNode",
 	"Location",
 	"Performance",
 	"UrlSearchParams",

@@ -1,8 +1,7 @@
 use super::{MSRenderTarget, Matrix, Point, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE};
 use crate::{
-    audio::{Audio, AudioClip, DefaultAudio, PlayParams},
     config::Config,
-    ext::{nalgebra_to_glm, SafeTexture},
+    ext::{create_audio_manger, nalgebra_to_glm, SafeTexture},
     fs::FileSystem,
     info::ChartInfo,
     particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
@@ -10,6 +9,7 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use macroquad::prelude::*;
 use miniquad::{gl::GLuint, Texture};
+use sasa::{AudioClip, AudioManager, Sfx};
 use serde::Deserialize;
 use std::{cell::RefCell, collections::BTreeMap, ops::DerefMut, path::Path, sync::atomic::AtomicU32};
 
@@ -252,13 +252,13 @@ pub struct Resource {
 
     pub emitter: ParticleEmitter,
 
-    pub audio: DefaultAudio,
+    pub audio: AudioManager,
     pub music: AudioClip,
     pub ending_bgm_bytes: Vec<u8>,
     pub track_length: f32,
-    pub sfx_click: AudioClip,
-    pub sfx_drag: AudioClip,
-    pub sfx_flick: AudioClip,
+    pub sfx_click: Sfx,
+    pub sfx_drag: Sfx,
+    pub sfx_flick: Sfx,
 
     pub chart_target: Option<MSRenderTarget>,
     pub no_effect: bool,
@@ -333,14 +333,14 @@ impl Resource {
             ..Default::default()
         };
 
-        let audio = DefaultAudio::new(config.audio_buffer_size)?;
+        let mut audio = create_audio_manger(&config)?;
         macro_rules! load_sfx {
             ($path:literal) => {
-                audio.create_clip(load_file($path).await?)?.0
+                audio.create_sfx(AudioClip::new(load_file($path).await?)?, Some(1024))?
             };
         }
-        let (music, track_length) = audio.create_clip(fs.load_file(&info.music).await?)?;
-        let track_length = track_length as f32;
+        let music = AudioClip::new(fs.load_file(&info.music).await?)?;
+        let track_length = music.length();
         let sfx_click = load_sfx!("click.ogg");
         let sfx_drag = load_sfx!("drag.ogg");
         let sfx_flick = load_sfx!("flick.ogg");
@@ -442,19 +442,6 @@ impl Resource {
             self.camera.viewport = Some(viewport(self.aspect_ratio, dim));
         };
         true
-    }
-
-    pub fn play_sfx(&mut self, sfx: &AudioClip) {
-        if self.config.volume_sfx <= 1e-2 {
-            return;
-        }
-        let _ = self.audio.play(
-            sfx,
-            PlayParams {
-                volume: self.config.volume_sfx as _,
-                ..Default::default()
-            },
-        );
     }
 
     pub fn world_to_screen(&self, pt: Point) -> Point {

@@ -3,14 +3,14 @@ use crate::{dir, get_data, get_data_mut, save_data};
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
 use prpr::{
-    audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
     core::{ParticleEmitter, SkinPack, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
-    ext::{poll_future, LocalTask, RectExt, SafeTexture},
+    ext::{create_audio_manger, poll_future, LocalTask, RectExt, SafeTexture},
     fs,
     scene::{request_file, return_file, show_error, show_message, take_file},
     time::TimeManager,
     ui::{RectButton, Ui},
 };
+use sasa::{AudioClip, AudioManager, Music, MusicParams, PlaySfxParams, Sfx};
 use std::ops::DerefMut;
 
 const RESET_WAIT: f32 = 0.8;
@@ -18,10 +18,9 @@ const RESET_WAIT: f32 = 0.8;
 pub struct SettingsPage {
     focus: bool,
 
-    audio: DefaultAudio,
-    cali_clip: AudioClip,
-    cali_hit_clip: AudioClip,
-    cali_handle: Option<AudioHandle>,
+    _audio: AudioManager,
+    cali: Music,
+    cali_hit: Sfx,
     cali_tm: TimeManager,
     cali_last: bool,
     click_texture: SafeTexture,
@@ -36,9 +35,16 @@ pub struct SettingsPage {
 
 impl SettingsPage {
     pub async fn new() -> Result<Self> {
-        let audio = DefaultAudio::new(get_data().config.audio_buffer_size)?;
-        let cali_clip = audio.create_clip(load_file("cali.ogg").await?)?.0;
-        let cali_hit_clip = audio.create_clip(load_file("cali_hit.ogg").await?)?.0;
+        let mut audio = create_audio_manger(&get_data().config)?;
+        let cali = audio.create_music(
+            AudioClip::new(load_file("cali.ogg").await?)?,
+            MusicParams {
+                loop_: true,
+                amplifier: 0.7,
+                ..Default::default()
+            },
+        )?;
+        let cali_hit = audio.create_sfx(AudioClip::new(load_file("cali_hit.ogg").await?)?, Some(2))?;
 
         let mut cali_tm = TimeManager::new(1., true);
         cali_tm.force = 3e-2;
@@ -47,10 +53,9 @@ impl SettingsPage {
         Ok(Self {
             focus: false,
 
-            audio,
-            cali_clip,
-            cali_hit_clip,
-            cali_handle: None,
+            _audio: audio,
+            cali,
+            cali_hit,
             cali_tm,
             cali_last: false,
             click_texture: skin.note_style.click.clone(),
@@ -89,27 +94,18 @@ impl Page for SettingsPage {
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {
         let t = state.t;
         if !self.focus && focus {
-            self.cali_handle = Some(self.audio.play(
-                &self.cali_clip,
-                PlayParams {
-                    loop_: true,
-                    volume: 0.7,
-                    ..Default::default()
-                },
-            )?);
+            self.cali.seek_to(0.)?;
+            self.cali.play()?;
             self.cali_tm.reset();
         }
         if self.focus && !focus {
             save_data()?;
-            if let Some(handle) = &mut self.cali_handle {
-                self.audio.pause(handle)?;
-            }
-            self.cali_handle = None;
+            self.cali.pause()?;
         }
         self.focus = focus;
 
-        if let Some(handle) = &self.cali_handle {
-            let pos = self.audio.position(handle)?;
+        if !self.cali.paused() {
+            let pos = self.cali.position() as f64;
             let now = self.cali_tm.now();
             if now > 2. {
                 self.cali_tm.seek_to(now - 2.);
@@ -309,7 +305,7 @@ impl Page for SettingsPage {
                     let g = ui.to_global(ct);
                     self.emitter.emit_at(vec2(g.0, g.1), JUDGE_LINE_PERFECT_COLOR);
                     if self.focus {
-                        let _ = self.audio.play(&self.cali_hit_clip, PlayParams::default());
+                        let _ = self.cali_hit.play(PlaySfxParams::default());
                     }
                 }
                 self.cali_last = false;
@@ -322,17 +318,13 @@ impl Page for SettingsPage {
     fn pause(&mut self) -> Result<()> {
         save_data()?;
         self.cali_tm.pause();
-        if let Some(handle) = &mut self.cali_handle {
-            self.audio.pause(handle)?;
-        }
+        self.cali.pause()?;
         Ok(())
     }
 
     fn resume(&mut self) -> Result<()> {
         self.cali_tm.resume();
-        if let Some(handle) = &mut self.cali_handle {
-            self.audio.resume(handle)?;
-        }
+        self.cali.play()?;
         Ok(())
     }
 }
