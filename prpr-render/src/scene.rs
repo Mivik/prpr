@@ -76,6 +76,23 @@ impl Scene for MainScene {
             let h = 0.1;
             let pad = 0.01;
             self.scroll.size((width, ui.top * 2. - h));
+            let dx = width / 2.;
+            let mut r = Rect::new(pad, ui.top * 2. - h + pad, dx - pad * 2., h - pad * 2.);
+            if ui.button("preview", r, "预览") {
+                let info = self.edit.info.clone();
+                let config = self.config.clone();
+                let fs = self.fs.clone_box();
+                let edit = self.edit.clone();
+                self.loading_scene_task = Some(Box::pin(async move {
+                    LoadingScene::new(info, config, Box::new(PatchedFileSystem(fs, edit.to_patches().await?)), None, None).await
+                }));
+            }
+            r.x += dx;
+            if ui.button("render", r, "渲染") {
+                *INFO_EDIT.lock().unwrap() = Some(self.edit.clone());
+                *VIDEO_CONFIG.lock().unwrap() = Some(self.v_config.clone());
+                self.next_scene = Some(NextScene::Exit);
+            }
             self.scroll.render(ui, |ui| {
                 ui.dy(pad);
                 let r = ui.text("注：可以通过鼠标拖动屏幕来查看更下面的配置项").size(0.4).draw();
@@ -151,23 +168,6 @@ impl Scene for MainScene {
                 });
                 (w, h)
             });
-            let dx = width / 2.;
-            let mut r = Rect::new(pad, ui.top * 2. - h + pad, dx - pad * 2., h - pad * 2.);
-            if ui.button("preview", r, "预览") {
-                let info = self.edit.info.clone();
-                let config = self.config.clone();
-                let fs = self.fs.clone_box();
-                let edit = self.edit.clone();
-                self.loading_scene_task = Some(Box::pin(async move {
-                    LoadingScene::new(info, config, Box::new(PatchedFileSystem(fs, edit.to_patches().await?)), None, None).await
-                }));
-            }
-            r.x += dx;
-            if ui.button("render", r, "渲染") {
-                *INFO_EDIT.lock().unwrap() = Some(self.edit.clone());
-                *VIDEO_CONFIG.lock().unwrap() = Some(self.v_config.clone());
-                self.next_scene = Some(NextScene::Exit);
-            }
         });
         Ok(())
     }
