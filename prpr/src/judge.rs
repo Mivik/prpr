@@ -151,7 +151,6 @@ pub struct Judge {
     notes: Vec<(Vec<u32>, usize)>,
     trackers: HashMap<u64, VelocityTracker>,
     last_time: f32,
-    key_down_count: u32,
     diffs: Vec<f32>,
 
     pub combo: u32,
@@ -180,7 +179,6 @@ impl Judge {
             notes,
             trackers: HashMap::new(),
             last_time: 0.,
-            key_down_count: 0,
             diffs: Vec::new(),
 
             combo: 0,
@@ -315,6 +313,7 @@ impl Judge {
             let guard = it.borrow();
             (guard.0.clone(), guard.2)
         });
+        let key_down_count = TOUCHES.with(|it| it.borrow().1);
         {
             fn to_local(Vec2 { x, y }: Vec2) -> Point {
                 Point::new(x / screen_width() * 2. - 1., y / screen_height() * 2. - 1.)
@@ -518,7 +517,7 @@ impl Judge {
                         let x = &mut note.object.translation.0;
                         x.set_time(t);
                         let x = x.now();
-                        if self.key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX)) {
+                        if key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX)) {
                             if t > *up_time + UP_TOLERANCE {
                                 note.judge = JudgeStatus::Judged;
                                 judgements.push((Judgement::Miss, line_id, *id, None));
@@ -544,14 +543,14 @@ impl Judge {
                 if -t > LIMIT_BAD {
                     break;
                 }
-                if !matches!(note.kind, NoteKind::Drag) && (self.key_down_count == 0 || !matches!(note.kind, NoteKind::Flick)) {
+                if !matches!(note.kind, NoteKind::Drag) && (key_down_count == 0 || !matches!(note.kind, NoteKind::Flick)) {
                     continue;
                 }
                 let dt = dt.abs();
                 let x = &mut note.object.translation.0;
                 x.set_time(t);
                 let x = x.now();
-                if self.key_down_count != 0
+                if key_down_count != 0
                     || pos.iter().any(|it| {
                         it.map_or(false, |it| {
                             let dx = (it.x - x).abs();
