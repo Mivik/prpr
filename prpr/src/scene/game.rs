@@ -389,6 +389,7 @@ impl Scene for GameScene {
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
+        self.res.audio.recover_if_needed()?;
         if matches!(self.state, State::Playing) {
             tm.update(self.music.position() as f64);
         }

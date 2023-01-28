@@ -18,7 +18,7 @@ const RESET_WAIT: f32 = 0.8;
 pub struct SettingsPage {
     focus: bool,
 
-    _audio: AudioManager,
+    audio: AudioManager,
     cali: Music,
     cali_hit: Sfx,
     cali_tm: TimeManager,
@@ -53,7 +53,7 @@ impl SettingsPage {
         Ok(Self {
             focus: false,
 
-            _audio: audio,
+            audio,
             cali,
             cali_hit,
             cali_tm,
@@ -92,6 +92,7 @@ impl Page for SettingsPage {
     }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {
+        // self.audio.recover_if_needed()?;
         let t = state.t;
         if !self.focus && focus {
             self.cali.seek_to(0.)?;

@@ -21,7 +21,7 @@ pub struct EndingScene {
     icon_retry: SafeTexture,
     icon_proceed: SafeTexture,
     target: Option<RenderTarget>,
-    _audio: AudioManager,
+    audio: AudioManager,
     bgm: Music,
 
     info: ChartInfo,
@@ -68,7 +68,7 @@ impl EndingScene {
             icon_retry,
             icon_proceed,
             target: None,
-            _audio: audio,
+            audio,
             bgm,
 
             info,
@@ -105,6 +105,7 @@ impl Scene for EndingScene {
     }
 
     fn update(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
+        self.audio.recover_if_needed()?;
         if tm.now() >= 0. && self.target.is_none() {
             self.bgm.play()?;
         }
