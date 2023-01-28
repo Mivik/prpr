@@ -13,6 +13,7 @@ Cargo.lock
 
 ._*
 /run_ios.sh
+/prebuild_ios.sh
 /build_ios.sh
 /build
 /*.ipa
