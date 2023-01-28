@@ -212,12 +212,11 @@ async fn the_main() -> Result<()> {
     {
         let pos = O - chart.offset.min(0.) as f64;
         let count = (music.length() as f64 * sample_rate as f64) as usize;
-        let frames = music.frames();
         let mut it = output[((pos * sample_rate as f64).round() as usize * 2)..].iter_mut();
-        let ratio = music.sample_rate() as f64 / sample_rate as f64;
+        let ratio = 1. / sample_rate as f64;
         for frame in 0..count {
-            let position = (frame as f64 * ratio).round() as usize;
-            let frame = &frames[position];
+            let position = frame as f64 * ratio;
+            let frame = music.sample(position as f32).unwrap_or_default();
             *it.next().unwrap() += frame.0 * volume_music;
             *it.next().unwrap() += frame.1 * volume_music;
         }

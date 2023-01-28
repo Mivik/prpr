@@ -92,7 +92,7 @@ impl Page for SettingsPage {
     }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {
-        // self.audio.recover_if_needed()?;
+        self.audio.recover_if_needed()?;
         let t = state.t;
         if !self.focus && focus {
             self.cali.seek_to(0.)?;
