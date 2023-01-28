@@ -9,4 +9,4 @@ macroquad = { git = "https://github.com/Mivik/prpr-macroquad", default-features 
 prpr = { path = "../prpr" }
 serde_yaml = "0.9"
 tokio = "*"
-sasa = { path = "../../sasa" }
+sasa = { git = "https://github.com/Mivik/sasa" }
