@@ -1,4 +1,5 @@
 use crate::{
+    config::Config,
     core::{BadNote, Chart, NoteKind, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
     ext::{get_viewport, NotNanExt},
 };
@@ -8,6 +9,7 @@ use macroquad::prelude::{
 };
 use miniquad::{EventHandler, MouseButton};
 use once_cell::sync::Lazy;
+use sasa::{PlaySfxParams, Sfx};
 use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
@@ -20,6 +22,15 @@ pub const LIMIT_GOOD: f32 = 0.18;
 pub const LIMIT_BAD: f32 = 0.22;
 pub const UP_TOLERANCE: f32 = 0.01;
 pub const DIST_FACTOR: f32 = 0.2;
+
+pub fn play_sfx(sfx: &mut Sfx, config: &Config) {
+    if config.volume_sfx <= 1e-2 {
+        return;
+    }
+    let _ = sfx.play(PlaySfxParams {
+        amplifier: config.volume_sfx,
+    });
+}
 
 pub struct VelocityTracker {
     movements: VecDeque<(f32, Point)>,
@@ -427,7 +438,7 @@ impl Judge {
                                 judgements.push((if dt <= LIMIT_PERFECT { Judgement::Perfect } else { Judgement::Good }, line_id, id, None));
                             }
                             NoteKind::Hold { .. } => {
-                                res.play_sfx(&res.sfx_click.clone());
+                                play_sfx(&mut res.sfx_click, &res.config);
                                 note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false, f32::INFINITY);
                             }
                             _ => unreachable!(),
@@ -484,7 +495,7 @@ impl Judge {
                             ));
                         }
                         NoteKind::Hold { .. } => {
-                            res.play_sfx(&res.sfx_click.clone());
+                            play_sfx(&mut res.sfx_click, &res.config);
                             note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false, f32::INFINITY);
                         }
                         _ => unreachable!(),
@@ -625,12 +636,12 @@ impl Judge {
                 _ => false,
             } {
                 if let Some(sfx) = match note.kind {
-                    NoteKind::Click => Some(&res.sfx_click),
-                    NoteKind::Drag => Some(&res.sfx_drag),
-                    NoteKind::Flick => Some(&res.sfx_flick),
+                    NoteKind::Click => Some(&mut res.sfx_click),
+                    NoteKind::Drag => Some(&mut res.sfx_drag),
+                    NoteKind::Flick => Some(&mut res.sfx_flick),
                     _ => None,
                 } {
-                    res.play_sfx(&sfx.clone());
+                    play_sfx(sfx, &res.config);
                 }
             }
         }
@@ -668,7 +679,7 @@ impl Judge {
                     break;
                 }
                 note.judge = if matches!(note.kind, NoteKind::Hold { .. }) {
-                    res.play_sfx(&res.sfx_click.clone());
+                    play_sfx(&mut res.sfx_click, &res.config);
                     JudgeStatus::Hold(true, t, (t - note.time) / spd, false, f32::INFINITY)
                 } else {
                     judgements.push((line_id, *id));
@@ -695,12 +706,12 @@ impl Judge {
                 res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR)
             });
             if let Some(sfx) = match note_kind {
-                NoteKind::Click => Some(&res.sfx_click),
-                NoteKind::Drag => Some(&res.sfx_drag),
-                NoteKind::Flick => Some(&res.sfx_flick),
+                NoteKind::Click => Some(&mut res.sfx_click),
+                NoteKind::Drag => Some(&mut res.sfx_drag),
+                NoteKind::Flick => Some(&mut res.sfx_flick),
                 _ => None,
             } {
-                res.play_sfx(&sfx.clone());
+                play_sfx(sfx, &res.config);
             }
         }
     }

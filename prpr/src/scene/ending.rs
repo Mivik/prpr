@@ -1,14 +1,16 @@
 use super::{draw_background, draw_illustration, NextScene, Scene};
 use crate::{
-    audio::{Audio, AudioClip, AudioHandle, DefaultAudio, PlayParams},
     config::Config,
-    ext::{draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, screen_aspect, SafeTexture, ScaleType, PARALLELOGRAM_SLOPE},
+    ext::{
+        create_audio_manger, draw_parallelogram, draw_parallelogram_ex, draw_text_aligned, screen_aspect, SafeTexture, ScaleType, PARALLELOGRAM_SLOPE,
+    },
     info::ChartInfo,
     judge::{Judge, PlayResult},
     ui::Ui,
 };
 use anyhow::Result;
 use macroquad::prelude::*;
+use sasa::{AudioClip, AudioManager, Music, MusicParams};
 
 pub struct EndingScene {
     background: SafeTexture,
@@ -19,9 +21,8 @@ pub struct EndingScene {
     icon_retry: SafeTexture,
     icon_proceed: SafeTexture,
     target: Option<RenderTarget>,
-    audio: DefaultAudio,
-    bgm: AudioClip,
-    bgm_handle: Option<AudioHandle>,
+    audio: AudioManager,
+    bgm: Music,
 
     info: ChartInfo,
     result: PlayResult,
@@ -31,7 +32,6 @@ pub struct EndingScene {
     challenge_rank: u32,
     autoplay: bool,
     speed: f32,
-    volume: f32,
     next: u8, // 0 -> none, 1 -> pop, 2 -> exit
 }
 
@@ -50,8 +50,15 @@ impl EndingScene {
         config: &Config,
         bgm_bytes: Vec<u8>,
     ) -> Result<Self> {
-        let audio = DefaultAudio::new(config.audio_buffer_size)?;
-        let bgm = audio.create_clip(bgm_bytes)?.0;
+        let mut audio = create_audio_manger(config)?;
+        let bgm = audio.create_music(
+            AudioClip::new(bgm_bytes)?,
+            MusicParams {
+                amplifier: config.volume_music,
+                loop_: true,
+                ..Default::default()
+            },
+        )?;
         Ok(Self {
             background,
             illustration,
@@ -63,7 +70,6 @@ impl EndingScene {
             target: None,
             audio,
             bgm,
-            bgm_handle: None,
 
             info,
             result,
@@ -73,7 +79,6 @@ impl EndingScene {
             challenge_rank: config.challenge_rank,
             autoplay: config.autoplay,
             speed: config.speed,
-            volume: config.volume_music,
             next: 0,
         })
     }
@@ -88,31 +93,21 @@ impl Scene for EndingScene {
     }
 
     fn pause(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
-        if let Some(handle) = self.bgm_handle.as_mut() {
-            self.audio.pause(handle)?;
-        }
+        self.bgm.pause()?;
         tm.pause();
         Ok(())
     }
 
     fn resume(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
-        if let Some(handle) = self.bgm_handle.as_mut() {
-            self.audio.resume(handle)?;
-        }
+        self.bgm.play()?;
         tm.resume();
         Ok(())
     }
 
     fn update(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
-        if tm.now() >= 0. && self.bgm_handle.is_none() && self.target.is_none() {
-            self.bgm_handle = Some(self.audio.play(
-                &self.bgm,
-                PlayParams {
-                    volume: self.volume as _,
-                    loop_: true,
-                    ..Default::default()
-                },
-            )?);
+        self.audio.recover_if_needed()?;
+        if tm.now() >= 0. && self.target.is_none() {
+            self.bgm.play()?;
         }
         Ok(())
     }
@@ -339,9 +334,7 @@ impl Scene for EndingScene {
 
     fn next_scene(&mut self, _tm: &mut crate::time::TimeManager) -> NextScene {
         if self.next != 0 {
-            if let Some(mut handle) = self.bgm_handle.take() {
-                self.audio.pause(&mut handle).unwrap();
-            }
+            let _ = self.bgm.pause();
         }
         match self.next {
             0 => NextScene::None,

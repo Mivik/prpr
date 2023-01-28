@@ -1,6 +1,5 @@
 use super::{draw_background, EndingScene, NextScene, Scene};
 use crate::{
-    audio::{Audio, AudioHandle, PlayParams},
     config::Config,
     core::{copy_fbo, BadNote, Chart, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
     ext::{draw_text_aligned, screen_aspect, SafeTexture},
@@ -14,6 +13,7 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
 use macroquad::{prelude::*, window::InternalGlContext};
+use sasa::{Music, MusicParams};
 use std::{ops::DerefMut, rc::Rc};
 
 const WAIT_TIME: f32 = 0.5;
@@ -43,7 +43,7 @@ pub struct GameScene {
     compatible_mode: bool,
     effects: Vec<Effect>,
 
-    pub audio_handle: AudioHandle,
+    pub music: Music,
 
     get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
 
@@ -60,9 +60,8 @@ macro_rules! reset {
         $self.judge.reset();
         $self.chart.reset();
         $res.judge_line_color = JUDGE_LINE_PERFECT_COLOR;
-        $res.audio.resume(&mut $self.audio_handle)?;
-        $res.audio.seek_to(&mut $self.audio_handle, 0.)?;
-        $res.audio.pause(&mut $self.audio_handle)?;
+        $self.music.pause()?;
+        $self.music.seek_to(0.)?;
         $tm.reset();
         $self.last_update_time = $tm.now();
         $self.state = State::Starting;
@@ -130,7 +129,7 @@ impl GameScene {
 
         let judge = Judge::new(&chart);
 
-        let audio_handle = Self::new_handle(&mut res)?;
+        let music = Self::new_music(&mut res)?;
         Ok(Self {
             should_exit: false,
             next_scene: None,
@@ -142,7 +141,7 @@ impl GameScene {
             compatible_mode: false,
             effects,
 
-            audio_handle,
+            music,
 
             get_size_fn,
 
@@ -154,17 +153,15 @@ impl GameScene {
         })
     }
 
-    fn new_handle(res: &mut Resource) -> Result<AudioHandle> {
-        let mut audio_handle = res.audio.play(
-            &res.music,
-            PlayParams {
-                volume: res.config.volume_music as _,
+    fn new_music(res: &mut Resource) -> Result<Music> {
+        res.audio.create_music(
+            res.music.clone(),
+            MusicParams {
+                amplifier: res.config.volume_music as _,
                 playback_rate: res.config.speed as _,
                 ..Default::default()
             },
-        )?;
-        res.audio.pause(&mut audio_handle)?;
-        Ok(audio_handle)
+        )
     }
 
     fn ui(&mut self, tm: &mut TimeManager, ui: &mut Ui) -> Result<()> {
@@ -186,7 +183,7 @@ impl GameScene {
                 }
             })
         {
-            res.audio.pause(&mut self.audio_handle)?;
+            self.music.pause()?;
             tm.pause();
         }
         let margin = 0.03;
@@ -326,14 +323,14 @@ impl GameScene {
                         reset!(self, res, tm);
                     }
                     Some(1) => {
-                        res.audio.resume(&mut self.audio_handle)?;
+                        self.music.play()?;
                         res.time -= 3.;
-                        let dst = res.audio.position(&self.audio_handle)? - 3.;
+                        let dst = self.music.position() - 3.;
                         if dst < 0. {
-                            res.audio.pause(&mut self.audio_handle)?;
+                            self.music.pause()?;
                             self.state = State::BeforeMusic;
                         } else {
-                            res.audio.seek_to(&mut self.audio_handle, dst)?;
+                            self.music.seek_to(dst)?;
                         }
                         tm.resume();
                         tm.seek_to(t - 3.);
@@ -367,7 +364,7 @@ impl Scene for GameScene {
     fn enter(&mut self, tm: &mut TimeManager, target: Option<RenderTarget>) -> Result<()> {
         #[cfg(target_arch = "wasm32")]
         on_game_start();
-        self.audio_handle = Self::new_handle(&mut self.res)?;
+        self.music = Self::new_music(&mut self.res)?;
         self.res.camera.render_target = target;
         tm.speed = self.res.config.speed as _;
         reset!(self, self.res, tm);
@@ -378,7 +375,7 @@ impl Scene for GameScene {
     fn pause(&mut self, tm: &mut TimeManager) -> Result<()> {
         if !tm.paused() {
             self.pause_rewind = None;
-            self.res.audio.pause(&mut self.audio_handle)?;
+            self.music.pause()?;
             tm.pause();
         }
         Ok(())
@@ -392,8 +389,9 @@ impl Scene for GameScene {
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
+        self.res.audio.recover_if_needed()?;
         if matches!(self.state, State::Playing) {
-            tm.update(self.res.audio.position(&self.audio_handle)?);
+            tm.update(self.music.position() as f64);
         }
         let offset = self.chart.offset + self.res.config.offset;
         let time = tm.now() as f32;
@@ -413,8 +411,8 @@ impl Scene for GameScene {
             }
             State::BeforeMusic => {
                 if time >= 0.0 {
-                    self.res.audio.resume(&mut self.audio_handle)?;
-                    self.res.audio.seek_to(&mut self.audio_handle, time as f64)?;
+                    self.music.seek_to(time)?;
+                    self.music.play()?;
                     self.state = State::Playing;
                 }
                 time
@@ -466,25 +464,25 @@ impl Scene for GameScene {
         let res = &mut self.res;
         if Self::interactive(res, &self.state) {
             if is_key_pressed(KeyCode::Space) {
-                if res.audio.paused(&self.audio_handle)? {
-                    res.audio.resume(&mut self.audio_handle)?;
+                if self.music.paused() {
+                    self.music.play()?;
                     tm.resume();
                 } else {
-                    res.audio.pause(&mut self.audio_handle)?;
+                    self.music.pause()?;
                     tm.pause();
                 }
             }
             if is_key_pressed(KeyCode::Left) {
                 res.time -= 1.;
-                let dst = (res.audio.position(&self.audio_handle)? - 1.).max(0.);
-                res.audio.seek_to(&mut self.audio_handle, dst)?;
-                tm.seek_to(dst);
+                let dst = (self.music.position() - 1.).max(0.);
+                self.music.seek_to(dst)?;
+                tm.seek_to(dst as f64);
             }
             if is_key_pressed(KeyCode::Right) {
                 res.time += 5.;
-                let dst = (res.audio.position(&self.audio_handle)? + 5.).min(res.track_length as f64);
-                res.audio.seek_to(&mut self.audio_handle, dst)?;
-                tm.seek_to(dst);
+                let dst = (self.music.position() + 5.).min(res.track_length);
+                self.music.seek_to(dst)?;
+                tm.seek_to(dst as f64);
             }
             if is_key_pressed(KeyCode::Q) {
                 self.should_exit = true;

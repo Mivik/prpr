@@ -1,9 +1,14 @@
-use crate::core::{Matrix, Point, Vector};
+use crate::{
+    config::Config,
+    core::{Matrix, Point, Vector},
+};
+use anyhow::Result;
 use image::DynamicImage;
 use macroquad::prelude::*;
 use miniquad::{BlendFactor, BlendState, BlendValue, CompareFunc, Equation, PrimitiveType, StencilFaceState, StencilOp, StencilState};
 use once_cell::sync::Lazy;
 use ordered_float::{Float, NotNan};
+use sasa::AudioManager;
 use std::{
     future::Future,
     ops::Deref,
@@ -355,6 +360,25 @@ pub fn poll_future<R>(future: Pin<&mut (impl Future<Output = R> + ?Sized)>) -> O
 pub fn screen_aspect() -> f32 {
     let vp = get_viewport();
     vp.2 as f32 / vp.3 as f32
+}
+
+pub fn create_audio_manger(config: &Config) -> Result<AudioManager> {
+    #[cfg(target_os = "android")]
+    {
+        use sasa::backend::oboe::*;
+        AudioManager::new(OboeBackend::new(OboeSettings {
+            buffer_size: config.audio_buffer_size,
+            performance_mode: PerformanceMode::LowLatency,
+            usage: Usage::Game,
+        }))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use sasa::backend::cpal::*;
+        AudioManager::new(CpalBackend::new(CpalSettings {
+            buffer_size: config.audio_buffer_size,
+        }))
+    }
 }
 
 pub fn make_pipeline(write_color: bool, pass_op: StencilOp, test_func: CompareFunc, test_ref: i32) -> GlPipeline {

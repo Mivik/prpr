@@ -2,10 +2,8 @@ mod scene;
 
 use crate::scene::MainScene;
 use anyhow::{bail, Context, Result};
-use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use macroquad::{miniquad::TextureFormat, prelude::*};
 use prpr::{
-    audio::AudioClip,
     build_conf,
     config::Config,
     core::{init_assets, MSRenderTarget, NoteKind},
@@ -15,10 +13,11 @@ use prpr::{
     ui::{ChartInfoEdit, Ui},
     Main,
 };
+use sasa::AudioClip;
 use std::{
     cell::RefCell,
-    io::{BufWriter, Cursor, Write},
-    ops::{Deref, DerefMut},
+    io::{BufWriter, Write},
+    ops::DerefMut,
     process::{Command, Stdio},
     rc::Rc,
     sync::{
@@ -104,15 +103,13 @@ async fn the_main() -> Result<()> {
     let chart = GameScene::load_chart(&mut fs, &info).await.context("加载谱面内容失败")?;
     macro_rules! ld {
         ($path:literal) => {
-            StaticSoundData::from_cursor(Cursor::new(load_file($path).await?), StaticSoundSettings::default())
-                .with_context(|| format!("加载音效 `{}` 失败", $path))?
+            AudioClip::new(load_file($path).await?).with_context(|| format!("加载音效 `{}` 失败", $path))?
         };
     }
-    let music: Result<_> =
-        async { Ok(StaticSoundData::from_cursor(Cursor::new(fs.load_file(&info.music).await?), StaticSoundSettings::default())?) }.await;
+    let music: Result<_> = async { Ok(AudioClip::new(fs.load_file(&info.music).await?)?) }.await;
     let music = music.context("加载音乐失败")?;
     let ending = ld!("ending.mp3");
-    let track_length = music.frames.len() as f64 / music.sample_rate as f64;
+    let track_length = music.length() as f64;
     let sfx_click = ld!("click.ogg");
     let sfx_drag = ld!("drag.ogg");
     let sfx_flick = ld!("flick.ogg");
@@ -207,35 +204,34 @@ async fn the_main() -> Result<()> {
 
     info!("[1] 混音中…");
     let sample_rate = 44100;
-    assert_eq!(sample_rate, ending.sample_rate);
-    assert_eq!(sample_rate, sfx_click.sample_rate);
-    assert_eq!(sample_rate, sfx_drag.sample_rate);
-    assert_eq!(sample_rate, sfx_flick.sample_rate);
-    let mut output = vec![0.; (video_length * sample_rate as f64).ceil() as usize * 2];
+    assert_eq!(sample_rate, ending.sample_rate());
+    assert_eq!(sample_rate, sfx_click.sample_rate());
+    assert_eq!(sample_rate, sfx_drag.sample_rate());
+    assert_eq!(sample_rate, sfx_flick.sample_rate());
+    let mut output = vec![0.0_f32; (video_length * sample_rate as f64).ceil() as usize * 2];
     {
         let pos = O - chart.offset.min(0.) as f64;
-        let count = (music.duration().as_secs_f64() * sample_rate as f64) as usize;
-        let frames = music.frames.deref();
+        let count = (music.length() as f64 * sample_rate as f64) as usize;
         let mut it = output[((pos * sample_rate as f64).round() as usize * 2)..].iter_mut();
-        let ratio = music.sample_rate as f64 / sample_rate as f64;
+        let ratio = 1. / sample_rate as f64;
         for frame in 0..count {
-            let position = (frame as f64 * ratio).round() as usize;
-            let frame = frames[position];
-            *it.next().unwrap() += frame.left * volume_music;
-            *it.next().unwrap() += frame.right * volume_music;
+            let position = frame as f64 * ratio;
+            let frame = music.sample(position as f32).unwrap_or_default();
+            *it.next().unwrap() += frame.0 * volume_music;
+            *it.next().unwrap() += frame.1 * volume_music;
         }
     }
     let mut place = |pos: f64, clip: &AudioClip, volume: f32| {
         let position = (pos * sample_rate as f64).round() as usize * 2;
         let slice = &mut output[position..];
-        let len = (slice.len() / 2).min(clip.frames.len());
+        let len = (slice.len() / 2).min(clip.frame_count());
         let mut it = slice.iter_mut();
         // TODO optimize?
-        for frame in clip.frames[..len].iter() {
+        for frame in clip.frames()[..len].iter() {
             let dst = it.next().unwrap();
-            *dst += frame.left * volume;
+            *dst += frame.0 * volume;
             let dst = it.next().unwrap();
-            *dst += frame.right * volume;
+            *dst += frame.1 * volume;
         }
     };
     for note in chart.lines.iter().flat_map(|it| it.notes.iter()).filter(|it| !it.fake) {
