@@ -106,7 +106,7 @@ impl Scene for EndingScene {
 
     fn update(&mut self, tm: &mut crate::time::TimeManager) -> Result<()> {
         self.audio.recover_if_needed()?;
-        if tm.now() >= 0. && self.target.is_none() {
+        if tm.now() >= 0. && self.target.is_none() && self.bgm.paused() {
             self.bgm.play()?;
         }
         Ok(())
