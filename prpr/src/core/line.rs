@@ -36,7 +36,7 @@ pub struct JudgeLineCache {
 
 impl JudgeLineCache {
     pub fn new(notes: &mut Vec<Note>) -> Self {
-        notes.sort_by_key(|it| (it.plain(), !it.above, (it.height + it.object.translation.1.now()).not_nan(), it.kind.order()));
+        notes.sort_by_key(|it| (it.plain(), !it.above, (it.height * it.speed + it.object.translation.1.now()).not_nan(), it.kind.order()));
         let mut res = Self {
             update_order: Vec::new(),
             start_index_above: 0,
