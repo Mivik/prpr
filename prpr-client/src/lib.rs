@@ -7,10 +7,12 @@ mod task;
 use anyhow::Result;
 use data::Data;
 use macroquad::prelude::*;
+use once_cell::sync::Lazy;
 use prpr::{build_conf, core::init_assets, time::TimeManager, ui::Ui, Main};
 use scene::MainScene;
-use std::sync::{mpsc, Mutex};
+use std::sync::{mpsc, Arc, Condvar, Mutex};
 
+static EXIT_SIGNAL: Lazy<Arc<(Mutex<bool>, Condvar)>> = Lazy::new(Arc::default);
 static MESSAGES_TX: Mutex<Option<mpsc::Sender<bool>>> = Mutex::new(None);
 static DATA_PATH: Mutex<Option<String>> = Mutex::new(None);
 pub static mut DATA: Option<Data> = None;
@@ -118,6 +120,14 @@ async fn the_main() -> Result<()> {
 
     let tm = TimeManager::default();
     let mut fps_time = -1;
+    std::thread::spawn(move || {
+        let (lock, cvar) = &**EXIT_SIGNAL;
+        let mut stopped = lock.lock().unwrap();
+        while !*stopped {
+            stopped = cvar.wait(stopped).unwrap();
+        }
+        std::process::exit(0);
+    });
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;
@@ -178,6 +188,15 @@ pub extern "C" fn Java_quad_1native_QuadNative_prprActivityOnResume(_: *mut std:
     if let Some(tx) = MESSAGES_TX.lock().unwrap().as_mut() {
         let _ = tx.send(false);
     }
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "C" fn Java_quad_1native_QuadNative_prprActivityOnDestroy(_: *mut std::ffi::c_void, _: *const std::ffi::c_void) {
+    let (lock, cvar) = &**EXIT_SIGNAL;
+    let mut stopped = lock.lock().unwrap();
+    *stopped = true;
+    cvar.notify_one();
 }
 
 #[cfg(target_os = "android")]
