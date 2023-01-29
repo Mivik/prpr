@@ -202,8 +202,8 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                bail!("No note has been inserted yet");
-            };
+                        bail!("No note has been inserted yet");
+                    };
             lines[last_line].notes.last_mut().unwrap()
         }};
     }
@@ -265,6 +265,16 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
                         fake,
                         judge: JudgeStatus::NotJudged,
                     });
+                    if it.next() == Some("#") {
+                        last_note!().speed = it.take_f32()?;
+                    }
+                    if it.next() == Some("&") {
+                        let note = last_note!();
+                        let size = it.take_f32()?;
+                        if (size - 1.0).abs() >= EPS {
+                            note.object.scale.0 = AnimFloat::fixed(size);
+                        }
+                    }
                 }
                 '#' if cs.len() == 1 => {
                     last_note!().speed = it.take_f32()?;
