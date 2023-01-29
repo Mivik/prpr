@@ -5,13 +5,11 @@ use macroquad::prelude::*;
 use prpr::{
     core::{ParticleEmitter, SkinPack, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
     ext::{create_audio_manger, poll_future, LocalTask, RectExt, SafeTexture},
-    fs,
     scene::{request_file, return_file, show_error, show_message, take_file},
     time::TimeManager,
     ui::{RectButton, Ui},
 };
 use sasa::{AudioClip, AudioManager, Music, MusicParams, PlaySfxParams, Sfx};
-use std::ops::DerefMut;
 
 const RESET_WAIT: f32 = 0.8;
 
@@ -48,7 +46,7 @@ impl SettingsPage {
 
         let mut cali_tm = TimeManager::new(1., true);
         cali_tm.force = 3e-2;
-        let skin = SkinPack::load(fs::fs_from_assets("skin/")?.deref_mut()).await?;
+        let skin = SkinPack::from_path(get_data().config.skin_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap()))).await?;
         let emitter = ParticleEmitter::new(&skin, get_data().config.note_scale, skin.info.hide_particles)?;
         Ok(Self {
             focus: false,
@@ -75,9 +73,9 @@ impl SettingsPage {
             Ok((
                 skin,
                 if let Some(path) = path {
-                    let dst = format!("{}/chart.zip", dir::root()?);
+                    let dst = format!("{}/skin.zip", dir::root()?);
                     std::fs::copy(path, &dst).context("保存皮肤失败")?;
-                    Some(dst)
+                    Some("skin.zip".to_owned())
                 } else {
                     None
                 },

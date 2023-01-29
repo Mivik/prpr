@@ -80,10 +80,10 @@ pub struct SkinPack {
 }
 
 impl SkinPack {
-    pub async fn from_path(path: Option<&String>) -> Result<Self> {
+    pub async fn from_path<T: AsRef<Path>>(path: Option<T>) -> Result<Self> {
         Self::load(
             if let Some(path) = path {
-                crate::fs::fs_from_file(Path::new(&path))?
+                crate::fs::fs_from_file(path.as_ref())?
             } else {
                 crate::fs::fs_from_assets("skin/")?
             }
