@@ -318,14 +318,18 @@ impl Page for SettingsPage {
 
     fn pause(&mut self) -> Result<()> {
         save_data()?;
-        self.cali_tm.pause();
-        self.cali.pause()?;
+        if self.focus {
+            self.cali_tm.pause();
+            self.cali.pause()?;
+        }
         Ok(())
     }
 
     fn resume(&mut self) -> Result<()> {
-        self.cali_tm.resume();
-        self.cali.play()?;
+        if self.focus {
+            self.cali_tm.resume();
+            self.cali.play()?;
+        }
         Ok(())
     }
 }
