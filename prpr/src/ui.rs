@@ -78,7 +78,7 @@ impl FillVertexConstructor<Vertex> for ShadedConstructor {
 
 #[must_use = "DrawText does nothing until you 'draw' or 'measure' it"]
 pub struct DrawText<'a> {
-    ui: &'a mut Ui,
+    pub ui: &'a mut Ui,
     text: String,
     font: Option<Font>,
     size: f32,
@@ -627,6 +627,10 @@ impl Ui {
             *entry = None;
         }
         false
+    }
+
+    pub fn touches(&self) -> &[Touch] {
+        self.touches.as_ref().unwrap()
     }
 
     pub fn accent(&self) -> Color {

@@ -368,6 +368,10 @@ impl SongScene {
         if ui.button("tweak_offset", r, "调整延迟") {
             self.play_chart(GameMode::TweakOffset).unwrap();
         }
+        ui.dy(r.h + 0.01);
+        if ui.button("exercise", r, "分段练习") {
+            self.play_chart(GameMode::Exercise).unwrap();
+        }
     }
 
     fn side_chart_info(&mut self, ui: &mut Ui, t: f32) {
