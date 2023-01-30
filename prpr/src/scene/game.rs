@@ -374,12 +374,10 @@ impl GameScene {
                     }
                     Some(1) => {
                         let mut pos = self.music.position();
-                        if self.mode == GameMode::Exercise {
-                            if tm.now() > self.exercise_range.end as f64 {
-                                tm.seek_to(self.exercise_range.start as f64);
-                                self.music.seek_to(self.exercise_range.start)?;
-                                pos = self.exercise_range.start;
-                            }
+                        if self.mode == GameMode::Exercise && tm.now() > self.exercise_range.end as f64 {
+                            tm.seek_to(self.exercise_range.start as f64);
+                            self.music.seek_to(self.exercise_range.start)?;
+                            pos = self.exercise_range.start;
                         }
                         self.music.play()?;
                         res.time -= 3.;
@@ -763,6 +761,7 @@ impl Scene for GameScene {
                 Some(res)
             };
             let offset = self.offset().min(0.);
+            #[allow(clippy::manual_clamp)]
             match id.as_str() {
                 "exercise_start" => {
                     if let Some(t) = parse_time(&text) {
@@ -868,7 +867,7 @@ impl Scene for GameScene {
                     .chart_target
                     .as_ref()
                     .map(|it| it.output())
-                    .or_else(|| self.res.camera.render_target),
+                    .or(self.res.camera.render_target),
                 ..Default::default()
             });
             self.tweak_offset(ui, Self::interactive(&self.res, &self.state));
@@ -890,17 +889,17 @@ impl Scene for GameScene {
             // render the texture onto screen
             if let Some(target) = &self.res.chart_target {
                 self.gl.flush();
-                if !self.compatible_mode {
-                    if !copy_fbo(
+                if !self.compatible_mode
+                    && !copy_fbo(
                         target.output().render_pass.gl_internal_id(self.gl.quad_context),
                         self.res
                             .camera
                             .render_target
                             .map_or(0, |it| it.render_pass.gl_internal_id(self.gl.quad_context)),
                         dim,
-                    ) {
-                        self.compatible_mode = true;
-                    }
+                    )
+                {
+                    self.compatible_mode = true;
                 }
                 if self.compatible_mode {
                     push_camera_state();

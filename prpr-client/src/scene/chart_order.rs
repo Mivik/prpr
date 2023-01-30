@@ -13,7 +13,7 @@ pub enum ChartOrder {
 }
 
 impl ChartOrder {
-    pub fn apply(&self, charts: &mut Vec<ChartItem>) {
+    pub fn apply(&self, charts: &mut [ChartItem]) {
         match self {
             Self::Default => {
                 charts.reverse();
@@ -26,7 +26,7 @@ impl ChartOrder {
 }
 
 const ORDER_NUM: usize = 4;
-const ORDER_LABELS: [&'static str; ORDER_NUM] = ["从新到旧", "从旧到新", "名字正序", "名字倒序"];
+const ORDER_LABELS: [&str; ORDER_NUM] = ["从新到旧", "从旧到新", "名字正序", "名字倒序"];
 static ORDERS: [(ChartOrder, bool); ORDER_NUM] = [
     (ChartOrder::Default, false),
     (ChartOrder::Default, true),

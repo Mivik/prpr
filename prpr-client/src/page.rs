@@ -89,7 +89,7 @@ fn trigger_grid(phase: TouchPhase, choose: &mut Option<u32>, id: Option<u32>) ->
 }
 
 pub fn load_local(tex: &SafeTexture, order: &(ChartOrder, bool)) -> Vec<ChartItem> {
-    let mut res = get_data()
+    let mut res: Vec<_> = get_data()
         .charts
         .iter()
         .map(|it| ChartItem {

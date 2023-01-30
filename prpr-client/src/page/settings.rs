@@ -74,7 +74,7 @@ impl SettingsPage {
                 skin,
                 if let Some(path) = path {
                     let dst = format!("{}/skin.zip", dir::root()?);
-                    std::fs::copy(path, &dst).context("保存皮肤失败")?;
+                    std::fs::copy(path, dst).context("保存皮肤失败")?;
                     Some("skin.zip".to_owned())
                 } else {
                     None

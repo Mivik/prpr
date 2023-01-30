@@ -599,19 +599,17 @@ impl Scene for SongScene {
                         return Ok(true);
                     }
                 }
-                if loaded || self.remote {
-                    if self.center_button.touch(touch) {
-                        if self.remote {
-                            if self.downloading.take().is_some() {
-                                show_message("已取消");
-                            } else {
-                                self.start_download()?;
-                            }
+                if (loaded || self.remote) && self.center_button.touch(touch) {
+                    if self.remote {
+                        if self.downloading.take().is_some() {
+                            show_message("已取消");
                         } else {
-                            self.play_chart(GameMode::Normal)?;
+                            self.start_download()?;
                         }
-                        return Ok(true);
+                    } else {
+                        self.play_chart(GameMode::Normal)?;
                     }
+                    return Ok(true);
                 }
                 if self.back_button.touch(touch) && (!self.remote || self.downloading.is_none()) {
                     self.next_scene = Some(NextScene::Pop);

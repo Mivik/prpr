@@ -106,7 +106,7 @@ async fn the_main() -> Result<()> {
             AudioClip::new(load_file($path).await?).with_context(|| format!("加载音效 `{}` 失败", $path))?
         };
     }
-    let music: Result<_> = async { Ok(AudioClip::new(fs.load_file(&info.music).await?)?) }.await;
+    let music: Result<_> = async { AudioClip::new(fs.load_file(&info.music).await?) }.await;
     let music = music.context("加载音乐失败")?;
     let ending = ld!("ending.mp3");
     let track_length = music.length() as f64;
