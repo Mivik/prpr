@@ -629,10 +629,6 @@ impl Ui {
         false
     }
 
-    pub fn touches(&self) -> &[Touch] {
-        self.touches.as_ref().unwrap()
-    }
-
     pub fn accent(&self) -> Color {
         Color::from_rgba(0x21, 0x96, 0xf3, 0xff)
     }

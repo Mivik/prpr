@@ -412,8 +412,7 @@ impl GameScene {
                 ui.fill_circle(st, -eh, rad, BLUE);
                 if self.exercise_press.is_none() {
                     let r = ui.rect_to_global(Rect::new(st, -eh, 0., 0.).feather(rad));
-                    self.exercise_press = ui
-                        .touches()
+                    self.exercise_press = Judge::get_touches()
                         .iter()
                         .find(|it| it.phase == TouchPhase::Started && r.contains(it.position))
                         .map(|it| (-1, it.id));
@@ -422,8 +421,7 @@ impl GameScene {
                 ui.fill_circle(en, eh, rad, RED);
                 if self.exercise_press.is_none() {
                     let r = ui.rect_to_global(Rect::new(en, eh, 0., 0.).feather(rad));
-                    self.exercise_press = ui
-                        .touches()
+                    self.exercise_press = Judge::get_touches()
                         .iter()
                         .find(|it| it.phase == TouchPhase::Started && r.contains(it.position))
                         .map(|it| (1, it.id));
@@ -432,15 +430,14 @@ impl GameScene {
                 ui.fill_circle(cur, 0., rad, GREEN);
                 if self.exercise_press.is_none() {
                     let r = ui.rect_to_global(Rect::new(cur, 0., 0., 0.).feather(rad));
-                    self.exercise_press = ui
-                        .touches()
+                    self.exercise_press = Judge::get_touches()
                         .iter()
                         .find(|it| it.phase == TouchPhase::Started && r.contains(it.position))
                         .map(|it| (0, it.id));
                 }
                 ui.text(fmt_time(t)).pos(0., -0.23).anchor(0.5, 0.).size(0.8).draw();
                 if let Some((ctrl, id)) = &self.exercise_press {
-                    if let Some(touch) = ui.touches().iter().rfind(|it| it.id == *id) {
+                    if let Some(touch) = Judge::get_touches().iter().rfind(|it| it.id == *id) {
                         let x = touch.position.x;
                         let p = (x + hw) / (hw * 2.) * (self.res.track_length - sp) + sp;
                         let p = if self.res.track_length - sp <= 3. || *ctrl == 0 {
@@ -862,12 +859,7 @@ impl Scene for GameScene {
             self.gl.quad_gl.viewport(None);
             set_camera(&Camera2D {
                 zoom: vec2(1., -screen_aspect()),
-                render_target: self
-                    .res
-                    .chart_target
-                    .as_ref()
-                    .map(|it| it.output())
-                    .or(self.res.camera.render_target),
+                render_target: self.res.chart_target.as_ref().map(|it| it.output()).or(self.res.camera.render_target),
                 ..Default::default()
             });
             self.tweak_offset(ui, Self::interactive(&self.res, &self.state));
