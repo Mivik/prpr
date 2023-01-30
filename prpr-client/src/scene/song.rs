@@ -18,7 +18,7 @@ use prpr::{
     ext::{poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, ZipFileSystem},
     info::ChartInfo,
-    scene::{show_error, show_message, LoadingScene, NextScene, Scene},
+    scene::{show_error, show_message, GameMode, LoadingScene, NextScene, Scene},
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Dialog, RectButton, Scroll, Ui},
 };
@@ -120,12 +120,14 @@ impl TrashBin {
 pub struct SongScene {
     chart: ChartItem,
     illustration: SafeTexture,
+    icon_tool: SafeTexture,
     icon_edit: SafeTexture,
     icon_back: SafeTexture,
     icon_download: SafeTexture,
     icon_play: SafeTexture,
     bin: TrashBin,
 
+    tool_button: RectButton,
     edit_button: RectButton,
     back_button: RectButton,
     center_button: RectButton,
@@ -145,7 +147,8 @@ pub struct SongScene {
     save_task: Option<Task<Result<()>>>,
     upload_task: Option<Task<Result<()>>>,
     info_edit: Option<ChartInfoEdit>,
-    edit_enter_time: f32,
+    side_show_edit: bool,
+    side_enter_time: f32,
 
     downloading: Option<(String, Arc<Mutex<f32>>, Task<Result<LocalChart>>)>,
     remote: bool,
@@ -176,6 +179,7 @@ impl SongScene {
     pub fn new(
         chart: ChartItem,
         illustration: SafeTexture,
+        icon_tool: SafeTexture,
         icon_edit: SafeTexture,
         icon_back: SafeTexture,
         icon_download: SafeTexture,
@@ -194,12 +198,14 @@ impl SongScene {
         Self {
             chart,
             illustration,
+            icon_tool,
             icon_edit,
             icon_back,
             icon_download,
             icon_play,
             bin,
 
+            tool_button: RectButton::new(),
             edit_button: RectButton::new(),
             back_button: RectButton::new(),
             center_button: RectButton::new(),
@@ -219,7 +225,8 @@ impl SongScene {
             save_task: None,
             upload_task: None,
             info_edit: None,
-            edit_enter_time: f32::INFINITY,
+            side_show_edit: true,
+            side_enter_time: f32::INFINITY,
 
             downloading: None,
             remote,
@@ -261,6 +268,9 @@ impl SongScene {
             r.x -= s + 0.02;
             ui.fill_rect(r, (*self.icon_edit, r, ScaleType::Fit, color));
             self.edit_button.set(ui, r);
+            r.x -= s + 0.02;
+            ui.fill_rect(r, (*self.icon_tool, r, ScaleType::Fit, color));
+            self.tool_button.set(ui, r);
         });
 
         let color = Color::new(1., 1., 1., p);
@@ -325,10 +335,10 @@ impl SongScene {
                 (2., sy + 0.06)
             });
         });
-        if self.edit_enter_time.is_finite() {
-            let p = ((t - self.edit_enter_time.abs()) / EDIT_TRANSIT).min(1.);
+        if self.side_enter_time.is_finite() {
+            let p = ((t - self.side_enter_time.abs()) / EDIT_TRANSIT).min(1.);
             let p = 1. - (1. - p).powi(3);
-            let p = if self.edit_enter_time < 0. { 1. - p } else { p };
+            let p = if self.side_enter_time < 0. { 1. - p } else { p };
             ui.fill_rect(ui.screen_rect(), Color::new(0., 0., 0., p * 0.6));
             let lf = f32::tween(&1.04, &(1. - EDIT_CHART_INFO_WIDTH), p);
             ui.scope(|ui| {
@@ -338,94 +348,117 @@ impl SongScene {
                 ui.fill_rect(r, (Color::default(), (r.x, r.y), BLACK, (r.right(), r.y)));
                 let r = Rect::new(0., 0., 1. - lf, ui.top * 2.);
                 ui.fill_rect(r, BLACK);
-                let h = 0.11;
-                let pad = 0.03;
-                let width = EDIT_CHART_INFO_WIDTH - pad;
 
-                let vpad = 0.02;
-                let hpad = 0.01;
-                let dx = width / 3.;
-                let mut r = Rect::new(hpad, ui.top * 2. - h + vpad, dx - hpad * 2., h - vpad * 2.);
-                if ui.button("cancel", r, "取消") {
-                    self.edit_enter_time = -t;
+                if self.side_show_edit {
+                    self.side_chart_info(ui, t);
+                } else {
+                    self.side_tools(ui);
                 }
-                r.x += dx;
-                if ui.button(
-                    "upload",
-                    r,
-                    if self.upload_task.is_some() {
-                        UPLOAD_STATUS.lock().unwrap().clone().unwrap()
-                    } else {
-                        "上传".to_owned()
-                    },
-                ) && self.upload_task.is_none()
-                    && self.save_task.is_none()
-                {
-                    if get_data().me.is_none() {
-                        show_message("请先登录！");
-                    } else if self.chart.path.starts_with(':') {
-                        show_message("不能上传内置谱面");
-                    } else if self.chart.info.uploader.is_some() {
-                        show_message("不能上传下载的谱面");
-                    } else if !CONFIRM_UPLOAD.load(Ordering::SeqCst) {
-                        Dialog::plain("上传须知", include_str!("upload_info.txt"))
-                            .buttons(vec!["再想想".to_owned(), "确认上传".to_owned()])
-                            .listener(|pos| {
-                                if pos == 1 {
-                                    CONFIRM_UPLOAD.store(true, Ordering::SeqCst);
-                                }
-                            })
-                            .show();
-                    }
-                }
-                r.x += dx;
-                if ui.button("save", r, if self.save_task.is_some() { "保存中…" } else { "保存" })
-                    && self.upload_task.is_none()
-                    && self.save_task.is_none()
-                {
-                    if self.chart.path.starts_with(':') {
-                        show_message("不能更改内置谱面");
-                    } else {
-                        if let Some(edit) = &self.info_edit {
-                            self.chart_info = Some(edit.info.clone());
-                            let path = self.chart.path.clone();
-                            let edit = edit.clone();
-                            self.save_task = Some(Task::new(async move {
-                                let mut fs = fs_from_path(&path)?;
-                                let patches = edit.to_patches().await.context("加载文件失败")?;
-                                if let Some(zip) = fs.as_any().downcast_mut::<ZipFileSystem>() {
-                                    let bytes = update_zip(&mut zip.0.lock().unwrap(), patches).context("写入配置文件失败")?;
-                                    std::fs::write(format!("{}/{}", dir::charts()?, path), bytes).context("保存文件失败")?;
-                                } else {
-                                    unreachable!();
-                                }
-                                Ok(())
-                            }));
-                        }
-                        self.update_chart_info(self.chart_info.clone().unwrap().into());
-                    }
-                }
-
-                self.edit_scroll.size((width, ui.top * 2. - h));
-                self.edit_scroll.render(ui, |ui| {
-                    let (w, mut h) = render_chart_info(ui, self.info_edit.as_mut().unwrap(), width);
-                    ui.dx(0.02);
-                    ui.dy(h);
-                    let r = Rect::new(0., 0., EDIT_CHART_INFO_WIDTH - 0.2, 0.06);
-                    if ui.button("fix", r, "自动修复谱面") {
-                        if let Err(err) =
-                            fs::fix_info(fs_from_path(&self.chart.path).unwrap().deref_mut(), &mut self.info_edit.as_mut().unwrap().info).block_on()
-                        {
-                            show_error(err.context("修复失败"));
-                        } else {
-                            show_message("修复成功");
-                        }
-                    }
-                    h += r.h + s;
-                    (w, h)
-                });
             });
         }
+    }
+
+    fn side_tools(&mut self, ui: &mut Ui) {
+        let pad = 0.03;
+        let width = EDIT_CHART_INFO_WIDTH - pad;
+        ui.dy(0.02);
+        let r = ui.text("功能").size(0.7).draw();
+        ui.dy(r.h + 0.03);
+        let r = Rect::new(0., 0., width, 0.07);
+        if ui.button("tweak_offset", r, "调整延迟") {
+            self.play_chart(GameMode::TweakOffset).unwrap();
+        }
+    }
+
+    fn side_chart_info(&mut self, ui: &mut Ui, t: f32) {
+        let h = 0.11;
+        let pad = 0.03;
+        let width = EDIT_CHART_INFO_WIDTH - pad;
+
+        let vpad = 0.02;
+        let hpad = 0.01;
+        let dx = width / 3.;
+        let mut r = Rect::new(hpad, ui.top * 2. - h + vpad, dx - hpad * 2., h - vpad * 2.);
+        if ui.button("cancel", r, "取消") {
+            self.side_enter_time = -t;
+        }
+        r.x += dx;
+        if ui.button(
+            "upload",
+            r,
+            if self.upload_task.is_some() {
+                UPLOAD_STATUS.lock().unwrap().clone().unwrap()
+            } else {
+                "上传".to_owned()
+            },
+        ) && self.upload_task.is_none()
+            && self.save_task.is_none()
+        {
+            if get_data().me.is_none() {
+                show_message("请先登录！");
+            } else if self.chart.path.starts_with(':') {
+                show_message("不能上传内置谱面");
+            } else if self.chart.info.uploader.is_some() {
+                show_message("不能上传下载的谱面");
+            } else if !CONFIRM_UPLOAD.load(Ordering::SeqCst) {
+                Dialog::plain("上传须知", include_str!("upload_info.txt"))
+                    .buttons(vec!["再想想".to_owned(), "确认上传".to_owned()])
+                    .listener(|pos| {
+                        if pos == 1 {
+                            CONFIRM_UPLOAD.store(true, Ordering::SeqCst);
+                        }
+                    })
+                    .show();
+            }
+        }
+        r.x += dx;
+        if ui.button("save", r, if self.save_task.is_some() { "保存中…" } else { "保存" }) && self.upload_task.is_none() && self.save_task.is_none()
+        {
+            if self.chart.path.starts_with(':') {
+                show_message("不能更改内置谱面");
+            } else {
+                self.save_edit();
+            }
+        }
+
+        self.edit_scroll.size((width, ui.top * 2. - h));
+        self.edit_scroll.render(ui, |ui| {
+            let (w, mut h) = render_chart_info(ui, self.info_edit.as_mut().unwrap(), width);
+            ui.dx(0.02);
+            ui.dy(h);
+            let r = Rect::new(0., 0., EDIT_CHART_INFO_WIDTH - 0.2, 0.06);
+            if ui.button("fix", r, "自动修复谱面") {
+                if let Err(err) =
+                    fs::fix_info(fs_from_path(&self.chart.path).unwrap().deref_mut(), &mut self.info_edit.as_mut().unwrap().info).block_on()
+                {
+                    show_error(err.context("修复失败"));
+                } else {
+                    show_message("修复成功");
+                }
+            }
+            h += r.h + 0.1;
+            (w, h)
+        });
+    }
+
+    fn save_edit(&mut self) {
+        if let Some(edit) = &self.info_edit {
+            self.chart_info = Some(edit.info.clone());
+            let path = self.chart.path.clone();
+            let edit = edit.clone();
+            self.save_task = Some(Task::new(async move {
+                let mut fs = fs_from_path(&path)?;
+                let patches = edit.to_patches().await.context("加载文件失败")?;
+                if let Some(zip) = fs.as_any().downcast_mut::<ZipFileSystem>() {
+                    let bytes = update_zip(&mut zip.0.lock().unwrap(), patches).context("写入配置文件失败")?;
+                    std::fs::write(format!("{}/{}", dir::charts()?, path), bytes).context("保存文件失败")?;
+                } else {
+                    unreachable!();
+                }
+                Ok(())
+            }));
+        }
+        self.update_chart_info(self.chart_info.clone().unwrap().into());
     }
 
     fn update_chart_info(&mut self, mut info: BriefChartInfo) {
@@ -478,17 +511,57 @@ impl SongScene {
         ));
         Ok(())
     }
+
+    fn play_chart(&mut self, mode: GameMode) -> Result<()> {
+        if self.scene_task.is_some() {
+            return Ok(());
+        }
+        let fs = fs_from_path(&self.chart.path)?;
+        let info = self.chart_info.clone().unwrap();
+        self.scene_task = Some(Box::pin(async move {
+            LoadingScene::new(
+                mode,
+                info,
+                Config {
+                    player_name: get_data().me.as_ref().map(|it| it.name.clone()).unwrap_or_else(|| "游客".to_string()),
+                    skin_path: get_data().config.skin_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap())),
+                    ..get_data().config.clone()
+                },
+                fs,
+                get_data().me.as_ref().and_then(|it| UserManager::get_avatar(&it.id)),
+                None,
+            )
+            .await
+        }));
+        Ok(())
+    }
 }
 
 impl Scene for SongScene {
     fn on_result(&mut self, _tm: &mut TimeManager, result: Box<dyn std::any::Any>) -> Result<()> {
-        show_error(result.downcast::<anyhow::Error>().unwrap().context("加载谱面失败"));
+        let result = match result.downcast::<anyhow::Error>() {
+            Ok(error) => {
+                show_error(error.context("加载谱面失败"));
+                return Ok(());
+            }
+            Err(res) => res,
+        };
+        let _result = match result.downcast::<Option<f32>>() {
+            Ok(offset) => {
+                if let Some(offset) = *offset {
+                    self.chart_info.as_mut().unwrap().offset = offset;
+                    self.info_edit = Some(ChartInfoEdit::new(self.chart_info.clone().unwrap()));
+                    self.save_edit();
+                }
+                return Ok(());
+            }
+            Err(res) => res,
+        };
         Ok(())
     }
 
     fn enter(&mut self, tm: &mut TimeManager, target: Option<RenderTarget>) -> Result<()> {
         self.target = target;
-        tm.reset();
         if self.first_in {
             self.first_in = false;
             tm.seek_to(-FADEIN_TIME as _);
@@ -500,18 +573,29 @@ impl Scene for SongScene {
         if tm.now() < 0. {
             return Ok(false);
         }
+        if self.scene_task.is_some() {
+            return Ok(true);
+        }
         let loaded = self.chart_info.is_some();
         if self.scroll_progress() < 0.4 {
-            if self.edit_enter_time.is_infinite() {
-                if loaded || self.remote {
-                    if !self.remote && self.bin.touch(touch, tm.now() as _) {
+            if self.side_enter_time.is_infinite() {
+                if loaded && !self.remote {
+                    if self.bin.touch(touch, tm.now() as _) {
                         return Ok(true);
                     }
-                    if !self.remote && self.edit_button.touch(touch) {
+                    if self.tool_button.touch(touch) {
+                        self.side_show_edit = false;
+                        self.side_enter_time = tm.now() as _;
+                        return Ok(true);
+                    }
+                    if self.edit_button.touch(touch) {
                         self.info_edit = Some(ChartInfoEdit::new(self.chart_info.clone().unwrap()));
-                        self.edit_enter_time = tm.now() as _;
+                        self.side_show_edit = true;
+                        self.side_enter_time = tm.now() as _;
                         return Ok(true);
                     }
+                }
+                if loaded || self.remote {
                     if self.center_button.touch(touch) {
                         if self.remote {
                             if self.downloading.take().is_some() {
@@ -520,22 +604,7 @@ impl Scene for SongScene {
                                 self.start_download()?;
                             }
                         } else {
-                            let fs = fs_from_path(&self.chart.path)?;
-                            let info = self.chart_info.clone().unwrap();
-                            self.scene_task = Some(Box::pin(async move {
-                                LoadingScene::new(
-                                    info,
-                                    Config {
-                                        player_name: get_data().me.as_ref().map(|it| it.name.clone()).unwrap_or_else(|| "游客".to_string()),
-                                        skin_path: get_data().config.skin_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap())),
-                                        ..get_data().config.clone()
-                                    },
-                                    fs,
-                                    get_data().me.as_ref().and_then(|it| UserManager::get_avatar(&it.id)),
-                                    None,
-                                )
-                                .await
-                            }));
+                            self.play_chart(GameMode::Normal)?;
                         }
                         return Ok(true);
                     }
@@ -544,13 +613,13 @@ impl Scene for SongScene {
                     self.next_scene = Some(NextScene::Pop);
                     return Ok(true);
                 }
-            } else if self.edit_enter_time > 0. && tm.now() as f32 > self.edit_enter_time + EDIT_TRANSIT {
+            } else if self.side_enter_time > 0. && tm.now() as f32 > self.side_enter_time + EDIT_TRANSIT {
                 if touch.position.x < 1. - EDIT_CHART_INFO_WIDTH
                     && touch.phase == TouchPhase::Started
                     && self.save_task.is_none()
                     && self.illustration_task.is_none()
                 {
-                    self.edit_enter_time = -tm.now() as _;
+                    self.side_enter_time = -tm.now() as _;
                     return Ok(true);
                 }
                 if self.edit_scroll.touch(touch, tm.now() as _) {
@@ -558,7 +627,7 @@ impl Scene for SongScene {
                 }
             }
         }
-        if self.edit_enter_time.is_infinite() && self.scroll.touch(touch, tm.now() as _) {
+        if self.side_enter_time.is_infinite() && self.scroll.touch(touch, tm.now() as _) {
             return Ok(true);
         }
         Ok(false)
@@ -579,8 +648,8 @@ impl Scene for SongScene {
         self.bin.update(t);
         self.scroll.update(t);
         self.edit_scroll.update(t);
-        if self.edit_enter_time < 0. && -tm.now() as f32 + EDIT_TRANSIT < self.edit_enter_time {
-            self.edit_enter_time = f32::INFINITY;
+        if self.side_enter_time < 0. && -tm.now() as f32 + EDIT_TRANSIT < self.side_enter_time {
+            self.side_enter_time = f32::INFINITY;
         }
         if let Some(task) = &mut self.info_task {
             if let Some(info) = task.take() {

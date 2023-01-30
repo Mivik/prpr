@@ -6,7 +6,7 @@ use prpr::{
     ext::{poll_future, screen_aspect, LocalTask},
     fs::{FileSystem, PatchedFileSystem},
     info::ChartInfo,
-    scene::{show_error, show_message, LoadingScene, NextScene, Scene},
+    scene::{show_error, show_message, LoadingScene, NextScene, Scene, GameMode},
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Scroll, Ui},
 };
@@ -84,7 +84,7 @@ impl Scene for MainScene {
                 let fs = self.fs.clone_box();
                 let edit = self.edit.clone();
                 self.loading_scene_task = Some(Box::pin(async move {
-                    LoadingScene::new(info, config, Box::new(PatchedFileSystem(fs, edit.to_patches().await?)), None, None).await
+                    LoadingScene::new(GameMode::Normal, info, config, Box::new(PatchedFileSystem(fs, edit.to_patches().await?)), None, None).await
                 }));
             }
             r.x += dx;

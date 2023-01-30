@@ -646,6 +646,7 @@ impl Ui {
                 .max_width(rect.w)
                 .size(0.42)
                 .color(BLACK)
+                .no_baseline()
                 .draw();
             self.clicked(rect, entry)
         })

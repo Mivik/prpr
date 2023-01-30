@@ -4,7 +4,7 @@ use prpr::{
     build_conf,
     core::init_assets,
     fs,
-    scene::{show_error, LoadingScene, NextScene, Scene},
+    scene::{show_error, GameMode, LoadingScene, NextScene, Scene},
     time::TimeManager,
     ui::Ui,
     Main,
@@ -96,8 +96,11 @@ async fn main() -> Result<()> {
 
     let tm = TimeManager::default();
     let ctm = TimeManager::from_config(&config); // strange variable name...
-    let mut main =
-        Main::new(Box::new(BaseScene(Some(NextScene::Overlay(Box::new(LoadingScene::new(info, config, fs, None, None).await?))), false)), ctm, None)?;
+    let mut main = Main::new(
+        Box::new(BaseScene(Some(NextScene::Overlay(Box::new(LoadingScene::new(GameMode::Normal, info, config, fs, None, None).await?))), false)),
+        ctm,
+        None,
+    )?;
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;

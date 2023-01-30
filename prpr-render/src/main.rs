@@ -8,7 +8,7 @@ use prpr::{
     config::Config,
     core::{init_assets, MSRenderTarget, NoteKind},
     fs::{self, PatchedFileSystem},
-    scene::{GameScene, LoadingScene, BILLBOARD},
+    scene::{GameMode, GameScene, LoadingScene, BILLBOARD},
     time::TimeManager,
     ui::{ChartInfoEdit, Ui},
     Main,
@@ -269,20 +269,21 @@ async fn the_main() -> Result<()> {
     }));
     let fs = Box::new(PatchedFileSystem(fs, edit.to_patches().await?));
     static MSAA: AtomicBool = AtomicBool::new(false);
-    let mut main = Main::new(Box::new(LoadingScene::new(edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, {
-        let mut cnt = 0;
-        let mst = Rc::clone(&mst);
-        move || {
-            cnt += 1;
-            if cnt == 1 || cnt == 3 {
-                MSAA.store(true, Ordering::SeqCst);
-                Some(mst.input())
-            } else {
-                MSAA.store(false, Ordering::SeqCst);
-                Some(mst.output())
+    let mut main =
+        Main::new(Box::new(LoadingScene::new(GameMode::Normal, edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, {
+            let mut cnt = 0;
+            let mst = Rc::clone(&mst);
+            move || {
+                cnt += 1;
+                if cnt == 1 || cnt == 3 {
+                    MSAA.store(true, Ordering::SeqCst);
+                    Some(mst.input())
+                } else {
+                    MSAA.store(false, Ordering::SeqCst);
+                    Some(mst.output())
+                }
             }
-        }
-    })?;
+        })?;
     main.show_billboard = false;
 
     const O: f64 = LoadingScene::TOTAL_TIME as f64 + GameScene::BEFORE_TIME as f64;

@@ -92,6 +92,18 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
             }
         }
 
+        let mut string = format!("{:.3}", info.offset);
+        let r = ui.input("偏移(s)", &mut string, len);
+        dy!(r.h + s);
+        match string.parse::<f32>() {
+            Err(_) => {
+                show_message("输入非法");
+            }
+            Ok(value) => {
+                info.offset = value;
+            }
+        }
+
         let mut string = format!("{:.5}", info.aspect_ratio);
         let r = ui.input("宽高比", &mut string, len);
         dy!(r.h + s);

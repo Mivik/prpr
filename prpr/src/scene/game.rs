@@ -2,7 +2,7 @@ use super::{draw_background, EndingScene, NextScene, Scene};
 use crate::{
     config::Config,
     core::{copy_fbo, BadNote, Chart, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
-    ext::{draw_text_aligned, screen_aspect, SafeTexture},
+    ext::{draw_text_aligned, screen_aspect, RectExt, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
     judge::Judge,
@@ -25,6 +25,12 @@ extern "C" {
     fn on_game_start();
 }
 
+#[derive(PartialEq, Eq)]
+pub enum GameMode {
+    Normal,
+    TweakOffset,
+}
+
 enum State {
     Starting,
     BeforeMusic,
@@ -34,12 +40,14 @@ enum State {
 
 pub struct GameScene {
     should_exit: bool,
-    next_scene: Option<Box<dyn Scene>>,
+    next_scene: Option<NextScene>,
 
+    pub mode: GameMode,
     pub res: Resource,
     pub chart: Chart,
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
+    info_offset: f32,
     compatible_mode: bool,
     effects: Vec<Effect>,
 
@@ -106,8 +114,9 @@ impl GameScene {
     }
 
     pub async fn new(
+        mode: GameMode,
         info: ChartInfo,
-        config: Config,
+        mut config: Config,
         mut fs: Box<dyn FileSystem>,
         player: Option<SafeTexture>,
         background: SafeTexture,
@@ -115,6 +124,9 @@ impl GameScene {
         font: Font,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
     ) -> Result<Self> {
+        if matches!(mode, GameMode::TweakOffset) {
+            config.autoplay = true;
+        }
         let mut chart = Self::load_chart(&mut fs, &info).await?;
         let effects = std::mem::take(&mut chart.global_effects);
         if config.fxaa {
@@ -123,6 +135,7 @@ impl GameScene {
                 .push(Effect::new(0.0..f32::INFINITY, include_str!("fxaa.glsl"), Vec::new(), false).unwrap());
         }
 
+        let info_offset = info.offset;
         let mut res = Resource::new(config, info, fs, player, background, illustration, font, chart.effects.is_empty() && effects.is_empty())
             .await
             .context("Failed to load resources")?;
@@ -134,12 +147,14 @@ impl GameScene {
             should_exit: false,
             next_scene: None,
 
+            mode,
             res,
             chart,
             judge,
             gl: unsafe { get_internal_gl() },
             compatible_mode: false,
             effects,
+            info_offset,
 
             music,
 
@@ -358,6 +373,62 @@ impl GameScene {
     fn interactive(res: &Resource, state: &State) -> bool {
         res.config.interactive && matches!(state, State::Playing)
     }
+
+    fn tweak_offset(&mut self, ui: &mut Ui, ita: bool) {
+        ui.scope(|ui| {
+            let width = 0.55;
+            let height = 0.4;
+            ui.dx(1. - width - 0.02);
+            ui.dy(ui.top - height - 0.02);
+            ui.fill_rect(Rect::new(0., 0., width, height), GRAY);
+            ui.dy(0.02);
+            ui.text("调整延迟").pos(width / 2., 0.).anchor(0.5, 0.).size(0.7).draw();
+            ui.dy(0.16);
+            let r = ui
+                .text(format!("{}ms", (self.info_offset * 1000.).round() as i32))
+                .pos(width / 2., 0.)
+                .anchor(0.5, 0.)
+                .size(0.6)
+                .no_baseline()
+                .draw();
+            let d = 0.14;
+            if ui.button("lg_sub", Rect::new(d, r.center().y, 0., 0.).feather(0.026), "-") && ita {
+                self.info_offset -= 0.05;
+            }
+            if ui.button("lg_add", Rect::new(width - d, r.center().y, 0., 0.).feather(0.026), "+") && ita {
+                self.info_offset += 0.05;
+            }
+            let d = 0.08;
+            if ui.button("sm_sub", Rect::new(d, r.center().y, 0., 0.).feather(0.022), "-") && ita {
+                self.info_offset -= 0.005;
+            }
+            if ui.button("sm_add", Rect::new(width - d, r.center().y, 0., 0.).feather(0.022), "+") && ita {
+                self.info_offset += 0.005;
+            }
+            let d = 0.03;
+            if ui.button("ti_sub", Rect::new(d, r.center().y, 0., 0.).feather(0.017), "-") && ita {
+                self.info_offset -= 0.001;
+            }
+            if ui.button("ti_add", Rect::new(width - d, r.center().y, 0., 0.).feather(0.017), "+") && ita {
+                self.info_offset += 0.001;
+            }
+            ui.dy(0.14);
+            let pad = 0.02;
+            let spacing = 0.01;
+            let mut r = Rect::new(pad, 0., (width - pad * 2. - spacing * 2.) / 3., 0.06);
+            if ui.button("cancel", r, "取消") {
+                self.next_scene = Some(NextScene::PopWithResult(Box::new(None::<f32>)));
+            }
+            r.x += r.w + spacing;
+            if ui.button("reset", r, "重置") {
+                self.info_offset = 0.;
+            }
+            r.x += r.w + spacing;
+            if ui.button("save", r, "保存") {
+                self.next_scene = Some(NextScene::PopWithResult(Box::new(Some(self.info_offset))));
+            }
+        });
+    }
 }
 
 impl Scene for GameScene {
@@ -393,7 +464,7 @@ impl Scene for GameScene {
         if matches!(self.state, State::Playing) {
             tm.update(self.music.position() as f64);
         }
-        let offset = self.chart.offset + self.res.config.offset;
+        let offset = self.chart.offset + self.res.config.offset + self.info_offset;
         let time = tm.now() as f32;
         let time = match self.state {
             State::Starting => {
@@ -426,20 +497,23 @@ impl Scene for GameScene {
             State::Ending => {
                 let t = time - self.res.track_length - WAIT_TIME;
                 if t >= AFTER_TIME + 0.3 {
-                    self.next_scene = Some(Box::new(EndingScene::new(
-                        self.res.background.clone(),
-                        self.res.illustration.clone(),
-                        self.res.player.clone(),
-                        self.res.font,
-                        self.res.icons.clone(),
-                        self.res.icon_retry.clone(),
-                        self.res.icon_proceed.clone(),
-                        self.res.info.clone(),
-                        self.judge.result(),
-                        self.res.challenge_icons[self.res.config.challenge_color.clone() as usize].clone(),
-                        &self.res.config,
-                        self.res.ending_bgm_bytes.clone(),
-                    )?));
+                    self.next_scene = Some(match self.mode {
+                        GameMode::Normal => NextScene::Overlay(Box::new(EndingScene::new(
+                            self.res.background.clone(),
+                            self.res.illustration.clone(),
+                            self.res.player.clone(),
+                            self.res.font,
+                            self.res.icons.clone(),
+                            self.res.icon_retry.clone(),
+                            self.res.icon_proceed.clone(),
+                            self.res.info.clone(),
+                            self.judge.result(),
+                            self.res.challenge_icons[self.res.config.challenge_color.clone() as usize].clone(),
+                            &self.res.config,
+                            self.res.ending_bgm_bytes.clone(),
+                        )?)),
+                        GameMode::TweakOffset => NextScene::PopWithResult(Box::new(None::<f32>)),
+                    });
                 }
                 self.res.alpha = 1. - (t / AFTER_TIME).min(1.).powi(2);
                 self.res.track_length
@@ -544,6 +618,23 @@ impl Scene for GameScene {
         self.ui(tm, ui)?;
         self.overlay_ui(tm)?;
 
+        if self.mode == GameMode::TweakOffset {
+            push_camera_state();
+            self.gl.quad_gl.viewport(None);
+            set_camera(&Camera2D {
+                zoom: vec2(1., -screen_aspect()),
+                render_target: self
+                    .res
+                    .chart_target
+                    .as_ref()
+                    .map(|it| it.output())
+                    .or_else(|| self.res.camera.render_target),
+                ..Default::default()
+            });
+            self.tweak_offset(ui, Self::interactive(&self.res, &self.state));
+            pop_camera_state();
+        }
+
         if !self.res.no_effect && !self.effects.is_empty() {
             push_camera_state();
             set_camera(&Camera2D {
@@ -602,10 +693,13 @@ impl Scene for GameScene {
                 tm.resume();
             }
             tm.speed = 1.0;
-            NextScene::Pop
-        } else if let Some(scene) = self.next_scene.take() {
+            match self.mode {
+                GameMode::Normal => NextScene::Pop,
+                GameMode::TweakOffset => NextScene::PopWithResult(Box::new(None::<f32>)),
+            }
+        } else if let Some(next_scene) = self.next_scene.take() {
             tm.speed = 1.0;
-            NextScene::Overlay(scene)
+            next_scene
         } else {
             NextScene::None
         }

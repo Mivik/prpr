@@ -387,7 +387,7 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
                 JudgeLineKind::Normal
             }
         } else {
-            JudgeLineKind::Texture(image::load_from_memory(&fs.load_file(&rpe.texture).await?)?.into())
+            JudgeLineKind::Texture(image::load_from_memory(&fs.load_file(&rpe.texture).await.with_context(|| format!("加载插图 {} 失败", rpe.texture))?)?.into())
         },
         color: if let Some(events) = rpe.extended.as_ref().and_then(|e| e.color_events.as_ref()) {
             parse_events(r, events, Some(JUDGE_LINE_PERFECT_COLOR)).context("Failed to parse color events")?

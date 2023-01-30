@@ -29,6 +29,7 @@ pub struct ChartInfo {
     pub preview_time: f32,
     pub aspect_ratio: f32,
     pub line_length: f32,
+    pub offset: f32,
     pub tip: Option<String>,
 
     pub intro: String,
@@ -57,6 +58,7 @@ impl Default for ChartInfo {
             preview_time: 0.,
             aspect_ratio: 16. / 9.,
             line_length: 6.,
+            offset: 0.,
             tip: None,
 
             intro: String::new(),

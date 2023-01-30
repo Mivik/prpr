@@ -1,4 +1,4 @@
-use super::{draw_background, draw_illustration, GameScene, NextScene, Scene};
+use super::{draw_background, draw_illustration, game::GameMode, GameScene, NextScene, Scene};
 use crate::{
     config::Config,
     ext::{draw_parallelogram, draw_text_aligned, poll_future, screen_aspect, LocalTask, SafeTexture, BLACK_TEXTURE},
@@ -34,6 +34,7 @@ impl LoadingScene {
     pub const TOTAL_TIME: f32 = BEFORE_TIME + TRANSITION_TIME + WAIT_TIME;
 
     pub async fn new(
+        mode: GameMode,
         mut info: ChartInfo,
         config: Config,
         mut fs: Box<dyn FileSystem>,
@@ -80,7 +81,7 @@ impl LoadingScene {
         if info.tip.is_none() {
             info.tip = Some(crate::config::TIPS.choose().cloned().unwrap());
         }
-        let future = Box::pin(GameScene::new(info.clone(), config, fs, player, background.clone(), illustration.clone(), font, get_size_fn));
+        let future = Box::pin(GameScene::new(mode, info.clone(), config, fs, player, background.clone(), illustration.clone(), font, get_size_fn));
         Ok(Self {
             info,
             background,
