@@ -18,7 +18,7 @@ use std::{
 
 pub const FLICK_SPEED_THRESHOLD: f32 = 1.8;
 pub const LIMIT_PERFECT: f32 = 0.08;
-pub const LIMIT_GOOD: f32 = 0.18;
+pub const LIMIT_GOOD: f32 = 0.16;
 pub const LIMIT_BAD: f32 = 0.22;
 pub const UP_TOLERANCE: f32 = 0.01;
 pub const DIST_FACTOR: f32 = 0.2;
