@@ -289,7 +289,7 @@ fn info_from_csv(bytes: Vec<u8>) -> Result<ChartInfo> {
             .iter()
             .zip(record.into_iter())
             .map(|(key, value)| (key.as_str(), value.to_owned())),
-            true,
+        true,
     )
 }
 
@@ -306,6 +306,9 @@ pub async fn fix_info(fs: &mut dyn FileSystem, info: &mut ChartInfo) -> Result<(
     let mut music = get(fs, &mut info.music).await?;
     let mut illustration = get(fs, &mut info.illustration).await?;
     fn put(desc: &str, status: &mut Option<String>, value: String) {
+        if status.as_ref() == Some(&value) {
+            return;
+        }
         if status.is_some() {
             warn!("Found multiple {}, using the first one", desc);
         } else {
@@ -318,18 +321,12 @@ pub async fn fix_info(fs: &mut dyn FileSystem, info: &mut ChartInfo) -> Result<(
                 "json" | "pec" => {
                     put("charts", &mut chart, file);
                 }
-                "mp3" | "ogg" | "wav" | "flac" | "aac" => {
-                    put("music files", &mut music, file);
-                }
-                "png" | "jpg" | "jpeg" | "bmp" | "gif" | "webp" | "avif" | "ppm" => {
-                    put("illustrations", &mut illustration, file);
-                }
                 _ => {}
             }
         }
     }
-    if let Some(chart) = chart {
-        info.chart = chart;
+    if let Some(chart) = &chart {
+        info.chart = chart.to_owned();
         if let Ok(s) = String::from_utf8(fs.load_file(&info.chart).await?) {
             if let Ok(mut value) = serde_json::from_str::<Value>(&s) {
                 #[derive(Deserialize)]
@@ -342,11 +339,10 @@ pub async fn fix_info(fs: &mut dyn FileSystem, info: &mut ChartInfo) -> Result<(
                     illustrator: Option<String>,
                     song: String,
                 }
-                if let Ok(meta) = serde_json::from_value::<RPEMeta>(value["META"].take()) {
+                if let Ok(mut meta) = serde_json::from_value::<RPEMeta>(value["META"].take()) {
                     info.name = meta.name;
                     infer_diff(info, &meta.level);
                     info.level = meta.level;
-                    info.illustration = meta.background;
                     info.charter = meta.charter;
                     if let Some(val) = meta.composer {
                         info.composer = val;
@@ -354,14 +350,30 @@ pub async fn fix_info(fs: &mut dyn FileSystem, info: &mut ChartInfo) -> Result<(
                     if let Some(val) = meta.illustrator {
                         info.illustrator = val;
                     }
-                    info.music = meta.song;
-                    music = None;
-                    illustration = None;
+                    if illustration.is_none() {
+                        illustration = get(fs, &mut meta.background).await?;
+                    }
+                    if music.is_none() {
+                        music = get(fs, &mut meta.song).await?;
+                    }
                 }
             }
         }
     } else {
         bail!("Cannot find chart");
+    }
+    for file in fs.list_root().context("Cannot list files")? {
+        if let Some((_, ext)) = file.rsplit_once('.') {
+            match ext.to_ascii_lowercase().as_str() {
+                "mp3" | "ogg" | "wav" | "flac" | "aac" => {
+                    put("music files", &mut music, file);
+                }
+                "png" | "jpg" | "jpeg" | "bmp" | "gif" | "webp" | "avif" | "ppm" => {
+                    put("illustrations", &mut illustration, file);
+                }
+                _ => {}
+            }
+        }
     }
     if let Some(music) = music {
         info.music = music;
