@@ -372,11 +372,11 @@ impl Main {
         }
         ui.set_touches(self.touches.take().unwrap());
         ui.scope(|ui| self.scenes.last_mut().unwrap().render(&mut self.tm, ui))?;
-        let mut gl = unsafe { get_internal_gl() };
-        gl.flush();
-        gl.quad_gl.render_pass(None);
-        gl.quad_gl.viewport(None);
         if self.show_billboard {
+            let mut gl = unsafe { get_internal_gl() };
+            gl.flush();
+            gl.quad_gl.render_pass(None);
+            gl.quad_gl.viewport(None);
             BILLBOARD.with(|it| {
                 let mut guard = it.borrow_mut();
                 let t = guard.1.now() as f32;
