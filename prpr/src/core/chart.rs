@@ -51,14 +51,16 @@ impl Chart {
     }
 
     #[inline]
-    pub fn with_element(&self, ui: &mut Ui, res: &Resource, element: UIElement, f: impl FnOnce(&mut Ui, f32, Matrix)) {
+    pub fn with_element(&self, ui: &mut Ui, res: &Resource, element: UIElement, f: impl FnOnce(&mut Ui, Color, Matrix)) {
         if let Some(id) = self.attach_ui[element as usize] {
             let obj = &self.lines[id].object;
             let mut tr = obj.now_translation(res);
             tr.y = -tr.y;
-            ui.with(obj.now_rotation().append_translation(&tr), |ui| f(ui, obj.now_alpha(), obj.now_scale()));
+            let mut color = self.lines[id].color.now_opt().unwrap_or(WHITE);
+            color.a *= obj.now_alpha().max(0.);
+            ui.with(obj.now_rotation().append_translation(&tr), |ui| f(ui, color, obj.now_scale()));
         } else {
-            f(ui, 1., Matrix::identity());
+            f(ui, WHITE, Matrix::identity());
         }
     }
 

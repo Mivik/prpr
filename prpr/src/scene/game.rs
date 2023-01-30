@@ -238,19 +238,19 @@ impl GameScene {
         }
         let margin = 0.03;
 
-        self.chart.with_element(ui, res, UIElement::Score, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Score, |ui, color, scale| {
             ui.text(format!("{:07}", self.judge.score()))
                 .pos(1. - margin, top + eps * 2.8)
                 .anchor(1., 0.)
                 .size(0.8)
-                .color(Color { a: c.a * alpha, ..c })
+                .color(Color { a: color.a * c.a, ..color })
                 .scale(scale)
                 .draw();
         });
-        self.chart.with_element(ui, res, UIElement::Pause, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Pause, |ui, color, scale| {
             let mut r = Rect::new(pause_w * 3.0 - 1., top + eps * 3.5, pause_w, pause_h);
             let ct = Vector::new(r.x + pause_w, r.y + r.h / 2.);
-            let c = Color { a: c.a * alpha, ..c };
+            let c = Color { a: color.a * c.a, ..color };
             ui.with(scale.prepend_translation(&-ct).append_translation(&ct), |ui| {
                 ui.fill_rect(r, c);
                 r.x += pause_w * 2.;
@@ -258,52 +258,58 @@ impl GameScene {
             });
         });
         if self.judge.combo >= 3 {
-            self.chart.with_element(ui, res, UIElement::ComboNumber, |ui, alpha, scale| {
+            self.chart.with_element(ui, res, UIElement::ComboNumber, |ui, color, scale| {
                 ui.text(self.judge.combo.to_string())
                     .pos(0., top + eps * 2.6)
                     .anchor(0.5, 0.)
-                    .color(Color { a: c.a * alpha, ..c })
+                    .color(Color { a: color.a * c.a, ..color })
                     .scale(scale)
                     .draw();
             });
-            self.chart.with_element(ui, res, UIElement::Combo, |ui, alpha, scale| {
+            self.chart.with_element(ui, res, UIElement::Combo, |ui, color, scale| {
                 ui.text(if res.config.autoplay { "AUTOPLAY" } else { "COMBO" })
                     .pos(0., top + 0.09 + eps * 1.1)
                     .anchor(0.5, 0.)
                     .size(0.4)
-                    .color(Color { a: c.a * alpha, ..c })
+                    .color(Color { a: color.a * c.a, ..color })
                     .scale(scale)
                     .draw();
             });
         }
         let lf = -1. + margin;
         let bt = -top - eps * 2.8;
-        self.chart.with_element(ui, res, UIElement::Name, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Name, |ui, color, scale| {
             ui.text(&res.info.name)
                 .pos(lf, bt)
                 .anchor(0., 1.)
                 .size(0.5)
-                .color(Color { a: c.a * alpha, ..c })
+                .color(Color { a: color.a * c.a, ..color })
                 .scale(scale)
                 .draw();
         });
-        self.chart.with_element(ui, res, UIElement::Level, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Level, |ui, color, scale| {
             ui.text(&res.info.level)
                 .pos(-lf, bt)
                 .anchor(1., 1.)
                 .size(0.5)
-                .color(Color { a: c.a * alpha, ..c })
+                .color(Color { a: color.a * c.a, ..color })
                 .scale(scale)
                 .draw();
         });
         let hw = 0.003;
         let height = eps * 1.2;
         let dest = 2. * res.time / res.track_length;
-        self.chart.with_element(ui, res, UIElement::Bar, |ui, alpha, scale| {
+        self.chart.with_element(ui, res, UIElement::Bar, |ui, color, scale| {
             let ct = Vector::new(0., top + height / 2.);
             ui.with(scale.prepend_translation(&-ct).append_translation(&ct), |ui| {
-                ui.fill_rect(Rect::new(-1., top, dest, height), Color::new(1., 1., 1., 0.6 * res.alpha * alpha));
-                ui.fill_rect(Rect::new(-1. + dest - hw, top, hw * 2., height), Color { a: c.a * alpha, ..c });
+                ui.fill_rect(
+                    Rect::new(-1., top, dest, height),
+                    Color {
+                        a: color.a * c.a * 0.6,
+                        ..color
+                    },
+                );
+                ui.fill_rect(Rect::new(-1. + dest - hw, top, hw * 2., height), Color { a: color.a * c.a, ..color });
             });
         });
         Ok(())
