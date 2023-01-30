@@ -380,7 +380,7 @@ impl Judge {
             if !(click || flick) {
                 continue;
             }
-            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD);
+            let mut closest = (None, X_DIFF_MAX * DIST_FACTOR, LIMIT_BAD);
             for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter_mut()).enumerate() {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
