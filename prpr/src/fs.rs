@@ -1,6 +1,7 @@
 use crate::{ext::spawn_task, info::ChartInfo};
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
+use chardetng::EncodingDetector;
 use concat_string::concat_string;
 use macroquad::prelude::load_file;
 use miniquad::warn;
@@ -279,8 +280,8 @@ fn info_from_txt(text: &str) -> Result<ChartInfo> {
     info_from_kv(kvs.into_iter(), false)
 }
 
-fn info_from_csv(bytes: Vec<u8>) -> Result<ChartInfo> {
-    let mut reader = csv::Reader::from_reader(Cursor::new(bytes));
+fn info_from_csv(text: &str) -> Result<ChartInfo> {
+    let mut reader = csv::Reader::from_reader(Cursor::new(text));
     // shitty design
     let headers = reader.headers()?.iter().map(str::to_owned).collect::<Vec<_>>();
     let record = reader.into_records().last().ok_or_else(|| anyhow!("Expected csv records"))??; // ??
@@ -384,13 +385,21 @@ pub async fn fix_info(fs: &mut dyn FileSystem, info: &mut ChartInfo) -> Result<(
     Ok(())
 }
 
+fn bytes_to_text_auto(data: &[u8]) -> String {
+    let mut det = EncodingDetector::new();
+    det.feed(data, true);
+    let encoding = det.guess(None, true);
+    let (s, _, _) = encoding.decode(data);
+    s.into_owned()
+}
+
 pub async fn load_info(fs: &mut dyn FileSystem) -> Result<ChartInfo> {
     let info = if let Ok(bytes) = fs.load_file("info.yml").await {
-        serde_yaml::from_str(&String::from_utf8(bytes)?)?
+        serde_yaml::from_str(&bytes_to_text_auto(&bytes))?
     } else if let Ok(bytes) = fs.load_file("info.txt").await {
-        info_from_txt(&String::from_utf8(bytes)?)?
+        info_from_txt(&bytes_to_text_auto(&bytes))?
     } else if let Ok(bytes) = fs.load_file("info.csv").await {
-        info_from_csv(bytes)?
+        info_from_csv(&bytes_to_text_auto(&bytes))?
     } else {
         warn!("None of info.yml, info.txt and info.csv is found, inferring");
         let mut info = ChartInfo::default();
