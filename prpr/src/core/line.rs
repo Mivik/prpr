@@ -1,4 +1,4 @@
-use super::{Anim, AnimFloat, Matrix, Note, Object, Point, RenderConfig, Resource, Vector, BpmList, chart::ChartSettings};
+use super::{chart::ChartSettings, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig, Resource, Vector};
 use crate::{
     ext::{draw_text_aligned, NotNanExt, SafeTexture},
     judge::JudgeStatus,
@@ -30,17 +30,17 @@ pub enum JudgeLineKind {
 
 pub struct JudgeLineCache {
     update_order: Vec<u32>,
-    start_index_above: usize,
-    start_index_below: usize,
+    above_indices: Vec<usize>,
+    below_indices: Vec<usize>,
 }
 
 impl JudgeLineCache {
     pub fn new(notes: &mut Vec<Note>) -> Self {
-        notes.sort_by_key(|it| (it.plain(), !it.above, (it.height * it.speed + it.object.translation.1.now()).not_nan(), it.kind.order()));
+        notes.sort_by_key(|it| (it.plain(), !it.above, it.speed.not_nan(), (it.height + it.object.translation.1.now()).not_nan()));
         let mut res = Self {
             update_order: Vec::new(),
-            start_index_above: 0,
-            start_index_below: 0,
+            above_indices: Vec::new(),
+            below_indices: Vec::new(),
         };
         res.reset(notes);
         res
@@ -48,12 +48,35 @@ impl JudgeLineCache {
 
     pub(crate) fn reset(&mut self, notes: &mut Vec<Note>) {
         self.update_order = (0..notes.len() as u32).collect();
-        self.start_index_above = notes.iter().position(|it| it.plain()).unwrap_or(notes.len());
-        self.start_index_below = notes[self.start_index_above..]
-            .iter()
-            .position(|it| !it.above)
-            .map(|it| it + self.start_index_above)
-            .unwrap_or(notes.len());
+        self.above_indices.clear();
+        self.below_indices.clear();
+        let mut index = notes.iter().position(|it| it.plain()).unwrap_or(notes.len());
+        loop {
+            if !notes.get(index).map_or(false, |it| it.above) {
+                break;
+            }
+            self.above_indices.push(index);
+            let speed = notes[index].speed;
+            loop {
+                index += 1;
+                if !notes.get(index).map_or(false, |it| it.speed == speed) {
+                    break;
+                }
+            }
+        }
+        loop {
+            if index == notes.len() {
+                break;
+            }
+            self.below_indices.push(index);
+            let speed = notes[index].speed;
+            loop {
+                index += 1;
+                if !notes.get(index).map_or(false, |it| it.speed == speed) {
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -84,12 +107,30 @@ impl JudgeLine {
         }
         self.color.set_time(res.time);
         self.height.set_time(res.time);
-        while matches!(self.notes.get(self.cache.start_index_above).filter(|it| it.above).map(|note| &note.judge), Some(JudgeStatus::Judged)) {
-            self.cache.start_index_above += 1;
-        }
-        while matches!(self.notes.get(self.cache.start_index_below).map(|note| &note.judge), Some(JudgeStatus::Judged)) {
-            self.cache.start_index_below += 1;
-        }
+        self.cache.above_indices.retain_mut(|index| {
+            while matches!(self.notes[*index].judge, JudgeStatus::Judged) {
+                if self
+                    .notes
+                    .get(*index + 1)
+                    .map_or(false, |it| it.above && it.speed == self.notes[*index].speed)
+                {
+                    *index += 1;
+                } else {
+                    return false;
+                }
+            }
+            true
+        });
+        self.cache.below_indices.retain_mut(|index| {
+            while matches!(self.notes[*index].judge, JudgeStatus::Judged) {
+                if self.notes.get(*index + 1).map_or(false, |it| it.speed == self.notes[*index].speed) {
+                    *index += 1;
+                } else {
+                    return false;
+                }
+            }
+            true
+        });
     }
 
     pub fn now_transform(&self, res: &Resource, lines: &[JudgeLine]) -> Matrix {
@@ -181,24 +222,33 @@ impl JudgeLine {
             for note in self.notes.iter().take_while(|it| !it.plain()).filter(|it| it.above) {
                 note.render(res, height, &config, bpm_list);
             }
-            for note in self.notes[self.cache.start_index_above..].iter() {
-                if !note.above {
-                    break;
+            for index in &self.cache.above_indices {
+                let speed = self.notes[*index].speed;
+                for note in self.notes[*index..].iter() {
+                    if !note.above || speed != note.speed {
+                        break;
+                    }
+                    if agg && note.height - height + note.object.translation.1.now() > height_above {
+                        break;
+                    }
+                    note.render(res, height, &config, bpm_list);
                 }
-                if agg && note.height - height + note.object.translation.1.now() > height_above {
-                    break;
-                }
-                note.render(res, height, &config, bpm_list);
             }
             res.with_model(Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
                 for note in self.notes.iter().take_while(|it| !it.plain()).filter(|it| !it.above) {
                     note.render(res, height, &config, bpm_list);
                 }
-                for note in self.notes[self.cache.start_index_below..].iter() {
-                    if agg && note.height - height + note.object.translation.1.now() > height_below {
-                        break;
+                for index in &self.cache.below_indices {
+                    let speed = self.notes[*index].speed;
+                    for note in self.notes[*index..].iter() {
+                        if speed != note.speed {
+                            break;
+                        }
+                        if agg && note.height - height + note.object.translation.1.now() > height_below {
+                            break;
+                        }
+                        note.render(res, height, &config, bpm_list);
                     }
-                    note.render(res, height, &config, bpm_list);
                 }
             });
         });
