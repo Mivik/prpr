@@ -281,7 +281,7 @@ fn info_from_txt(text: &str) -> Result<ChartInfo> {
 }
 
 fn info_from_csv(text: &str) -> Result<ChartInfo> {
-    let mut reader = csv::Reader::from_reader(Cursor::new(text));
+    let mut reader = csv::ReaderBuilder::new().flexible(true).from_reader(Cursor::new(text));
     // shitty design
     let headers = reader.headers()?.iter().map(str::to_owned).collect::<Vec<_>>();
     let record = reader.into_records().last().ok_or_else(|| anyhow!("Expected csv records"))??; // ??
