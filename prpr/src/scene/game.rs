@@ -696,6 +696,7 @@ impl Scene for GameScene {
         if !tm.paused() && self.pause_rewind.is_none() {
             self.gl.quad_gl.viewport(self.res.camera.viewport);
             self.judge.update(&mut self.res, &mut self.chart, &mut self.bad_notes);
+            self.gl.quad_gl.viewport(None);
         }
         self.res.judge_line_color = if self.judge.counts[2] + self.judge.counts[3] == 0 {
             if self.judge.counts[1] == 0 {
