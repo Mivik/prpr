@@ -1,6 +1,6 @@
 [package]
 name = "prpr-render"
-version = "0.1.22"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
