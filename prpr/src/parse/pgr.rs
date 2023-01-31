@@ -8,6 +8,7 @@ use crate::{
     judge::JudgeStatus,
 };
 use anyhow::{bail, Context, Result};
+use macroquad::prelude::warn;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -67,9 +68,14 @@ struct PgrChart {
 
 macro_rules! validate_events {
     ($pgr:expr) => {
-        if $pgr.iter().any(|it| it.start_time > it.end_time) {
-            bail!("Invalid time range");
-        }
+        $pgr.retain(|it| {
+            if it.start_time > it.end_time {
+                warn!("Invalid time range, ignoring");
+                false
+            } else {
+                true
+            }
+        });
         for i in 0..($pgr.len() - 1) {
             if $pgr[i].end_time != $pgr[i + 1].start_time {
                 bail!("Events should be contiguous");
@@ -81,7 +87,7 @@ macro_rules! validate_events {
     };
 }
 
-fn parse_speed_events(r: f32, pgr: Vec<PgrSpeedEvent>, max_time: f32) -> Result<(AnimFloat, AnimFloat)> {
+fn parse_speed_events(r: f32, mut pgr: Vec<PgrSpeedEvent>, max_time: f32) -> Result<(AnimFloat, AnimFloat)> {
     validate_events!(pgr);
     assert_eq!(pgr[0].start_time, 0.0);
     let mut kfs = Vec::new();
@@ -94,7 +100,7 @@ fn parse_speed_events(r: f32, pgr: Vec<PgrSpeedEvent>, max_time: f32) -> Result<
     Ok((AnimFloat::new(pgr.iter().map(|it| Keyframe::new(it.start_time * r, it.value, 0)).collect()), AnimFloat::new(kfs)))
 }
 
-fn parse_float_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimFloat> {
+fn parse_float_events(r: f32, mut pgr: Vec<PgrEvent>) -> Result<AnimFloat> {
     validate_events!(pgr);
     let mut kfs = Vec::<Keyframe<f32>>::new();
     for e in pgr {
@@ -107,7 +113,7 @@ fn parse_float_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimFloat> {
     Ok(AnimFloat::new(kfs))
 }
 
-fn parse_move_events(r: f32, pgr: Vec<PgrEvent>) -> Result<AnimVector> {
+fn parse_move_events(r: f32, mut pgr: Vec<PgrEvent>) -> Result<AnimVector> {
     validate_events!(pgr);
     let mut kf1 = Vec::<Keyframe<f32>>::new();
     let mut kf2 = Vec::<Keyframe<f32>>::new();
