@@ -51,23 +51,17 @@ impl JudgeLineCache {
         self.above_indices.clear();
         self.below_indices.clear();
         let mut index = notes.iter().position(|it| it.plain()).unwrap_or(notes.len());
-        loop {
-            if !notes.get(index).map_or(false, |it| it.above) {
-                break;
-            }
+        while notes.get(index).map_or(false, |it| it.above) {
             self.above_indices.push(index);
             let speed = notes[index].speed;
             loop {
                 index += 1;
-                if !notes.get(index).map_or(false, |it| it.speed == speed) {
+                if !notes.get(index).map_or(false, |it| it.above && it.speed == speed) {
                     break;
                 }
             }
         }
-        loop {
-            if index == notes.len() {
-                break;
-            }
+        while index != notes.len() {
             self.below_indices.push(index);
             let speed = notes[index].speed;
             loop {
