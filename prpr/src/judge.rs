@@ -591,7 +591,11 @@ impl Judge {
             }
         }
         for (judgement, line_id, id, diff) in judgements.into_iter() {
-            chart.lines[line_id].notes[id as usize].object.set_time(t);
+            let line = &mut chart.lines[line_id];
+            let note = &mut line.notes[id as usize];
+            let nt = note.time;
+            line.object.set_time(nt);
+            note.object.set_time(nt);
             let line = &chart.lines[line_id];
             let note = &line.notes[id as usize];
             let line_tr = line.now_transform(res, &chart.lines);
@@ -697,8 +701,9 @@ impl Judge {
             let (note_transform, note_kind) = {
                 let line = &mut chart.lines[line_id];
                 let note = &mut line.notes[id as usize];
-                line.object.set_time(t);
-                note.object.set_time(t);
+                let nt = note.time;
+                line.object.set_time(nt);
+                note.object.set_time(nt);
                 (note.object.now(res), note.kind.clone())
             };
             res.with_model(chart.lines[line_id].now_transform(res, &chart.lines) * note_transform, |res| {
