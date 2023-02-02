@@ -212,6 +212,22 @@ impl GameScene {
     }
 
     fn ui(&mut self, ui: &mut Ui, tm: &mut TimeManager) -> Result<()> {
+        let time = tm.now() as f32;
+        let p = match self.state {
+            State::Starting => {
+                if time <= Self::BEFORE_TIME {
+                    1. - (1. - time / Self::BEFORE_TIME).powi(3)
+                } else {
+                    1.
+                }
+            }
+            State::BeforeMusic => 1.,
+            State::Playing => 1.,
+            State::Ending => {
+                let t = time - self.res.track_length - WAIT_TIME;
+                1. - (t / AFTER_TIME).min(1.).powi(2)
+            }
+        };
         let c = Color::new(1., 1., 1., self.res.alpha);
         let res = &mut self.res;
         let eps = 2e-2 / res.aspect_ratio;
@@ -239,7 +255,7 @@ impl GameScene {
 
         self.chart.with_element(ui, res, UIElement::Score, |ui, color, scale| {
             ui.text(format!("{:07}", self.judge.score()))
-                .pos(1. - margin, top + eps * 2.2)
+                .pos(1. - margin, top + eps * 2.2 - (1. - p) * 0.4)
                 .anchor(1., 0.)
                 .size(0.8)
                 .color(Color { a: color.a * c.a, ..color })
@@ -247,7 +263,7 @@ impl GameScene {
                 .draw();
         });
         self.chart.with_element(ui, res, UIElement::Pause, |ui, color, scale| {
-            let mut r = Rect::new(pause_w * 3.0 - 1., top + eps * 3.5, pause_w, pause_h);
+            let mut r = Rect::new(pause_w * 3.0 - 1., top + eps * 3.5 - (1. - p) * 0.4, pause_w, pause_h);
             let ct = Vector::new(r.x + pause_w, r.y + r.h / 2.);
             let c = Color { a: color.a * c.a, ..color };
             ui.with(scale.prepend_translation(&-ct).append_translation(&ct), |ui| {
@@ -259,7 +275,7 @@ impl GameScene {
         if self.judge.combo >= 3 {
             let btm = self.chart.with_element(ui, res, UIElement::ComboNumber, |ui, color, scale| {
                 ui.text(self.judge.combo.to_string())
-                    .pos(0., top + eps * 2.)
+                    .pos(0., top + eps * 2. - (1. - p) * 0.4)
                     .anchor(0.5, 0.)
                     .color(Color { a: color.a * c.a, ..color })
                     .scale(scale)
@@ -280,7 +296,7 @@ impl GameScene {
         let bt = -top - eps * 2.8;
         self.chart.with_element(ui, res, UIElement::Name, |ui, color, scale| {
             ui.text(&res.info.name)
-                .pos(lf, bt)
+                .pos(lf, bt + (1. - p) * 0.4)
                 .anchor(0., 1.)
                 .size(0.5)
                 .color(Color { a: color.a * c.a, ..color })
@@ -289,7 +305,7 @@ impl GameScene {
         });
         self.chart.with_element(ui, res, UIElement::Level, |ui, color, scale| {
             ui.text(&res.info.level)
-                .pos(-lf, bt)
+                .pos(-lf, bt + (1. - p) * 0.4)
                 .anchor(1., 1.)
                 .size(0.5)
                 .color(Color { a: color.a * c.a, ..color })
