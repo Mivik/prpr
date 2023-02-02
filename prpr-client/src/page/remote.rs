@@ -137,7 +137,10 @@ impl Page for RemotePage {
                 if id < state.charts_remote.len() {
                     let path = format!("download/{}", state.charts_remote[id].info.id.as_ref().unwrap());
                     if let Some(index) = state.charts_local.iter().position(|it| it.path == path) {
-                        state.charts_remote[id].illustration.1 = state.charts_local[index].illustration.1.clone();
+                        let that = &state.charts_local[index].illustration.1;
+                        if *that != state.tex {
+                            state.charts_remote[id].illustration.1 = that.clone();
+                        }
                     }
                     state.transit = Some((Some(self.illu_files[id].clone()), id as u32, t, Rect::default(), false));
                     return Ok(true);
