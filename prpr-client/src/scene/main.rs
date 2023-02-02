@@ -1,6 +1,6 @@
 use super::{song::TrashBin, SongScene};
 use crate::{
-    cloud::UserManager,
+    cloud::{LCFile, UserManager},
     dir, get_data, get_data_mut,
     page::{self, ChartItem, Page, SharedState},
     save_data,
@@ -33,6 +33,7 @@ const TRANSIT_TIME: f32 = 0.4;
 
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
 pub static UPDATE_TEXTURE: Mutex<Option<(SafeTexture, SafeTexture)>> = Mutex::new(None);
+pub static UPDATE_REMOTE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
 pub static UPDATE_INFO: AtomicBool = AtomicBool::new(false);
 
 pub struct MainScene {
@@ -150,7 +151,7 @@ impl MainScene {
         });
     }
 
-    pub fn song_scene(&self, chart: &ChartItem, remote: bool) -> Option<NextScene> {
+    pub fn song_scene(&self, chart: &ChartItem, file: Option<LCFile>, remote: bool) -> Option<NextScene> {
         Some(NextScene::Overlay(Box::new(SongScene::new(
             ChartItem {
                 info: chart.info.clone(),
@@ -165,6 +166,7 @@ impl MainScene {
             self.icon_download.clone(),
             self.icon_play.clone(),
             TrashBin::new(self.icon_delete.clone(), self.icon_question.clone()),
+            file,
             remote,
         ))))
     }
@@ -194,7 +196,7 @@ impl Scene for MainScene {
             show_message("欢迎回来");
         }
         if UPDATE_INFO.fetch_and(false, Ordering::SeqCst) {
-            if let Some((false, id, ..)) = self.shared_state.transit {
+            if let Some((None, id, ..)) = self.shared_state.transit {
                 let chart = &mut self.shared_state.charts_local[id as usize];
                 chart.info = get_data().charts[get_data().find_chart(chart).unwrap()].info.clone();
             }
@@ -231,8 +233,13 @@ impl Scene for MainScene {
             self.page_scroll.set_offset(self.page_index as f32 * (1. - SIDE_PADDING) * 2., 0.);
         }
         if let Some(tex) = UPDATE_TEXTURE.lock().unwrap().take() {
-            if let Some((true, id, ..)) = self.shared_state.transit {
+            if let Some((None, id, ..)) = self.shared_state.transit {
                 self.shared_state.charts_local[id as usize].illustration = tex;
+            }
+        }
+        if let Some(tex) = UPDATE_REMOTE_TEXTURE.lock().unwrap().take() {
+            if let Some((Some(_), id, ..)) = self.shared_state.transit {
+                self.shared_state.charts_remote[id as usize].illustration.1 = tex;
             }
         }
         self.shared_state.t = tm.now() as _;
@@ -250,8 +257,8 @@ impl Scene for MainScene {
         });
         clear_background(GRAY);
         ui.scope(|ui| self.ui(ui, tm.now() as _, tm.real_time() as _));
-        if let Some((remote, id, st, rect, back)) = &mut self.shared_state.transit {
-            let remote = *remote;
+        if let Some((file, id, st, rect, back)) = &mut self.shared_state.transit {
+            let remote = file.is_some();
             let id = *id as usize;
             let t = tm.now() as f32;
             let p = ((t - *st) / TRANSIT_TIME).min(1.);
@@ -322,12 +329,18 @@ impl Scene for MainScene {
                     let path = format!("download/{}", self.shared_state.charts_remote[id].info.id.as_ref().unwrap());
                     if let Some(index) = self.shared_state.charts_local.iter().position(|it| it.path == path) {
                         self.shared_state.charts_local[index].illustration = self.shared_state.charts_remote[id].illustration.clone();
-                        self.song_scene(&self.shared_state.charts_local[index], false)
+                        self.song_scene(&self.shared_state.charts_local[index], None, false)
                     } else {
-                        self.song_scene(&self.shared_state.charts_remote[id], true)
+                        let chart = &self.shared_state.charts_remote[id];
+                        let file = if chart.illustration.0 == chart.illustration.1 {
+                            file.clone()
+                        } else {
+                            None
+                        };
+                        self.song_scene(chart, file, true)
                     }
                 } else {
-                    self.song_scene(&self.shared_state.charts_local[id], false)
+                    self.song_scene(&self.shared_state.charts_local[id], None, false)
                 };
             }
         }

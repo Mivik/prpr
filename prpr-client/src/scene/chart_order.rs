@@ -14,12 +14,16 @@ pub enum ChartOrder {
 
 impl ChartOrder {
     pub fn apply(&self, charts: &mut [ChartItem]) {
+        self.apply_delegate(charts, |it| it)
+    }
+
+    pub fn apply_delegate<T>(&self, charts: &mut [T], f: impl Fn(&T) -> &ChartItem) {
         match self {
             Self::Default => {
                 charts.reverse();
             }
             Self::Name => {
-                charts.sort_by(|x, y| x.info.name.cmp(&y.info.name));
+                charts.sort_by(|x, y| f(x).info.name.cmp(&f(y).info.name));
             }
         }
     }

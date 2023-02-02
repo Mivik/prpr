@@ -16,7 +16,7 @@ pub use remote::RemotePage;
 mod settings;
 pub use settings::SettingsPage;
 
-use crate::{cloud::Images, data::BriefChartInfo, dir, get_data, scene::ChartOrder, task::Task};
+use crate::{cloud::{Images, LCFile}, data::BriefChartInfo, dir, get_data, scene::ChartOrder, task::Task};
 use anyhow::Result;
 use image::DynamicImage;
 use lyon::{
@@ -38,7 +38,7 @@ const SIDE_PADDING: f32 = 0.02;
 
 pub static SHOULD_UPDATE: AtomicBool = AtomicBool::new(false);
 
-pub fn illustration_task(path: String) -> Task<Result<(DynamicImage, DynamicImage)>> {
+pub fn illustration_task(path: String) -> Task<Result<(DynamicImage, Option<DynamicImage>)>> {
     Task::new(async move {
         let mut fs = fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
         let info = fs::load_info(fs.deref_mut()).await?;
@@ -46,7 +46,7 @@ pub fn illustration_task(path: String) -> Task<Result<(DynamicImage, DynamicImag
         let thumbnail =
             Images::local_or_else(format!("{}/{}", dir::cache_image_local()?, path.replace('/', "_")), async { Ok(Images::thumbnail(&image)) })
                 .await?;
-        Ok((thumbnail, image))
+        Ok((thumbnail, Some(image)))
     })
 }
 
@@ -114,7 +114,7 @@ pub struct ChartItem {
     pub info: BriefChartInfo,
     pub path: String,
     pub illustration: (SafeTexture, SafeTexture),
-    pub illustration_task: Option<Task<Result<(DynamicImage, DynamicImage)>>>,
+    pub illustration_task: Option<Task<Result<(DynamicImage, Option<DynamicImage>)>>>,
 }
 
 pub struct SharedState {
@@ -125,7 +125,7 @@ pub struct SharedState {
     pub charts_local: Vec<ChartItem>,
     pub charts_remote: Vec<ChartItem>,
 
-    pub transit: Option<(bool, u32, f32, Rect, bool)>, // remote, id, start_time, rect, delete
+    pub transit: Option<(Option<LCFile>, u32, f32, Rect, bool)>, // remote, id, start_time, rect, delete
 }
 
 impl SharedState {
@@ -160,7 +160,7 @@ impl SharedState {
                 if let Some(task) = &mut chart.illustration_task {
                     if let Some(image) = task.take() {
                         chart.illustration = if let Ok(image) = image {
-                            (image.0.into(), image.1.into())
+                            Images::into_texture(image)
                         } else {
                             (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone())
                         };

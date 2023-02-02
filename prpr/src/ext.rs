@@ -88,6 +88,13 @@ impl Deref for SafeTexture {
     }
 }
 
+impl PartialEq for SafeTexture {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for SafeTexture {}
+
 impl From<Texture2D> for SafeTexture {
     fn from(tex: Texture2D) -> Self {
         Self(Arc::new(SafeTextureInner(tex)))

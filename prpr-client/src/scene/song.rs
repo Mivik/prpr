@@ -1,6 +1,6 @@
-use super::main::{UPDATE_INFO, UPDATE_TEXTURE};
+use super::main::{UPDATE_INFO, UPDATE_TEXTURE, UPDATE_REMOTE_TEXTURE};
 use crate::{
-    cloud::{Client, LCChartItem, Pointer, UserManager},
+    cloud::{Client, Images, LCChartItem, LCFile, Pointer, UserManager},
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
@@ -136,7 +136,8 @@ pub struct SongScene {
     edit_scroll: Scroll,
 
     info_task: Option<Task<ChartInfo>>,
-    illustration_task: Option<Task<Result<(DynamicImage, DynamicImage)>>>,
+    illustration_task: Option<Task<Result<(DynamicImage, Option<DynamicImage>)>>>,
+    remote_illustration_task: Option<Task<Result<DynamicImage>>>,
     chart_info: Option<ChartInfo>,
     scene_task: LocalTask<Result<LoadingScene>>,
 
@@ -185,6 +186,7 @@ impl SongScene {
         icon_download: SafeTexture,
         icon_play: SafeTexture,
         bin: TrashBin,
+        lc_file: Option<LCFile>,
         remote: bool,
     ) -> Self {
         if let Some(user) = chart.info.uploader.as_ref() {
@@ -215,6 +217,12 @@ impl SongScene {
 
             info_task: if remote { None } else { Some(create_info_task(path, brief)) },
             illustration_task: None,
+            remote_illustration_task: if let Some(file) = lc_file {
+                Some(Task::new(async move { Images::load_lc(&file).await }))
+            } else {
+                None
+            },
+
             chart_info: None,
             scene_task: None,
 
@@ -696,11 +704,28 @@ impl Scene for SongScene {
                         *UPDATE_TEXTURE.lock().unwrap() = Some((BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone()));
                     }
                     Ok(image) => {
-                        self.illustration = image.1.into();
-                        *UPDATE_TEXTURE.lock().unwrap() = Some((image.0.into(), self.illustration.clone()));
+                        let tex = Images::into_texture(image);
+                        self.illustration = tex.1.clone();
+                        *UPDATE_TEXTURE.lock().unwrap() = Some(tex);
                     }
                 }
                 self.illustration_task = None;
+            }
+        }
+        if self.remote {
+            if let Some(task) = &mut self.remote_illustration_task {
+                if let Some(result) = task.take() {
+                    match result {
+                        Err(err) => {
+                            show_error(err.context("加载插图失败"));
+                        }
+                        Ok(image) => {
+                            self.illustration = image.into();
+                            *UPDATE_REMOTE_TEXTURE.lock().unwrap() = Some(self.illustration.clone());
+                        }
+                    }
+                    self.remote_illustration_task = None;
+                }
             }
         }
         if CONFIRM_UPLOAD.fetch_and(false, Ordering::SeqCst) {

@@ -107,7 +107,7 @@ impl Page for LocalPage {
                 let id = id.unwrap();
                 if let Some(chart) = state.charts_local.get(id as usize) {
                     if chart.illustration_task.is_none() {
-                        state.transit = Some((false, id, t, Rect::default(), false));
+                        state.transit = Some((None, id, t, Rect::default(), false));
                     } else {
                         show_message("尚未加载完成");
                     }
@@ -123,7 +123,7 @@ impl Page for LocalPage {
         ui.dy(r.h);
         let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
         SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_local);
-        if let Some((false, id, _, rect, _)) = &mut state.transit {
+        if let Some((None, id, _, rect, _)) = &mut state.transit {
             let width = content_size.0;
             *rect = ui.rect_to_global(Rect::new(
                 (*id % ROW_NUM) as f32 * width / ROW_NUM as f32,

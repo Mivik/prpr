@@ -1,6 +1,6 @@
 use super::{get_touched, trigger_grid, ChartItem, Page, SharedState, CARD_HEIGHT, ROW_NUM};
 use crate::{
-    cloud::{Client, Images, LCChartItem},
+    cloud::{Client, Images, LCChartItem, LCFile},
     data::BriefChartInfo,
     scene::{ChartOrderBox, CHARTS_BAR_HEIGHT},
     task::Task,
@@ -21,7 +21,8 @@ pub struct RemotePage {
 
     order_box: ChartOrderBox,
 
-    task_load: Task<Result<Vec<ChartItem>>>,
+    task_load: Task<Result<Vec<(ChartItem, LCFile)>>>,
+    illu_files: Vec<LCFile>,
     first_time: bool,
     loading: bool,
 }
@@ -37,6 +38,7 @@ impl RemotePage {
             order_box: ChartOrderBox::new(icon_play),
 
             task_load: Task::pending(),
+            illu_files: Vec::new(),
             first_time: true,
             loading: false,
         }
@@ -57,19 +59,25 @@ impl RemotePage {
                 let mut charts = charts
                     .into_iter()
                     .map(|it| {
-                        let illu = it.illustration;
-                        ChartItem {
-                            info: BriefChartInfo {
-                                id: it.id,
-                                ..it.info.clone()
+                        let illu = it.illustration.clone();
+                        (
+                            ChartItem {
+                                info: BriefChartInfo {
+                                    id: it.id,
+                                    ..it.info.clone()
+                                },
+                                path: it.file.url,
+                                illustration: (tex.clone(), tex.clone()),
+                                illustration_task: Some(Task::new(async move {
+                                    let image = Images::load_lc_thumbnail(&illu).await?;
+                                    Ok((image, None))
+                                })),
                             },
-                            path: it.file.url,
-                            illustration: (tex.clone(), tex.clone()),
-                            illustration_task: Some(Task::new(async move { Images::load_lc_with_thumbnail(&illu).await })),
-                        }
+                            it.illustration,
+                        )
                     })
                     .collect::<Vec<_>>();
-                order.0.apply(&mut charts);
+                order.0.apply_delegate(&mut charts, |it| &it.0);
                 if order.1 {
                     charts.reverse();
                 }
@@ -101,7 +109,7 @@ impl Page for RemotePage {
             match charts {
                 Ok(charts) => {
                     show_message("加载完成");
-                    state.charts_remote = charts;
+                    (state.charts_remote, self.illu_files) = charts.into_iter().unzip();
                 }
                 Err(err) => {
                     self.first_time = true;
@@ -125,9 +133,13 @@ impl Page for RemotePage {
             let id = get_touched(pos);
             let trigger = trigger_grid(touch.phase, &mut self.choose, id);
             if trigger {
-                let id = id.unwrap();
-                if id < state.charts_remote.len() as u32 {
-                    state.transit = Some((true, id, t, Rect::default(), false));
+                let id = id.unwrap() as usize;
+                if id < state.charts_remote.len() {
+                    let path = format!("download/{}", state.charts_remote[id].info.id.as_ref().unwrap());
+                    if let Some(index) = state.charts_local.iter().position(|it| it.path == path) {
+                        state.charts_remote[id].illustration.1 = state.charts_local[index].illustration.1.clone();
+                    }
+                    state.transit = Some((Some(self.illu_files[id].clone()), id as u32, t, Rect::default(), false));
                     return Ok(true);
                 }
             }
@@ -140,7 +152,7 @@ impl Page for RemotePage {
         ui.dy(r.h);
         let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
         SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_remote);
-        if let Some((true, id, _, rect, _)) = &mut state.transit {
+        if let Some((Some(_), id, _, rect, _)) = &mut state.transit {
             let width = content_size.0;
             *rect = ui.rect_to_global(Rect::new(
                 (*id % ROW_NUM) as f32 * width / ROW_NUM as f32,
