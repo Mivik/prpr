@@ -1,5 +1,3 @@
-use crate::scene::CHARTS_BAR_HEIGHT;
-
 use super::{Page, SharedState, SIDE_PADDING};
 use anyhow::Result;
 use macroquad::prelude::Touch;
