@@ -1,4 +1,4 @@
-use super::main::{UPDATE_INFO, UPDATE_TEXTURE, UPDATE_REMOTE_TEXTURE};
+use super::main::{UPDATE_INFO, UPDATE_REMOTE_TEXTURE, UPDATE_TEXTURE};
 use crate::{
     cloud::{Client, Images, LCChartItem, LCFile, Pointer, UserManager},
     data::{BriefChartInfo, LocalChart},
@@ -217,11 +217,7 @@ impl SongScene {
 
             info_task: if remote { None } else { Some(create_info_task(path, brief)) },
             illustration_task: None,
-            remote_illustration_task: if let Some(file) = lc_file {
-                Some(Task::new(async move { Images::load_lc(&file).await }))
-            } else {
-                None
-            },
+            remote_illustration_task: lc_file.map(|file| Task::new(async move { Images::load_lc(&file).await })),
 
             chart_info: None,
             scene_task: None,
