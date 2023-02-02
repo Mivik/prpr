@@ -192,7 +192,7 @@ fn parse_events<T: Tweenable, V: Clone + Into<T>>(
             time: r.time(&e.start_time),
             value: e.start.clone().into(),
             tween: {
-                let tween = TWEEN_MAP[e.easing_type.max(1) as usize];
+                let tween = TWEEN_MAP.get(e.easing_type.max(1) as usize).copied().unwrap_or(TWEEN_MAP[0]);
                 if e.bezier != 0 {
                     Rc::clone(&bezier_map[&bezier_key(e)])
                 } else if e.easing_left.abs() < EPS && (e.easing_right - 1.0).abs() < EPS {
