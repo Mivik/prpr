@@ -1,7 +1,8 @@
 use super::{chart::ChartSettings, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig, Resource, Vector};
 use crate::{
     ext::{draw_text_aligned, NotNanExt, SafeTexture},
-    judge::JudgeStatus, ui::Ui,
+    judge::JudgeStatus,
+    ui::Ui,
 };
 use macroquad::prelude::*;
 use nalgebra::Rotation2;
@@ -78,6 +79,7 @@ pub struct JudgeLine {
     pub object: Object,
     pub kind: JudgeLineKind,
     pub height: AnimFloat,
+    pub incline: AnimFloat,
     pub notes: Vec<Note>,
     pub color: Anim<Color>,
     pub parent: Option<usize>,
@@ -182,6 +184,7 @@ impl JudgeLine {
                 settings,
                 appear_before: f32::INFINITY,
                 draw_below: self.show_below,
+                incline_sin: self.incline.now_opt().map(|it| it.to_radians().sin()).unwrap_or_default(),
             };
             if alpha < 0.0 {
                 if !settings.pe_alpha_extension {

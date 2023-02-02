@@ -201,6 +201,7 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
         },
         kind: JudgeLineKind::Normal,
         height,
+        incline: AnimFloat::default(),
         notes,
         color: Anim::default(),
         parent: None,

@@ -1,4 +1,4 @@
-use super::{chart::ChartSettings, BpmList, JudgeLine, Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
+use super::{chart::ChartSettings, BpmList, JudgeLine, Matrix, Object, Point, Resource, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
 use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
 
@@ -42,6 +42,7 @@ pub struct RenderConfig<'a> {
     pub settings: &'a ChartSettings,
     pub appear_before: f32,
     pub draw_below: bool,
+    pub incline_sin: f32,
 }
 
 fn draw_tex(res: &Resource, texture: Texture2D, order: i8, x: f32, y: f32, color: Color, mut params: DrawTextureParams, clip: bool) {
@@ -136,7 +137,9 @@ impl Note {
         } else {
             None
         } {
-            res.with_model(parent_tr * self.now_transform(res, 0.), |res| res.emit_at_origin(parent_rot + if self.above { 0. } else { 180. }, color));
+            res.with_model(parent_tr * self.now_transform(res, 0., 0.), |res| {
+                res.emit_at_origin(parent_rot + if self.above { 0. } else { 180. }, color)
+            });
         }
     }
 
@@ -144,8 +147,12 @@ impl Note {
         (!matches!(self.kind, NoteKind::Hold { .. }) || matches!(self.judge, JudgeStatus::Judged)) && self.object.dead()
     }
 
-    pub fn now_transform(&self, res: &Resource, base: f32) -> Matrix {
-        self.object.now(res).append_translation(&Vector::new(0., base)) * self.object.now_scale()
+    pub fn now_transform(&self, res: &Resource, base: f32, incline_sin: f32) -> Matrix {
+        let incline_val = 1. - incline_sin * (base * res.aspect_ratio + self.object.translation.1.now()) * 450. / 360.;
+        let mut tr = self.object.now_translation(res);
+        tr.x *= incline_val;
+        tr.y += base;
+        self.object.now_rotation().append_translation(&tr) * self.object.now_scale()
     }
 
     pub fn render(&self, res: &mut Resource, line_height: f32, config: &RenderConfig, bpm_list: &mut BpmList) {
@@ -189,7 +196,7 @@ impl Note {
             if !config.draw_below {
                 color.a *= (self.time - res.time).min(0.) / FADEOUT_TIME + 1.;
             }
-            res.with_model(self.now_transform(res, base), |res| {
+            res.with_model(self.now_transform(res, base, config.incline_sin), |res| {
                 draw_center(res, tex, order, scale, color);
             });
         };
@@ -198,7 +205,7 @@ impl Note {
                 draw(res, *style.click);
             }
             NoteKind::Hold { end_time, end_height } => {
-                res.with_model(self.now_transform(res, 0.), |res| {
+                res.with_model(self.now_transform(res, 0., 0.), |res| {
                     let style = if res.config.multiple_hint && self.multiple_hint {
                         &res.res_pack.note_style_mh
                     } else {

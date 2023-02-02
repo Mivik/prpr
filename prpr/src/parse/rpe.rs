@@ -88,6 +88,7 @@ struct RPEExtendedEvents {
     text_events: Option<Vec<RPEEvent<String>>>,
     scale_x_events: Option<Vec<RPEEvent>>,
     scale_y_events: Option<Vec<RPEEvent>>,
+    incline_events: Option<Vec<RPEEvent>>,
 }
 
 #[derive(Deserialize)]
@@ -405,6 +406,11 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
             },
         },
         height,
+        incline: if let Some(events) = rpe.extended.as_ref().and_then(|e| e.incline_events.as_ref()) {
+            parse_events(r, events, Some(0.), bezier_map).context("Failed to parse incline events")?
+        } else {
+            AnimFloat::default()
+        },
         notes,
         kind: if rpe.texture == "line.png" {
             if let Some(events) = rpe.extended.as_ref().and_then(|e| e.text_events.as_ref()) {

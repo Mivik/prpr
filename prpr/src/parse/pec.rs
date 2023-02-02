@@ -162,6 +162,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
         },
         kind: JudgeLineKind::Normal,
         height,
+        incline: AnimFloat::default(),
         notes: pec.notes,
         color: Anim::default(),
         parent: None,

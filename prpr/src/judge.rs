@@ -632,7 +632,8 @@ impl Judge {
                                 if !note.above {
                                     mat.append_nonuniform_scaling_mut(&Vector::new(1., -1.));
                                 }
-                                mat *= note.now_transform(res, (note.height - line.height.now()) / res.aspect_ratio * note.speed);
+                                let incline_sin = line.incline.now_opt().map(|it| it.to_radians().sin()).unwrap_or_default();
+                                mat *= note.now_transform(res, (note.height - line.height.now()) / res.aspect_ratio * note.speed, incline_sin);
                                 mat
                             },
                         });
