@@ -74,7 +74,7 @@ impl SettingsPage {
                 res_pack,
                 if let Some(path) = path {
                     let dst = format!("{}/respack.zip", dir::root()?);
-                    std::fs::copy(path, dst).context("保存皮肤失败")?;
+                    std::fs::copy(path, dst).context("保存资源包失败")?;
                     Some("respack.zip".to_owned())
                 } else {
                     None
@@ -120,7 +120,7 @@ impl Page for SettingsPage {
                 self.load_res_task = None;
                 match result {
                     Err(err) => {
-                        show_error(err.context("加载皮肤失败"));
+                        show_error(err.context("加载资源包失败"));
                     }
                     Ok((res_pack, dst)) => {
                         self.click_texture = res_pack.note_style.click.clone();
@@ -128,7 +128,7 @@ impl Page for SettingsPage {
                         self.res_pack = res_pack;
                         get_data_mut().config.res_pack_path = dst;
                         save_data()?;
-                        show_message("加载皮肤成功");
+                        show_message("加载资源包成功");
                     }
                 }
             }
@@ -230,7 +230,7 @@ impl Page for SettingsPage {
 
             ui.scope(|ui| {
                 ui.dx(0.65);
-                let r = ui.text("皮肤").size(0.4).anchor(1., 0.).draw();
+                let r = ui.text("资源包").size(0.4).anchor(1., 0.).draw();
                 let mut r = Rect::new(0.02, r.y - 0.01, 0.3, r.h + 0.02);
                 if ui.button("choose_res_pack", r, &self.res_pack.info.name) {
                     request_file("res_pack");

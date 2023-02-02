@@ -136,7 +136,7 @@ pub struct TextPainter {
 impl TextPainter {
     pub fn new(font: FontArc) -> Self {
         let mut brush = GlyphBrushBuilder::using_font(font).build();
-        brush.resize_texture(1024, 1024);
+        brush.resize_texture(2048, 2048);
         // TODO optimize
         let cache_texture = Self::new_cache_texture(brush.texture_dimensions());
         Self {
