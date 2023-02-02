@@ -10,7 +10,7 @@ use prpr::{
     fs::{self, PatchedFileSystem},
     scene::{GameMode, GameScene, LoadingScene, BILLBOARD},
     time::TimeManager,
-    ui::{ChartInfoEdit, Ui},
+    ui::{ChartInfoEdit, FontArc, TextPainter, Ui},
     Main,
 };
 use sasa::AudioClip;
@@ -79,7 +79,7 @@ async fn the_main() -> Result<()> {
         .unwrap();
     let _guard = rt.enter();
 
-let font = FontArc::try_from_vec(load_file("font.ttf").await?)?;
+    let font = FontArc::try_from_vec(load_file("font.ttf").await?)?;
     let mut painter = TextPainter::new(font);
 
     let (path, config) = {
