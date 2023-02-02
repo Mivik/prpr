@@ -302,7 +302,7 @@ impl Page for SettingsPage {
             } else {
                 if self.cali_last {
                     let g = ui.to_global(ct);
-                    self.emitter.emit_at(vec2(g.0, g.1), JUDGE_LINE_PERFECT_COLOR);
+                    self.emitter.emit_at(vec2(g.0, g.1), 0., JUDGE_LINE_PERFECT_COLOR);
                     if self.focus {
                         let _ = self.cali_hit.play(PlaySfxParams::default());
                     }
