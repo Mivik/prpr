@@ -83,7 +83,7 @@ particle: (bool, should particle be enabled or not) (default: false)
 playerName: (string, the name of the player) (default: 'Mivik')
 playerRks: (float, the ranking score of the player) (default: 15)
 sampleCount: (float, MSAA sampling count) (default: 4)
-skinPath: (string, optional, the path to the custom skin (can be folder or ZIP archive)) (default: none)
+resPackPath: (string, optional, the path to the custom resource pack (can be folder or ZIP archive)) (default: none)
 speed: (float, the speed of the chart) (default: 1)
 volumeMusic: (float, the volume of the music) (default: 1)
 volumeSfx: (float, the volume of sound effects) (default: 1)
@@ -99,4 +99,4 @@ Thanks [@inokana](https://github.com/GBTP) for hints on implementation!
 
 This project is licensed under [GNU General Public License v3.0](LICENSE).
 
-The skin assets under `assets/skin` are from [https://github.com/MisaLiu/phi-chart-render], and are licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Assets used here are compressed and some of them are resized for easier usage.
+The resource assets under `assets/respack` are from [https://github.com/MisaLiu/phi-chart-render], and are licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Assets used here are compressed and some of them are resized for easier usage.

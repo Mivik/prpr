@@ -161,7 +161,7 @@ impl Note {
             }
         }
         let scale = (if self.multiple_hint {
-            res.skin.note_style_mh.click.width() / res.skin.note_style.click.width()
+            res.res_pack.note_style_mh.click.width() / res.res_pack.note_style.click.width()
         } else {
             1.0
         }) * res.note_width;
@@ -180,9 +180,9 @@ impl Note {
         }
         let order = self.kind.order();
         let style = if res.config.multiple_hint && self.multiple_hint {
-            &res.skin.note_style_mh
+            &res.res_pack.note_style_mh
         } else {
-            &res.skin.note_style
+            &res.res_pack.note_style
         };
         let draw = |res: &mut Resource, tex: Texture2D| {
             let mut color = color;
@@ -200,9 +200,9 @@ impl Note {
             NoteKind::Hold { end_time, end_height } => {
                 res.with_model(self.now_transform(res, 0.), |res| {
                     let style = if res.config.multiple_hint && self.multiple_hint {
-                        &res.skin.note_style_mh
+                        &res.res_pack.note_style_mh
                     } else {
-                        &res.skin.note_style
+                        &res.res_pack.note_style
                     };
                     if matches!(self.judge, JudgeStatus::Judged) {
                         // miss
@@ -227,7 +227,7 @@ impl Note {
                     // TODO (end_height - height) is not always total height
                     draw_tex(
                         res,
-                        **(if res.skin.info.hold_repeat {
+                        **(if res.res_pack.info.hold_repeat {
                             style.hold_body.as_ref().unwrap()
                         } else {
                             tex
@@ -238,7 +238,7 @@ impl Note {
                         color,
                         DrawTextureParams {
                             source: Some({
-                                if res.skin.info.hold_repeat {
+                                if res.res_pack.info.hold_repeat {
                                     let hold_body = style.hold_body.as_ref().unwrap();
                                     let width = hold_body.width();
                                     let height = hold_body.height();
@@ -253,7 +253,7 @@ impl Note {
                         clip,
                     );
                     // head
-                    if res.time < self.time || res.skin.info.hold_keep_head {
+                    if res.time < self.time || res.res_pack.info.hold_keep_head {
                         let r = style.hold_head_rect();
                         let hf = vec2(scale, r.h / r.w * scale * ratio);
                         draw_tex(
@@ -261,7 +261,7 @@ impl Note {
                             **tex,
                             order,
                             -scale,
-                            bottom - if res.skin.info.hold_compact { hf.y } else { hf.y * 2. },
+                            bottom - if res.res_pack.info.hold_compact { hf.y } else { hf.y * 2. },
                             color,
                             DrawTextureParams {
                                 source: Some(r),
@@ -279,7 +279,7 @@ impl Note {
                         **tex,
                         order,
                         -scale,
-                        top - if res.skin.info.hold_compact { hf.y } else { 0. },
+                        top - if res.res_pack.info.hold_compact { hf.y } else { 0. },
                         color,
                         DrawTextureParams {
                             source: Some(r),
@@ -312,7 +312,7 @@ impl BadNote {
             return false;
         }
         res.with_model(self.matrix, |res| {
-            let style = &res.skin.note_style;
+            let style = &res.res_pack.note_style;
             draw_center(
                 res,
                 match &self.kind {

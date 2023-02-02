@@ -29,7 +29,7 @@ fn default_duration() -> f32 {
 #[allow(dead_code)]
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SkinPackInfo {
+pub struct ResPackInfo {
     name: String,
     author: String,
     hit_fx: (u32, u32),
@@ -95,8 +95,8 @@ impl NoteStyle {
     }
 }
 
-pub struct SkinPack {
-    pub info: SkinPackInfo,
+pub struct ResourcePack {
+    pub info: ResPackInfo,
     pub note_style: NoteStyle,
     pub note_style_mh: NoteStyle,
     pub sfx_click: AudioClip,
@@ -106,13 +106,13 @@ pub struct SkinPack {
     pub hit_fx: SafeTexture,
 }
 
-impl SkinPack {
+impl ResourcePack {
     pub async fn from_path<T: AsRef<Path>>(path: Option<T>) -> Result<Self> {
         Self::load(
             if let Some(path) = path {
                 crate::fs::fs_from_file(path.as_ref())?
             } else {
-                crate::fs::fs_from_assets("skin/")?
+                crate::fs::fs_from_assets("respack/")?
             }
             .deref_mut(),
         )
@@ -125,7 +125,7 @@ impl SkinPack {
                 image::load_from_memory(&fs.load_file($path).await.with_context(|| format!("Missing {}", $path))?)?.into()
             };
         }
-        let info: SkinPackInfo = serde_yaml::from_str(&String::from_utf8(fs.load_file("info.yml").await.context("Missing info.yml")?)?)?;
+        let info: ResPackInfo = serde_yaml::from_str(&String::from_utf8(fs.load_file("info.yml").await.context("Missing info.yml")?)?)?;
         let mut note_style = NoteStyle {
             click: load_tex!("click.png"),
             hold: load_tex!("hold.png"),
@@ -194,7 +194,7 @@ pub struct ParticleEmitter {
 }
 
 impl ParticleEmitter {
-    pub fn new(skin: &SkinPack, scale: f32, hide_particles: bool) -> Result<Self> {
+    pub fn new(res_pack: &ResourcePack, scale: f32, hide_particles: bool) -> Result<Self> {
         let colors_curve = {
             let start = WHITE;
             let mut mid = start;
@@ -204,23 +204,23 @@ impl ParticleEmitter {
             ColorCurve { start, mid, end }
         };
         let mut res = Self {
-            scale: skin.info.scale,
+            scale: res_pack.info.scale,
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,
-                texture: Some(*skin.hit_fx),
-                lifetime: skin.info.duration,
+                texture: Some(*res_pack.hit_fx),
+                lifetime: res_pack.info.duration,
                 lifetime_randomness: 0.0,
                 initial_rotation_randomness: 0.0,
                 initial_direction_spread: 0.0,
                 initial_velocity: 0.0,
-                atlas: Some(AtlasConfig::new(skin.info.hit_fx.0 as _, skin.info.hit_fx.1 as _, ..)),
+                atlas: Some(AtlasConfig::new(res_pack.info.hit_fx.0 as _, res_pack.info.hit_fx.1 as _, ..)),
                 emitting: false,
                 colors_curve,
                 ..Default::default()
             }),
             emitter_square: Emitter::new(EmitterConfig {
                 local_coords: false,
-                lifetime: skin.info.duration,
+                lifetime: res_pack.info.duration,
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 2. * std::f32::consts::PI,
                 size_randomness: 0.3,
@@ -307,7 +307,7 @@ pub struct Resource {
     pub illustration: SafeTexture,
     pub icons: [SafeTexture; 8],
     pub challenge_icons: [SafeTexture; 6],
-    pub skin: SkinPack,
+    pub res_pack: ResourcePack,
     pub player: SafeTexture,
     pub icon_back: SafeTexture,
     pub icon_retry: SafeTexture,
@@ -388,7 +388,7 @@ impl Resource {
                 SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
             };
         }
-        let skin = SkinPack::from_path(config.skin_path.as_ref()).await.context("Failed to load skin pack")?;
+        let res_pack = ResourcePack::from_path(config.res_pack_path.as_ref()).await.context("Failed to load resource pack")?;
         let camera = Camera2D {
             target: vec2(0., 0.),
             zoom: vec2(1., -config.aspect_ratio.unwrap_or(info.aspect_ratio)),
@@ -399,15 +399,15 @@ impl Resource {
         let music = AudioClip::new(fs.load_file(&info.music).await?)?;
         let track_length = music.length();
         let buffer_size = Some(1024);
-        let sfx_click = audio.create_sfx(skin.sfx_click.clone(), buffer_size)?;
-        let sfx_drag = audio.create_sfx(skin.sfx_drag.clone(), buffer_size)?;
-        let sfx_flick = audio.create_sfx(skin.sfx_flick.clone(), buffer_size)?;
+        let sfx_click = audio.create_sfx(res_pack.sfx_click.clone(), buffer_size)?;
+        let sfx_drag = audio.create_sfx(res_pack.sfx_drag.clone(), buffer_size)?;
+        let sfx_flick = audio.create_sfx(res_pack.sfx_flick.clone(), buffer_size)?;
 
         let aspect_ratio = config.aspect_ratio.unwrap_or(info.aspect_ratio);
         let note_width = config.note_scale * NOTE_WIDTH_RATIO_BASE;
         let note_scale = config.note_scale;
 
-        let emitter = ParticleEmitter::new(&skin, note_scale, skin.info.hide_particles)?;
+        let emitter = ParticleEmitter::new(&res_pack, note_scale, res_pack.info.hide_particles)?;
 
         let no_effect = config.disable_effect || has_no_effect;
 
@@ -432,7 +432,7 @@ impl Resource {
             illustration,
             icons: Self::load_icons().await?,
             challenge_icons: Self::load_challenge_icons().await?,
-            skin,
+            res_pack,
             player: if let Some(player) = player { player } else { load_tex!("player.jpg") },
             icon_back: load_tex!("back.png"),
             icon_retry: load_tex!("retry.png"),
@@ -464,7 +464,7 @@ impl Resource {
         let pt = self.world_to_screen(Point::default());
 
         self.emitter
-            .emit_at(vec2(pt.x, -pt.y), if self.skin.info.keep_rotation { rotation.to_radians() } else { 0. }, color);
+            .emit_at(vec2(pt.x, -pt.y), if self.res_pack.info.keep_rotation { rotation.to_radians() } else { 0. }, color);
     }
 
     pub fn update_size(&mut self, dim: (u32, u32)) -> bool {

@@ -35,7 +35,7 @@ mod render;
 pub use render::{MSRenderTarget, copy_fbo};
 
 mod resource;
-pub use resource::{ParticleEmitter, Resource, SkinPack, DPI_VALUE};
+pub use resource::{ParticleEmitter, Resource, ResourcePack, DPI_VALUE};
 
 mod tween;
 pub use tween::{easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor, Tweenable, TWEEN_FUNCTIONS};

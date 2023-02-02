@@ -528,7 +528,7 @@ impl SongScene {
                 info,
                 Config {
                     player_name: get_data().me.as_ref().map(|it| it.name.clone()).unwrap_or_else(|| "游客".to_string()),
-                    skin_path: get_data().config.skin_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap())),
+                    res_pack_path: get_data().config.res_pack_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap())),
                     ..get_data().config.clone()
                 },
                 fs,

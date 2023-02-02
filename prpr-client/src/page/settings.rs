@@ -3,7 +3,7 @@ use crate::{dir, get_data, get_data_mut, save_data};
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
 use prpr::{
-    core::{ParticleEmitter, SkinPack, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
+    core::{ParticleEmitter, ResourcePack, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
     ext::{create_audio_manger, poll_future, LocalTask, RectExt, SafeTexture},
     scene::{request_file, return_file, show_error, show_message, take_file},
     time::TimeManager,
@@ -23,11 +23,11 @@ pub struct SettingsPage {
     cali_last: bool,
     click_texture: SafeTexture,
     emitter: ParticleEmitter,
-    _skin: SkinPack, // prevent skin textures from being destroyed (ParticleEmitter holds a `weak` reference)
+    _res_pack: ResourcePack, // prevent resource pack textures from being destroyed (ParticleEmitter holds a `weak` reference)
 
     chal_buttons: [RectButton; 6],
 
-    load_skin_task: LocalTask<Result<(SkinPack, Option<String>)>>,
+    load_res_task: LocalTask<Result<(ResourcePack, Option<String>)>>,
     reset_time: f32,
 }
 
@@ -46,8 +46,8 @@ impl SettingsPage {
 
         let mut cali_tm = TimeManager::new(1., true);
         cali_tm.force = 3e-2;
-        let skin = SkinPack::from_path(get_data().config.skin_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap()))).await?;
-        let emitter = ParticleEmitter::new(&skin, get_data().config.note_scale, skin.info.hide_particles)?;
+        let res_pack = ResourcePack::from_path(get_data().config.res_pack_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap()))).await?;
+        let emitter = ParticleEmitter::new(&res_pack, get_data().config.note_scale, res_pack.info.hide_particles)?;
         Ok(Self {
             focus: false,
 
@@ -56,26 +56,26 @@ impl SettingsPage {
             cali_hit,
             cali_tm,
             cali_last: false,
-            click_texture: skin.note_style.click.clone(),
+            click_texture: res_pack.note_style.click.clone(),
             emitter,
-            _skin: skin,
+            _res_pack: res_pack,
 
             chal_buttons: [RectButton::new(); 6],
 
-            load_skin_task: None,
+            load_res_task: None,
             reset_time: f32::NEG_INFINITY,
         })
     }
 
-    fn new_skin_task(path: Option<String>) -> LocalTask<Result<(SkinPack, Option<String>)>> {
+    fn new_res_task(path: Option<String>) -> LocalTask<Result<(ResourcePack, Option<String>)>> {
         Some(Box::pin(async move {
-            let skin = SkinPack::from_path(path.as_ref()).await?;
+            let res_pack = ResourcePack::from_path(path.as_ref()).await?;
             Ok((
-                skin,
+                res_pack,
                 if let Some(path) = path {
-                    let dst = format!("{}/skin.zip", dir::root()?);
+                    let dst = format!("{}/respack.zip", dir::root()?);
                     std::fs::copy(path, dst).context("保存皮肤失败")?;
-                    Some("skin.zip".to_owned())
+                    Some("respack.zip".to_owned())
                 } else {
                     None
                 },
@@ -115,18 +115,18 @@ impl Page for SettingsPage {
                 self.cali_tm.update(pos);
             }
         }
-        if let Some(future) = &mut self.load_skin_task {
+        if let Some(future) = &mut self.load_res_task {
             if let Some(result) = poll_future(future.as_mut()) {
-                self.load_skin_task = None;
+                self.load_res_task = None;
                 match result {
                     Err(err) => {
                         show_error(err.context("加载皮肤失败"));
                     }
-                    Ok((skin, dst)) => {
-                        self.click_texture = skin.note_style.click.clone();
-                        self.emitter = ParticleEmitter::new(&skin, get_data().config.note_scale, skin.info.hide_particles)?;
-                        self._skin = skin;
-                        get_data_mut().config.skin_path = dst;
+                    Ok((res_pack, dst)) => {
+                        self.click_texture = res_pack.note_style.click.clone();
+                        self.emitter = ParticleEmitter::new(&res_pack, get_data().config.note_scale, res_pack.info.hide_particles)?;
+                        self._res_pack = res_pack;
+                        get_data_mut().config.res_pack_path = dst;
                         save_data()?;
                         show_message("加载皮肤成功");
                     }
@@ -134,8 +134,8 @@ impl Page for SettingsPage {
             }
         }
         if let Some((id, file)) = take_file() {
-            if id == "skin" {
-                self.load_skin_task = Self::new_skin_task(Some(file));
+            if id == "res_pack" {
+                self.load_res_task = Self::new_res_task(Some(file));
             } else {
                 return_file(id, file);
             }
@@ -232,13 +232,13 @@ impl Page for SettingsPage {
                 ui.dx(0.65);
                 let r = ui.text("皮肤").size(0.4).anchor(1., 0.).draw();
                 let mut r = Rect::new(0.02, r.y - 0.01, 0.3, r.h + 0.02);
-                if ui.button("choose_skin", r, config.skin_path.as_deref().unwrap_or("[默认]")) {
-                    request_file("skin");
+                if ui.button("choose_res_pack", r, config.res_pack_path.as_deref().unwrap_or("[默认]")) {
+                    request_file("res_pack");
                 }
                 r.x += 0.3 + 0.02;
                 r.w = 0.1;
-                if ui.button("reset_skin", r, "重置") {
-                    self.load_skin_task = Self::new_skin_task(None);
+                if ui.button("reset_res_pack", r, "重置") {
+                    self.load_res_task = Self::new_res_task(None);
                 }
                 ui.dy(r.h + s * 2.);
                 r.x -= 0.3 + 0.02;
@@ -274,7 +274,7 @@ impl Page for SettingsPage {
                         if let Err(err) = save_data() {
                             show_error(err.context("保存失败"));
                         } else {
-                            self.load_skin_task = Self::new_skin_task(None);
+                            self.load_res_task = Self::new_res_task(None);
                             show_message("设定恢复成功");
                         }
                     } else {

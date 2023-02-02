@@ -98,10 +98,10 @@ impl Data {
                 });
             }
         }
-        if let Some(skin_path) = &mut self.config.skin_path {
-            if skin_path.starts_with('/') {
+        if let Some(res_pack_path) = &mut self.config.res_pack_path {
+            if res_pack_path.starts_with('/') {
                 // for compatibility
-                *skin_path = "chart.zip".to_owned();
+                *res_pack_path = "chart.zip".to_owned();
             }
         }
         Ok(())
