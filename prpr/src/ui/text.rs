@@ -1,4 +1,7 @@
-use crate::{core::Matrix, ext::get_viewport};
+use crate::{
+    core::{Matrix, Vector},
+    ext::get_viewport,
+};
 use glyph_brush::{
     ab_glyph::{Font, FontArc, ScaleFont},
     BrushAction, BrushError, GlyphBrush, GlyphBrushBuilder, GlyphCruncher, Layout, Section, Text,
@@ -116,12 +119,13 @@ impl<'a, 's, 'ui> DrawText<'a, 's, 'ui> {
         let (section, rect) = self.measure_inner(&text);
         let vp = get_viewport();
         let s = vp.2 as f32 / 2.;
-        self.ui.text_painter.brush.queue(section.with_screen_position((rect.x * s, rect.y * s)));
-        self.ui.with(Matrix::new_scaling(1. / s), |ui| {
-            ui.apply(|ui| {
-                ui.text_painter.submit();
+        self.ui.text_painter.brush.queue(section);
+        self.ui
+            .with((Matrix::new_scaling(1. / s) * self.scale).append_translation(&Vector::new(rect.x, rect.y)), |ui| {
+                ui.apply(|ui| {
+                    ui.text_painter.submit();
+                });
             });
-        });
         rect
     }
 }
