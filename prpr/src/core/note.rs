@@ -1,4 +1,4 @@
-use super::{chart::ChartSettings, BpmList, Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
+use super::{chart::ChartSettings, BpmList, JudgeLine, Matrix, Object, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
 use crate::judge::JudgeStatus;
 use macroquad::prelude::*;
 
@@ -116,11 +116,15 @@ fn draw_center(res: &Resource, tex: Texture2D, order: i8, scale: f32, color: Col
 }
 
 impl Note {
+    pub fn rotation(&self, line: &JudgeLine) -> f32 {
+        line.object.rotation.now() + if self.above { 0. } else { 180. }
+    }
+
     pub fn plain(&self) -> bool {
         !self.fake && !matches!(self.kind, NoteKind::Hold { .. }) && self.object.translation.1.keyframes.len() <= 1
     }
 
-    pub fn update(&mut self, res: &mut Resource, parent_tr: &Matrix) {
+    pub fn update(&mut self, res: &mut Resource, parent_rot: f32, parent_tr: &Matrix) {
         self.object.set_time(res.time);
         if let Some(color) = if let JudgeStatus::Hold(perfect, at, ..) = &mut self.judge {
             if res.time > *at {
@@ -132,7 +136,7 @@ impl Note {
         } else {
             None
         } {
-            res.with_model(parent_tr * self.now_transform(res, 0.), |res| res.emit_at_origin(color));
+            res.with_model(parent_tr * self.now_transform(res, 0.), |res| res.emit_at_origin(parent_rot + if self.above { 0. } else { 180. }, color));
         }
     }
 
@@ -219,8 +223,37 @@ impl Note {
                     }
                     let tex = &style.hold;
                     let ratio = style.hold_ratio();
+                    // body
+                    // TODO (end_height - height) is not always total height
+                    draw_tex(
+                        res,
+                        **(if res.skin.info.hold_repeat {
+                            style.hold_body.as_ref().unwrap()
+                        } else {
+                            tex
+                        }),
+                        order,
+                        -scale,
+                        bottom,
+                        color,
+                        DrawTextureParams {
+                            source: Some({
+                                if res.skin.info.hold_repeat {
+                                    let hold_body = style.hold_body.as_ref().unwrap();
+                                    let width = hold_body.width();
+                                    let height = hold_body.height();
+                                    Rect::new(0., 0., 1., (top - bottom) / scale / 2. * width / height)
+                                } else {
+                                    style.hold_body_rect()
+                                }
+                            }),
+                            dest_size: Some(vec2(scale * 2., top - bottom)),
+                            ..Default::default()
+                        },
+                        clip,
+                    );
                     // head
-                    if res.time < self.time {
+                    if res.time < self.time || res.skin.info.hold_keep_head {
                         let r = style.hold_head_rect();
                         let hf = vec2(scale, r.h / r.w * scale * ratio);
                         draw_tex(
@@ -228,7 +261,7 @@ impl Note {
                             **tex,
                             order,
                             -scale,
-                            bottom - hf.y * 2.,
+                            bottom - if res.skin.info.hold_compact { hf.y } else { hf.y * 2. },
                             color,
                             DrawTextureParams {
                                 source: Some(r),
@@ -238,22 +271,6 @@ impl Note {
                             clip,
                         );
                     }
-                    // body
-                    // TODO (end_height - height) is not always total height
-                    draw_tex(
-                        res,
-                        **tex,
-                        order,
-                        -scale,
-                        bottom,
-                        color,
-                        DrawTextureParams {
-                            source: Some(style.hold_body_rect()),
-                            dest_size: Some(vec2(scale * 2., top - bottom)),
-                            ..Default::default()
-                        },
-                        clip,
-                    );
                     // tail
                     let r = style.hold_tail_rect();
                     let hf = vec2(scale, r.h / r.w * scale * ratio);
@@ -262,7 +279,7 @@ impl Note {
                         **tex,
                         order,
                         -scale,
-                        top,
+                        top - if res.skin.info.hold_compact { hf.y } else { 0. },
                         color,
                         DrawTextureParams {
                             source: Some(r),

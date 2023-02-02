@@ -91,9 +91,10 @@ pub struct JudgeLine {
 impl JudgeLine {
     pub fn update(&mut self, res: &mut Resource, tr: Matrix) {
         // self.object.set_time(res.time); // this is done by chart, chart has to calculate transform for us
+        let rot = self.object.rotation.now();
         self.cache.update_order.retain(|id| {
             let note = &mut self.notes[*id as usize];
-            note.update(res, &tr);
+            note.update(res, rot, &tr);
             !note.dead()
         });
         if let JudgeLineKind::Text(anim) = &mut self.kind {

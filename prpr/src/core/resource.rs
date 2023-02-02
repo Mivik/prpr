@@ -8,13 +8,23 @@ use crate::{
 };
 use anyhow::{bail, Context, Result};
 use macroquad::prelude::*;
-use miniquad::{gl::GLuint, Texture};
+use miniquad::{gl::GLuint, Texture, TextureWrap};
 use sasa::{AudioClip, AudioManager, Sfx};
 use serde::Deserialize;
 use std::{cell::RefCell, collections::BTreeMap, ops::DerefMut, path::Path, sync::atomic::AtomicU32};
 
 pub const MAX_SIZE: usize = 64; // needs tweaking
 pub static DPI_VALUE: AtomicU32 = AtomicU32::new(250);
+
+#[inline]
+fn default_scale() -> f32 {
+    1.
+}
+
+#[inline]
+fn default_duration() -> f32 {
+    0.5
+}
 
 #[allow(dead_code)]
 #[derive(Deserialize)]
@@ -23,11 +33,23 @@ pub struct SkinPackInfo {
     name: String,
     author: String,
     hit_fx: (u32, u32),
+    #[serde(default = "default_duration")]
+    duration: f32,
+    #[serde(default = "default_scale")]
+    scale: f32,
     hold_atlas: (u32, u32),
     #[serde(rename = "holdAtlasMH")]
     hold_atlas_mh: (u32, u32),
     #[serde(default)]
+    pub keep_rotation: bool,
+    #[serde(default)]
     pub hide_particles: bool,
+    #[serde(default)]
+    pub hold_keep_head: bool,
+    #[serde(default)]
+    pub hold_repeat: bool,
+    #[serde(default)]
+    pub hold_compact: bool,
 }
 
 pub struct NoteStyle {
@@ -35,6 +57,7 @@ pub struct NoteStyle {
     pub hold: SafeTexture,
     pub flick: SafeTexture,
     pub drag: SafeTexture,
+    pub hold_body: Option<SafeTexture>,
     pub hold_atlas: (u32, u32),
 }
 
@@ -99,22 +122,42 @@ impl SkinPack {
             };
         }
         let info: SkinPackInfo = serde_yaml::from_str(&String::from_utf8(fs.load_file("info.yml").await.context("Missing info.yml")?)?)?;
-        let note_style = NoteStyle {
+        let mut note_style = NoteStyle {
             click: load_tex!("click.png"),
             hold: load_tex!("hold.png"),
             flick: load_tex!("flick.png"),
             drag: load_tex!("drag.png"),
+            hold_body: None,
             hold_atlas: info.hold_atlas,
         };
         note_style.verify()?;
-        let note_style_mh = NoteStyle {
+        let mut note_style_mh = NoteStyle {
             click: load_tex!("click_mh.png"),
             hold: load_tex!("hold_mh.png"),
             flick: load_tex!("flick_mh.png"),
             drag: load_tex!("drag_mh.png"),
+            hold_body: None,
             hold_atlas: info.hold_atlas_mh,
         };
         note_style_mh.verify()?;
+        if info.hold_repeat {
+            fn get_body(style: &mut NoteStyle) {
+                let pixels = style.hold.get_texture_data();
+                let width = style.hold.width() as u16;
+                let height = style.hold.height() as u16;
+                let atlas = style.hold_atlas;
+                let res = Texture2D::from_rgba8(
+                    width,
+                    height - atlas.0 as u16 - atlas.1 as u16,
+                    &pixels.bytes[(atlas.0 as usize * width as usize * 4)..(pixels.bytes.len() - atlas.1 as usize * width as usize * 4)],
+                );
+                let context = unsafe { get_internal_gl() }.quad_context;
+                res.raw_miniquad_texture_handle().set_wrap(context, TextureWrap::Repeat);
+                style.hold_body = Some(res.into());
+            }
+            get_body(&mut note_style);
+            get_body(&mut note_style_mh);
+        }
         let hit_fx = image::load_from_memory(&fs.load_file("hit_fx.png").await.context("Missing hit_fx.png")?)?.into();
         Ok(Self {
             info,
@@ -126,6 +169,7 @@ impl SkinPack {
 }
 
 pub struct ParticleEmitter {
+    scale: f32,
     emitter: Emitter,
     emitter_square: Emitter,
     hide_particles: bool,
@@ -142,11 +186,13 @@ impl ParticleEmitter {
             ColorCurve { start, mid, end }
         };
         let mut res = Self {
+            scale: skin.info.scale,
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,
                 texture: Some(*skin.hit_fx),
-                lifetime: 0.5,
+                lifetime: skin.info.duration,
                 lifetime_randomness: 0.0,
+                initial_rotation_randomness: 0.0,
                 initial_direction_spread: 0.0,
                 initial_velocity: 0.0,
                 atlas: Some(AtlasConfig::new(skin.info.hit_fx.0 as _, skin.info.hit_fx.1 as _, ..)),
@@ -156,7 +202,7 @@ impl ParticleEmitter {
             }),
             emitter_square: Emitter::new(EmitterConfig {
                 local_coords: false,
-                lifetime: 0.5,
+                lifetime: skin.info.duration,
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 2. * std::f32::consts::PI,
                 size_randomness: 0.3,
@@ -173,7 +219,8 @@ impl ParticleEmitter {
         Ok(res)
     }
 
-    pub fn emit_at(&mut self, pt: Vec2, color: Color) {
+    pub fn emit_at(&mut self, pt: Vec2, rotation: f32, color: Color) {
+        self.emitter.config.initial_rotation = rotation;
         self.emitter.config.base_color = color;
         self.emitter.emit(pt, 1);
         if !self.hide_particles {
@@ -188,8 +235,8 @@ impl ParticleEmitter {
     }
 
     pub fn set_scale(&mut self, scale: f32) {
-        self.emitter.config.size = scale / 5.;
-        self.emitter_square.config.size = scale / 44.;
+        self.emitter.config.size = self.scale * scale / 5.;
+        self.emitter_square.config.size = self.scale * scale / 44.;
     }
 }
 
@@ -398,12 +445,14 @@ impl Resource {
         })
     }
 
-    pub fn emit_at_origin(&mut self, color: Color) {
+    pub fn emit_at_origin(&mut self, rotation: f32, color: Color) {
         if !self.config.particle {
             return;
         }
         let pt = self.world_to_screen(Point::default());
-        self.emitter.emit_at(vec2(pt.x, -pt.y), color);
+
+        self.emitter
+            .emit_at(vec2(pt.x, -pt.y), if self.skin.info.keep_rotation { rotation.to_radians() } else { 0. }, color);
     }
 
     pub fn update_size(&mut self, dim: (u32, u32)) -> bool {

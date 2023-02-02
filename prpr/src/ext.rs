@@ -57,14 +57,14 @@ impl RectExt for Rect {
     }
 }
 
-struct SafeTextureWrapper(Texture2D);
-impl Drop for SafeTextureWrapper {
+struct SafeTextureInner(Texture2D);
+impl Drop for SafeTextureInner {
     fn drop(&mut self) {
         self.0.delete()
     }
 }
 
-pub struct SafeTexture(Arc<SafeTextureWrapper>);
+pub struct SafeTexture(Arc<SafeTextureInner>);
 impl SafeTexture {
     pub fn into_inner(self) -> Texture2D {
         let arc = self.0;
@@ -90,7 +90,7 @@ impl Deref for SafeTexture {
 
 impl From<Texture2D> for SafeTexture {
     fn from(tex: Texture2D) -> Self {
-        Self(Arc::new(SafeTextureWrapper(tex)))
+        Self(Arc::new(SafeTextureInner(tex)))
     }
 }
 

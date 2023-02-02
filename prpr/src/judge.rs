@@ -612,11 +612,11 @@ impl Judge {
             }
             if match judgement {
                 Judgement::Perfect => {
-                    res.with_model(line_tr * note.object.now(res), |res| res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR));
+                    res.with_model(line_tr * note.object.now(res), |res| res.emit_at_origin(note.rotation(line), JUDGE_LINE_PERFECT_COLOR));
                     true
                 }
                 Judgement::Good => {
-                    res.with_model(line_tr * note.object.now(res), |res| res.emit_at_origin(JUDGE_LINE_GOOD_COLOR));
+                    res.with_model(line_tr * note.object.now(res), |res| res.emit_at_origin(note.rotation(line), JUDGE_LINE_GOOD_COLOR));
                     true
                 }
                 Judgement::Bad => {
@@ -706,8 +706,9 @@ impl Judge {
                 note.object.set_time(nt);
                 (note.object.now(res), note.kind.clone())
             };
-            res.with_model(chart.lines[line_id].now_transform(res, &chart.lines) * note_transform, |res| {
-                res.emit_at_origin(JUDGE_LINE_PERFECT_COLOR)
+            let line = &chart.lines[line_id];
+            res.with_model(line.now_transform(res, &chart.lines) * note_transform, |res| {
+                res.emit_at_origin(line.notes[id as usize].rotation(line), JUDGE_LINE_PERFECT_COLOR)
             });
             if let Some(sfx) = match note_kind {
                 NoteKind::Click => Some(&mut res.sfx_click),
