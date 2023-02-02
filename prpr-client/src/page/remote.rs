@@ -64,8 +64,8 @@ impl RemotePage {
                                 ..it.info.clone()
                             },
                             path: it.file.url,
-                            illustration: tex.clone(),
-                            illustration_task: Some(Task::new(async move { Images::load(&illu).await })),
+                            illustration: (tex.clone(), tex.clone()),
+                            illustration_task: Some(Task::new(async move { Images::load_lc_with_thumbnail(&illu).await })),
                         }
                     })
                     .collect::<Vec<_>>();

@@ -136,7 +136,7 @@ pub struct SongScene {
     edit_scroll: Scroll,
 
     info_task: Option<Task<ChartInfo>>,
-    illustration_task: Option<Task<Result<DynamicImage>>>,
+    illustration_task: Option<Task<Result<(DynamicImage, DynamicImage)>>>,
     chart_info: Option<ChartInfo>,
     scene_task: LocalTask<Result<LoadingScene>>,
 
@@ -528,7 +528,11 @@ impl SongScene {
                 info,
                 Config {
                     player_name: get_data().me.as_ref().map(|it| it.name.clone()).unwrap_or_else(|| "游客".to_string()),
-                    res_pack_path: get_data().config.res_pack_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap())),
+                    res_pack_path: get_data()
+                        .config
+                        .res_pack_path
+                        .as_ref()
+                        .map(|it| format!("{}/{it}", dir::root().unwrap())),
                     ..get_data().config.clone()
                 },
                 fs,
@@ -689,12 +693,13 @@ impl Scene for SongScene {
                     Err(err) => {
                         show_error(err.context("加载插图失败"));
                         self.illustration = BLACK_TEXTURE.clone();
+                        *UPDATE_TEXTURE.lock().unwrap() = Some((BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone()));
                     }
                     Ok(image) => {
-                        self.illustration = image.into();
+                        self.illustration = image.1.into();
+                        *UPDATE_TEXTURE.lock().unwrap() = Some((image.0.into(), self.illustration.clone()));
                     }
                 }
-                *UPDATE_TEXTURE.lock().unwrap() = Some(self.illustration.clone());
                 self.illustration_task = None;
             }
         }

@@ -16,7 +16,7 @@ pub use remote::RemotePage;
 mod settings;
 pub use settings::SettingsPage;
 
-use crate::{data::BriefChartInfo, dir, get_data, scene::ChartOrder, task::Task};
+use crate::{cloud::Images, data::BriefChartInfo, dir, get_data, scene::ChartOrder, task::Task};
 use anyhow::Result;
 use image::DynamicImage;
 use lyon::{
@@ -38,11 +38,15 @@ const SIDE_PADDING: f32 = 0.02;
 
 pub static SHOULD_UPDATE: AtomicBool = AtomicBool::new(false);
 
-pub fn illustration_task(path: String) -> Task<Result<DynamicImage>> {
+pub fn illustration_task(path: String) -> Task<Result<(DynamicImage, DynamicImage)>> {
     Task::new(async move {
         let mut fs = fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
         let info = fs::load_info(fs.deref_mut()).await?;
-        Ok(image::load_from_memory(&fs.load_file(&info.illustration).await?)?)
+        let image = image::load_from_memory(&fs.load_file(&info.illustration).await?)?;
+        let thumbnail =
+            Images::local_or_else(format!("{}/{}", dir::cache_image_local()?, path.replace('/', "_")), async { Ok(Images::thumbnail(&image)) })
+                .await?;
+        Ok((thumbnail, image))
     })
 }
 
@@ -95,7 +99,7 @@ pub fn load_local(tex: &SafeTexture, order: &(ChartOrder, bool)) -> Vec<ChartIte
         .map(|it| ChartItem {
             info: it.info.clone(),
             path: it.path.clone(),
-            illustration: tex.clone(),
+            illustration: (tex.clone(), tex.clone()),
             illustration_task: Some(illustration_task(it.path.clone())),
         })
         .collect();
@@ -109,8 +113,8 @@ pub fn load_local(tex: &SafeTexture, order: &(ChartOrder, bool)) -> Vec<ChartIte
 pub struct ChartItem {
     pub info: BriefChartInfo,
     pub path: String,
-    pub illustration: SafeTexture,
-    pub illustration_task: Option<Task<Result<DynamicImage>>>,
+    pub illustration: (SafeTexture, SafeTexture),
+    pub illustration_task: Option<Task<Result<(DynamicImage, DynamicImage)>>>,
 }
 
 pub struct SharedState {
@@ -155,11 +159,15 @@ impl SharedState {
                 let chart = &mut charts[id as usize];
                 if let Some(task) = &mut chart.illustration_task {
                     if let Some(image) = task.take() {
-                        chart.illustration = if let Ok(image) = image { image.into() } else { BLACK_TEXTURE.clone() };
+                        chart.illustration = if let Ok(image) = image {
+                            (image.0.into(), image.1.into())
+                        } else {
+                            (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone())
+                        };
                         chart.illustration_task = None;
                     }
                 }
-                ui.fill_path(&path, (*chart.illustration, Rect::new(0., 0., cw, ch)));
+                ui.fill_path(&path, (*chart.illustration.0, Rect::new(0., 0., cw, ch)));
                 ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
                 ui.text(&chart.info.name)
                     .pos(p + 0.01, ch - p - 0.02)

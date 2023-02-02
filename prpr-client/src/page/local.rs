@@ -13,8 +13,7 @@ use prpr::{
     scene::{request_file, return_file, show_error, show_message, take_file},
     ui::{RectButton, Scroll, Ui},
 };
-use std::{ops::DerefMut, sync::atomic::Ordering};
-use tempfile::NamedTempFile;
+use std::{ops::DerefMut, sync::atomic::Ordering, path::Path};
 
 pub struct LocalPage {
     scroll: Scroll,
@@ -54,7 +53,8 @@ impl Page for LocalPage {
         if let Some((id, file)) = take_file() {
             if id == "chart" || id == "_import" {
                 async fn import(from: String) -> Result<LocalChart> {
-                    let file = NamedTempFile::new_in(dir::custom_charts()?)?.keep()?.1;
+                    let name = uuid7::uuid7().to_string();
+                    let file = Path::new(&dir::custom_charts()?).join(&name);
                     std::fs::copy(from, &file).context("Failed to save")?;
                     let mut fs = fs::fs_from_file(std::path::Path::new(&file))?;
                     let info = fs::load_info(fs.deref_mut()).await?;
@@ -63,7 +63,7 @@ impl Page for LocalPage {
                             id: Option::None,
                             ..info.into()
                         },
-                        path: format!("custom/{}", file.file_name().unwrap().to_str().unwrap()),
+                        path: format!("custom/{name}"),
                     })
                 }
                 self.import_task = Task::new(import(file));

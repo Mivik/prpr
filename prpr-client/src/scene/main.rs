@@ -32,7 +32,7 @@ const SWITCH_TIME: f32 = 0.4;
 const TRANSIT_TIME: f32 = 0.4;
 
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
-pub static UPDATE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
+pub static UPDATE_TEXTURE: Mutex<Option<(SafeTexture, SafeTexture)>> = Mutex::new(None);
 pub static UPDATE_INFO: AtomicBool = AtomicBool::new(false);
 
 pub struct MainScene {
@@ -158,7 +158,7 @@ impl MainScene {
                 illustration: chart.illustration.clone(),
                 illustration_task: None,
             },
-            chart.illustration.clone(),
+            chart.illustration.1.clone(),
             self.icon_tool.clone(),
             self.icon_edit.clone(),
             self.icon_back.clone(),
@@ -281,7 +281,7 @@ impl Scene for MainScene {
                 &mut self.shared_state.charts_local
             };
             let chart = &dst[id];
-            ui.fill_path(&path, (*chart.illustration, rect, ScaleType::Scale));
+            ui.fill_path(&path, (*chart.illustration.1, rect, ScaleType::Scale));
             ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
             if *back && p <= 0. {
                 if SHOULD_DELETE.fetch_and(false, Ordering::SeqCst) {

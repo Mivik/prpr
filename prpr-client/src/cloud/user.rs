@@ -29,7 +29,7 @@ impl UserManager {
                 let user = Client::fetch::<User>(id.clone()).await?;
                 RESULTS.lock().unwrap().insert(id, (user.name.clone(), None));
                 let image = if let Some(avatar) = user.avatar {
-                    Images::load(&avatar).await?
+                    Images::load_lc(&avatar).await?
                 } else {
                     let mut image = image::DynamicImage::new_rgba8(1, 1);
                     image.put_pixel(0, 0, Rgba([0, 0, 0, 255]));
