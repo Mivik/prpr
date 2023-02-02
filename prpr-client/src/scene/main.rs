@@ -137,7 +137,7 @@ impl MainScene {
             self.page_scroll.size(content_size);
             self.page_scroll.render(ui, |ui| {
                 self.shared_state.t = t;
-                self.shared_state.content_size = (content_size.0, content_size.1 - CHARTS_BAR_HEIGHT);
+                self.shared_state.content_size = (content_size.0, content_size.1);
                 let must_render = rt < self.switch_start_time + SWITCH_TIME;
                 for (id, page) in self.pages.iter_mut().enumerate() {
                     if must_render || id == self.page_index {

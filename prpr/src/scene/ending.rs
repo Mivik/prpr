@@ -16,7 +16,6 @@ pub struct EndingScene {
     background: SafeTexture,
     illustration: SafeTexture,
     player: SafeTexture,
-    font: Font,
     icons: [SafeTexture; 8],
     icon_retry: SafeTexture,
     icon_proceed: SafeTexture,
@@ -40,7 +39,6 @@ impl EndingScene {
         background: SafeTexture,
         illustration: SafeTexture,
         player: SafeTexture,
-        font: Font,
         icons: [SafeTexture; 8],
         icon_retry: SafeTexture,
         icon_proceed: SafeTexture,
@@ -63,7 +61,6 @@ impl EndingScene {
             background,
             illustration,
             player,
-            font,
             icons,
             icon_retry,
             icon_proceed,
@@ -143,13 +140,12 @@ impl Scene for EndingScene {
             Color::new(0., 0., 0., 0.7),
             false,
         );
-        let rr =
-            draw_text_aligned(self.font, &self.info.level, r.right() - r.h / 7. * 13. * 0.13 - 0.01, r.bottom() - top / 20., (1., 1.), 0.46, WHITE);
+        let rr = draw_text_aligned(ui, &self.info.level, r.right() - r.h / 7. * 13. * 0.13 - 0.01, r.bottom() - top / 20., (1., 1.), 0.46, WHITE);
         let p = (r.x + 0.04, r.bottom() - top / 20.);
         let mw = rr.x - 0.02 - p.0;
         let mut size = 0.7;
         loop {
-            let text = ui.text(&self.info.name).pos(p.0, p.1).anchor(0., 1.).size(size);
+            let mut text = ui.text(&self.info.name).pos(p.0, p.1).anchor(0., 1.).size(size);
             if text.measure().w > mw {
                 size *= 0.93;
             } else {
@@ -167,7 +163,7 @@ impl Scene for EndingScene {
         draw_parallelogram(main, None, c, true);
         {
             let r = draw_text_aligned(
-                self.font,
+                ui,
                 &format!(
                     "PRPR{} {}   {:07}  +{:07}",
                     if self.autoplay { "[AUTOPLAY]" } else { "" },
@@ -185,7 +181,7 @@ impl Scene for EndingScene {
                 0.34,
                 WHITE,
             );
-            let r = draw_text_aligned(self.font, &format!("{:07}", res.score), r.x, r.y - 0.023, (0., 1.), 1., WHITE);
+            let r = draw_text_aligned(ui, &format!("{:07}", res.score), r.x, r.y - 0.023, (0., 1.), 1., WHITE);
             let icon = match (res.score, res.num_of_notes == res.max_combo) {
                 (x, _) if x < 700000 => 0,
                 (x, _) if x < 820000 => 1,
@@ -219,10 +215,10 @@ impl Scene for EndingScene {
         draw_parallelogram(s1, None, c, true);
         {
             let dy = 0.025;
-            let r = draw_text_aligned(self.font, "Max Combo", s1.x + dx, s1.bottom() - dy, (0., 1.), 0.34, WHITE);
-            draw_text_aligned(self.font, &res.max_combo.to_string(), r.x, r.y - 0.01, (0., 1.), 0.7, WHITE);
-            let r = draw_text_aligned(self.font, "Accuracy", s1.right() - dx, s1.bottom() - dy, (1., 1.), 0.34, WHITE);
-            draw_text_aligned(self.font, &format!("{:.2}%", res.accuracy * 100.), r.right(), r.y - 0.01, (1., 1.), 0.7, WHITE);
+            let r = draw_text_aligned(ui, "Max Combo", s1.x + dx, s1.bottom() - dy, (0., 1.), 0.34, WHITE);
+            draw_text_aligned(ui, &res.max_combo.to_string(), r.x, r.y - 0.01, (0., 1.), 0.7, WHITE);
+            let r = draw_text_aligned(ui, "Accuracy", s1.right() - dx, s1.bottom() - dy, (1., 1.), 0.34, WHITE);
+            draw_text_aligned(ui, &format!("{:.2}%", res.accuracy * 100.), r.right(), r.y - 0.01, (1., 1.), 0.7, WHITE);
         }
         gl.pop_model_matrix();
 
@@ -234,23 +230,23 @@ impl Scene for EndingScene {
             let dy2 = 0.015;
             let bg = 0.57;
             let sm = 0.26;
-            let draw_count = |ratio: f32, name: &str, count: u32| {
-                let r = draw_text_aligned(self.font, name, s2.x + s2.w * ratio, s2.bottom() - dy, (0.5, 1.), sm, WHITE);
-                draw_text_aligned(self.font, &count.to_string(), r.center().x, r.y - dy2, (0.5, 1.), bg, WHITE);
+            let draw_count = |ui: &mut Ui, ratio: f32, name: &str, count: u32| {
+                let r = draw_text_aligned(ui, name, s2.x + s2.w * ratio, s2.bottom() - dy, (0.5, 1.), sm, WHITE);
+                draw_text_aligned(ui, &count.to_string(), r.center().x, r.y - dy2, (0.5, 1.), bg, WHITE);
             };
-            draw_count(0.14, "Perfect", res.counts[0]);
-            draw_count(0.33, "Good", res.counts[1]);
-            draw_count(0.46, "Bad", res.counts[2]);
-            draw_count(0.59, "Miss", res.counts[3]);
+            draw_count(ui, 0.14, "Perfect", res.counts[0]);
+            draw_count(ui, 0.33, "Good", res.counts[1]);
+            draw_count(ui, 0.46, "Bad", res.counts[2]);
+            draw_count(ui, 0.59, "Miss", res.counts[3]);
 
             let sm = 0.3;
             let l = s2.x + s2.w * 0.72;
             let rt = s2.x + s2.w * 0.94;
             let cy = s2.center().y;
-            let r = draw_text_aligned(self.font, "Early", l, cy - dy2 / 2., (0., 1.), sm, WHITE);
-            draw_text_aligned(self.font, &res.early.to_string(), rt, r.bottom(), (1., 1.), sm, WHITE);
-            let r = draw_text_aligned(self.font, "Late", l, cy + dy2 / 2., (0., 0.), 0.3, WHITE);
-            draw_text_aligned(self.font, &res.late.to_string(), rt, r.y, (1., 0.), sm, WHITE);
+            let r = draw_text_aligned(ui, "Early", l, cy - dy2 / 2., (0., 1.), sm, WHITE);
+            draw_text_aligned(ui, &res.early.to_string(), rt, r.bottom(), (1., 1.), sm, WHITE);
+            let r = draw_text_aligned(ui, "Late", l, cy + dy2 / 2., (0., 0.), 0.3, WHITE);
+            draw_text_aligned(ui, &res.late.to_string(), rt, r.y, (1., 0.), sm, WHITE);
         }
         gl.pop_model_matrix();
 
@@ -298,24 +294,16 @@ impl Scene for EndingScene {
         let sub = Rect::new(1. - 0.13, main.center().y + 0.01, 0.12, 0.03);
         let color = Color::new(1., 1., 1., alpha);
         draw_parallelogram(sub, None, color, false);
-        draw_text_aligned(
-            self.font,
-            &format!("{:.2}", self.player_rks),
-            sub.center().x,
-            sub.center().y,
-            (0.5, 0.5),
-            0.37,
-            Color::new(0., 0., 0., alpha),
-        );
+        draw_text_aligned(ui, &format!("{:.2}", self.player_rks), sub.center().x, sub.center().y, (0.5, 0.5), 0.37, Color::new(0., 0., 0., alpha));
         let r = draw_illustration(*self.player, 1. - 0.21, main.center().y, 0.12 / (0.076 * 7.), 0.12 / (0.076 * 7.), color);
-        let text = draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, color);
+        let text = draw_text_aligned(ui, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, color);
         draw_parallelogram(
             Rect::new(text.x - main.h * slope - 0.01, main.y, r.x - text.x + main.h * slope * 2. + 0.013, main.h),
             None,
             Color::new(0., 0., 0., c.a * alpha),
             false,
         );
-        draw_text_aligned(self.font, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, color);
+        draw_text_aligned(ui, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, color);
 
         let ct = (1. - 0.1 + 0.043, main.center().y - 0.034 + 0.02);
         let (w, h) = (0.09 * self.challenge_texture.width() / 78., 0.04 * self.challenge_texture.height() / 38.);

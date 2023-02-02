@@ -2,7 +2,7 @@ use super::{get_touched, trigger_grid, ChartItem, Page, SharedState, CARD_HEIGHT
 use crate::{
     cloud::{Client, Images, LCChartItem},
     data::BriefChartInfo,
-    scene::ChartOrderBox,
+    scene::{ChartOrderBox, CHARTS_BAR_HEIGHT},
     task::Task,
 };
 use anyhow::Result;
@@ -138,9 +138,10 @@ impl Page for RemotePage {
     fn render(&mut self, ui: &mut Ui, state: &mut SharedState) -> Result<()> {
         let r = self.order_box.render(ui);
         ui.dy(r.h);
-        SharedState::render_scroll(ui, state.content_size, &mut self.scroll, &mut state.charts_remote);
+        let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
+        SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_remote);
         if let Some((true, id, _, rect, _)) = &mut state.transit {
-            let width = state.content_size.0;
+            let width = content_size.0;
             *rect = ui.rect_to_global(Rect::new(
                 (*id % ROW_NUM) as f32 * width / ROW_NUM as f32,
                 (*id / ROW_NUM) as f32 * CARD_HEIGHT - self.scroll.y_scroller.offset(),

@@ -1,7 +1,7 @@
 use super::{chart::ChartSettings, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig, Resource, Vector};
 use crate::{
     ext::{draw_text_aligned, NotNanExt, SafeTexture},
-    judge::JudgeStatus,
+    judge::JudgeStatus, ui::Ui,
 };
 use macroquad::prelude::*;
 use nalgebra::Rotation2;
@@ -138,7 +138,7 @@ impl JudgeLine {
         }
     }
 
-    pub fn render(&self, res: &mut Resource, lines: &[JudgeLine], bpm_list: &mut BpmList, settings: &ChartSettings) {
+    pub fn render(&self, ui: &mut Ui, res: &mut Resource, lines: &[JudgeLine], bpm_list: &mut BpmList, settings: &ChartSettings) {
         let alpha = self.object.alpha.now_opt().unwrap_or(1.0) * res.alpha;
         let color = self.color.now_opt();
         res.with_model(self.now_transform(res, lines), |res| {
@@ -170,8 +170,8 @@ impl JudgeLine {
                         let mut color = color.unwrap_or(WHITE);
                         color.a = alpha.max(0.0);
                         let now = anim.now();
-                        res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1., -1.)), |res| {
-                            draw_text_aligned(res.font, &now, 0., 0., (0.5, 0.5), 1., color);
+                        res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1., -1.)), |_| {
+                            draw_text_aligned(ui, &now, 0., 0., (0.5, 0.5), 1., color);
                         });
                     }
                 })

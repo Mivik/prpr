@@ -2,7 +2,7 @@ use super::{draw_background, request_input, return_input, show_message, take_inp
 use crate::{
     config::Config,
     core::{copy_fbo, BadNote, Chart, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
-    ext::{draw_text_aligned, screen_aspect, RectExt, SafeTexture},
+    ext::{screen_aspect, RectExt, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
     judge::Judge,
@@ -142,7 +142,6 @@ impl GameScene {
         player: Option<SafeTexture>,
         background: SafeTexture,
         illustration: SafeTexture,
-        font: Font,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
     ) -> Result<Self> {
         match mode {
@@ -163,7 +162,7 @@ impl GameScene {
         }
 
         let info_offset = info.offset;
-        let mut res = Resource::new(config, info, fs, player, background, illustration, font, chart.effects.is_empty() && effects.is_empty())
+        let mut res = Resource::new(config, info, fs, player, background, illustration, chart.effects.is_empty() && effects.is_empty())
             .await
             .context("Failed to load resources")?;
         let exercise_range = (chart.offset + info_offset + res.config.offset)..res.track_length;
@@ -240,7 +239,7 @@ impl GameScene {
 
         self.chart.with_element(ui, res, UIElement::Score, |ui, color, scale| {
             ui.text(format!("{:07}", self.judge.score()))
-                .pos(1. - margin, top + eps * 2.8)
+                .pos(1. - margin, top + eps * 2.2)
                 .anchor(1., 0.)
                 .size(0.8)
                 .color(Color { a: color.a * c.a, ..color })
@@ -258,17 +257,18 @@ impl GameScene {
             });
         });
         if self.judge.combo >= 3 {
-            self.chart.with_element(ui, res, UIElement::ComboNumber, |ui, color, scale| {
+            let btm = self.chart.with_element(ui, res, UIElement::ComboNumber, |ui, color, scale| {
                 ui.text(self.judge.combo.to_string())
-                    .pos(0., top + eps * 2.6)
+                    .pos(0., top + eps * 2.)
                     .anchor(0.5, 0.)
                     .color(Color { a: color.a * c.a, ..color })
                     .scale(scale)
-                    .draw();
+                    .draw()
+                    .bottom()
             });
             self.chart.with_element(ui, res, UIElement::Combo, |ui, color, scale| {
                 ui.text(if res.config.autoplay { "AUTOPLAY" } else { "COMBO" })
-                    .pos(0., top + 0.09 + eps * 1.1)
+                    .pos(0., btm + 0.01)
                     .anchor(0.5, 0.)
                     .size(0.4)
                     .color(Color { a: color.a * c.a, ..color })
@@ -475,7 +475,7 @@ impl GameScene {
                 }
                 ui.dy(0.2);
                 let r = ui.text("至").size(0.8).anchor(0.5, 0.).draw();
-                let tx = ui
+                let mut tx = ui
                     .text(fmt_time(self.exercise_range.start))
                     .pos(r.x - 0.02, 0.)
                     .anchor(1., 0.)
@@ -487,7 +487,7 @@ impl GameScene {
                     .fill_rect(re.feather(0.01), Color::new(1., 1., 1., if self.exercise_btns.0.touching() { 0.5 } else { 1. }));
                 tx.draw();
 
-                let tx = ui
+                let mut tx = ui
                     .text(fmt_time(self.exercise_range.end))
                     .pos(r.right() + 0.02, 0.)
                     .size(0.8)
@@ -508,7 +508,7 @@ impl GameScene {
                 let a = (1. - dt as f32 / 3.) * 1.;
                 let h = 1. / self.res.aspect_ratio;
                 draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., a));
-                draw_text_aligned(self.res.font, &t.to_string(), 0., 0., (0.5, 0.5), 1., c);
+                ui.text(t.to_string()).anchor(0.5, 0.5).size(1.).color(c).draw();
             }
         }
         Ok(())
@@ -673,7 +673,6 @@ impl Scene for GameScene {
                             self.res.background.clone(),
                             self.res.illustration.clone(),
                             self.res.player.clone(),
-                            self.res.font,
                             self.res.icons.clone(),
                             self.res.icon_retry.clone(),
                             self.res.icon_proceed.clone(),
@@ -844,7 +843,7 @@ impl Scene for GameScene {
         let h = 1. / res.aspect_ratio;
         draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
 
-        self.chart.render(res);
+        self.chart.render(ui, res);
 
         self.gl.quad_gl.render_pass(
             res.chart_target

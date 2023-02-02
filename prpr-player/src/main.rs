@@ -6,7 +6,7 @@ use prpr::{
     fs,
     scene::{show_error, GameMode, LoadingScene, NextScene, Scene},
     time::TimeManager,
-    ui::Ui,
+    ui::{FontArc, TextPainter, Ui},
     Main,
 };
 use std::ops::DerefMut;
@@ -87,7 +87,8 @@ async fn main() -> Result<()> {
         }
     };
 
-    let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
+    let font = FontArc::try_from_vec(load_file("font.ttf").await?)?;
+    let mut painter = TextPainter::new(font);
 
     let info = fs::load_info(fs.deref_mut()).await?;
     let config = config.unwrap_or_default();
@@ -104,7 +105,7 @@ async fn main() -> Result<()> {
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;
-        main.render(&mut Ui::new())?;
+        main.render(&mut Ui::new(&mut painter))?;
         if main.should_exit() {
             break 'app;
         }

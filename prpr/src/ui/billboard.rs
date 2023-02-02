@@ -33,7 +33,7 @@ impl BillBoard {
         let rt = 1. - PADDING;
         let mut tp = -ui.top + PADDING;
         for msg in &self.messages {
-            let text = ui.text(&msg.0).pos(rt, tp).size(0.8).anchor(1., 0.);
+            let mut text = ui.text(&msg.0).pos(rt, tp).size(0.8).anchor(1., 0.);
             let r = text.measure();
             text.ui.fill_rect(r.feather(0.01), Color::new(0., 0., 0., 0.3));
             text.draw();

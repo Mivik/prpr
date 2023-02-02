@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    core::{Matrix, Point, Vector},
+    core::{Matrix, Point, Vector}, ui::Ui,
 };
 use anyhow::Result;
 use image::DynamicImage;
@@ -127,60 +127,9 @@ pub fn get_viewport() -> (i32, i32, i32, i32) {
     }
 }
 
-pub fn draw_text_aligned(font: Font, text: &str, x: f32, y: f32, anchor: (f32, f32), scale: f32, color: Color) -> Rect {
-    use macroquad::prelude::*;
-    let size = (get_viewport().2 as f32 / 23. * scale) as u16;
-    let scale = 0.08 * scale / size as f32;
-    let dim = measure_text(text, Some(font), size, scale);
-    let rect = Rect::new(x - dim.width * anchor.0, y - dim.offset_y * anchor.1, dim.width, dim.offset_y);
-    draw_text_ex(
-        text,
-        rect.x,
-        rect.y + dim.offset_y,
-        TextParams {
-            font,
-            font_size: size,
-            font_scale: scale,
-            color,
-            ..Default::default()
-        },
-    );
-    rect
-}
-
-pub fn draw_text_aligned_scale(
-    font: Font,
-    text: &str,
-    x: f32,
-    y: f32,
-    anchor: (f32, f32),
-    font_size: f32,
-    color: Color,
-    baseline: bool,
-    scale_mat: Matrix,
-) -> Rect {
-    use macroquad::prelude::*;
-    let size = (get_viewport().2 as f32 / 23. * font_size) as u16;
-    let scale = 0.08 * font_size / size as f32;
-    let dim = measure_text(text, Some(font), size, scale);
-    let rect = Rect::new(x - dim.width * anchor.0, y - (if baseline { dim.offset_y } else { dim.height }) * anchor.1, dim.width, dim.offset_y);
-    let gl = unsafe { get_internal_gl() }.quad_gl;
-    let ct = rect.center();
-    gl.push_model_matrix(nalgebra_to_glm(&scale_mat.append_translation(&Vector::new(ct.x, ct.y + dim.offset_y))));
-    draw_text_ex(
-        text,
-        -rect.w / 2.,
-        -rect.h / 2.,
-        TextParams {
-            font,
-            font_size: size,
-            font_scale: scale,
-            color,
-            ..Default::default()
-        },
-    );
-    gl.pop_model_matrix();
-    rect
+#[inline]
+pub fn draw_text_aligned(ui: &mut Ui, text: &str, x: f32, y: f32, anchor: (f32, f32), scale: f32, color: Color) -> Rect {
+    ui.text(text).pos(x, y).anchor(anchor.0, anchor.1).size(scale).color(color).draw()
 }
 
 #[derive(Default, Clone, Copy)]
