@@ -1,15 +1,19 @@
+use crate::scene::CHARTS_BAR_HEIGHT;
+
 use super::{Page, SharedState, SIDE_PADDING};
 use anyhow::Result;
 use macroquad::prelude::Touch;
-use prpr::ui::Ui;
+use prpr::ui::{Scroll, Ui};
 
 pub struct AboutPage {
+    scroll: Scroll,
     text: String,
 }
 
 impl AboutPage {
     pub fn new() -> Self {
         Self {
+            scroll: Scroll::new(),
             text: format!(
                 r"prpr-client v{}
 prpr 是一款 Phigros 模拟器，旨在为自制谱游玩提供一个统一化的平台。请自觉遵守社群相关要求，不恶意使用 prpr，不随意制作或传播低质量作品。
@@ -30,20 +34,29 @@ impl Page for AboutPage {
         "关于"
     }
 
-    fn update(&mut self, _focus: bool, _state: &mut SharedState) -> Result<()> {
+    fn update(&mut self, _focus: bool, state: &mut SharedState) -> Result<()> {
+        self.scroll.update(state.t);
         Ok(())
     }
-    fn touch(&mut self, _touch: &Touch, _state: &mut SharedState) -> Result<bool> {
+    fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool> {
+        if self.scroll.touch(touch, state.t) {
+            return Ok(true);
+        }
         Ok(false)
     }
-    fn render(&mut self, ui: &mut Ui, _state: &mut SharedState) -> Result<()> {
+    fn render(&mut self, ui: &mut Ui, state: &mut SharedState) -> Result<()> {
         ui.dx(0.02);
         ui.dy(0.01);
-        ui.text(&self.text)
-            .multiline()
-            .max_width((1. - SIDE_PADDING) * 2. - 0.02)
-            .size(0.5)
-            .draw();
+        self.scroll.size(state.content_size);
+        self.scroll.render(ui, |ui| {
+            let r = ui
+                .text(&self.text)
+                .multiline()
+                .max_width((1. - SIDE_PADDING) * 2. - 0.02)
+                .size(0.5)
+                .draw();
+            (r.w, r.h)
+        });
         Ok(())
     }
 }
