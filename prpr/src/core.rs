@@ -32,13 +32,13 @@ mod object;
 pub use object::Object;
 
 mod render;
-pub use render::{MSRenderTarget, copy_fbo};
+pub use render::{copy_fbo, MSRenderTarget};
 
 mod resource;
 pub use resource::{ParticleEmitter, Resource, ResourcePack, DPI_VALUE};
 
 mod tween;
-pub use tween::{easing_from, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor, Tweenable, TWEEN_FUNCTIONS};
+pub use tween::{easing_from, BezierTween, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor, Tweenable, TWEEN_FUNCTIONS};
 
 pub fn init_assets() {
     if let Ok(mut exe) = std::env::current_exe() {

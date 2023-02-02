@@ -1,8 +1,9 @@
 use super::{process_lines, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, BpmList, Chart, ChartSettings, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note,
-        NoteKind, Object, StaticTween, Triple, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR,
+        Anim, AnimFloat, AnimVector, BezierTween, BpmList, Chart, ChartSettings, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind,
+        Keyframe, Note, NoteKind, Object, StaticTween, Triple, TweenFunction, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO,
+        JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
     fs::FileSystem,
@@ -41,6 +42,10 @@ struct RPEEvent<T = f32> {
     easing_left: f32,
     #[serde(default = "f32_one")]
     easing_right: f32,
+    #[serde(default)]
+    bezier: u8,
+    #[serde(default)]
+    bezier_points: [f32; 4],
     easing_type: i32,
     start: T,
     end: T,
@@ -161,7 +166,20 @@ struct RPEChart {
     effects: Option<Vec<RPEEffect>>,
 }
 
-fn parse_events<T: Tweenable, V: Clone + Into<T>>(r: &mut BpmList, rpe: &[RPEEvent<V>], default: Option<T>) -> Result<Anim<T>> {
+type BezierMap = HashMap<(u16, i16, i16), Rc<dyn TweenFunction>>;
+
+fn bezier_key<T>(event: &RPEEvent<T>) -> (u16, i16, i16) {
+    let p = &event.bezier_points;
+    let int = |p: f32| (p * 100.).round() as i16;
+    ((int(p[0]) * 100 + int(p[1])) as u16, int(p[2]), int(p[3]))
+}
+
+fn parse_events<T: Tweenable, V: Clone + Into<T>>(
+    r: &mut BpmList,
+    rpe: &[RPEEvent<V>],
+    default: Option<T>,
+    bezier_map: &BezierMap,
+) -> Result<Anim<T>> {
     let mut kfs = Vec::new();
     if let Some(default) = default {
         if rpe[0].start_time.beats() != 0.0 {
@@ -174,7 +192,9 @@ fn parse_events<T: Tweenable, V: Clone + Into<T>>(r: &mut BpmList, rpe: &[RPEEve
             value: e.start.clone().into(),
             tween: {
                 let tween = TWEEN_MAP[e.easing_type.max(1) as usize];
-                if e.easing_left.abs() < EPS && (e.easing_right - 1.0).abs() < EPS {
+                if e.bezier != 0 {
+                    Rc::clone(&bezier_map[&bezier_key(e)])
+                } else if e.easing_left.abs() < EPS && (e.easing_right - 1.0).abs() < EPS {
                     StaticTween::get_rc(tween)
                 } else {
                     Rc::new(ClampedTween::new(tween, e.easing_left..e.easing_right))
@@ -311,7 +331,7 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
         .collect()
 }
 
-async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs: &mut dyn FileSystem) -> Result<JudgeLine> {
+async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs: &mut dyn FileSystem, bezier_map: &BezierMap) -> Result<JudgeLine> {
     let event_layers: Vec<_> = rpe.event_layers.into_iter().flatten().collect();
     fn events_with_factor(
         r: &mut BpmList,
@@ -319,10 +339,11 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
         get: impl Fn(&RPEEventLayer) -> &Option<Vec<RPEEvent>>,
         factor: f32,
         desc: &str,
+        bezier_map: &BezierMap,
     ) -> Result<AnimFloat> {
         let anis: Vec<_> = event_layers
             .iter()
-            .filter_map(|it| get(it).as_ref().map(|es| parse_events(r, es, None)))
+            .filter_map(|it| get(it).as_ref().map(|es| parse_events(r, es, None, bezier_map)))
             .collect::<Result<_>>()
             .with_context(|| format!("Failed to parse {desc} events"))?;
         let mut res = AnimFloat::chain(anis);
@@ -334,15 +355,19 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
     let cache = JudgeLineCache::new(&mut notes);
     Ok(JudgeLine {
         object: Object {
-            alpha: events_with_factor(r, &event_layers, |it| &it.alpha_events, 1. / 255., "alpha")?,
-            rotation: events_with_factor(r, &event_layers, |it| &it.rotate_events, -1., "rotate")?,
+            alpha: events_with_factor(r, &event_layers, |it| &it.alpha_events, 1. / 255., "alpha", bezier_map)?,
+            rotation: events_with_factor(r, &event_layers, |it| &it.rotate_events, -1., "rotate", bezier_map)?,
             translation: AnimVector(
-                events_with_factor(r, &event_layers, |it| &it.move_x_events, 2. / RPE_WIDTH, "move X")?,
-                events_with_factor(r, &event_layers, |it| &it.move_y_events, 2. / RPE_HEIGHT, "move Y")?,
+                events_with_factor(r, &event_layers, |it| &it.move_x_events, 2. / RPE_WIDTH, "move X", bezier_map)?,
+                events_with_factor(r, &event_layers, |it| &it.move_y_events, 2. / RPE_HEIGHT, "move Y", bezier_map)?,
             ),
             scale: {
-                fn parse(r: &mut BpmList, opt: &Option<Vec<RPEEvent>>, factor: f32) -> Result<AnimFloat> {
-                    let mut res = opt.as_ref().map(|it| parse_events(r, it, None)).transpose()?.unwrap_or_default();
+                fn parse(r: &mut BpmList, opt: &Option<Vec<RPEEvent>>, factor: f32, bezier_map: &BezierMap) -> Result<AnimFloat> {
+                    let mut res = opt
+                        .as_ref()
+                        .map(|it| parse_events(r, it, None, bezier_map))
+                        .transpose()?
+                        .unwrap_or_default();
                     res.map_value(|v| v * factor);
                     Ok(res)
                 }
@@ -370,8 +395,9 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
                                     } else {
                                         1.
                                     },
+                                bezier_map,
                             )?,
-                            parse(r, &e.scale_y_events, factor)?,
+                            parse(r, &e.scale_y_events, factor, bezier_map)?,
                         ))
                     })
                     .transpose()?
@@ -382,15 +408,22 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
         notes,
         kind: if rpe.texture == "line.png" {
             if let Some(events) = rpe.extended.as_ref().and_then(|e| e.text_events.as_ref()) {
-                JudgeLineKind::Text(parse_events(r, events, Some(String::new())).context("Failed to parse text events")?)
+                JudgeLineKind::Text(parse_events(r, events, Some(String::new()), bezier_map).context("Failed to parse text events")?)
             } else {
                 JudgeLineKind::Normal
             }
         } else {
-            JudgeLineKind::Texture(image::load_from_memory(&fs.load_file(&rpe.texture).await.with_context(|| format!("加载插图 {} 失败", rpe.texture))?)?.into())
+            JudgeLineKind::Texture(
+                image::load_from_memory(
+                    &fs.load_file(&rpe.texture)
+                        .await
+                        .with_context(|| format!("加载插图 {} 失败", rpe.texture))?,
+                )?
+                .into(),
+            )
         },
         color: if let Some(events) = rpe.extended.as_ref().and_then(|e| e.color_events.as_ref()) {
-            parse_events(r, events, Some(JUDGE_LINE_PERFECT_COLOR)).context("Failed to parse color events")?
+            parse_events(r, events, Some(JUDGE_LINE_PERFECT_COLOR), bezier_map).context("Failed to parse color events")?
         } else {
             Anim::default()
         },
@@ -412,14 +445,15 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
 
 async fn parse_effect(r: &mut BpmList, rpe: RPEEffect, fs: &mut dyn FileSystem) -> Result<Effect> {
     let range = r.time(&rpe.start)..r.time(&rpe.end);
+    let def = BezierMap::new();
     let vars = rpe
         .vars
         .into_iter()
         .map(|(name, var)| -> Result<Box<dyn Uniform>> {
             Ok(match var {
-                Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events, None)?)),
-                Variable::Vec2(events) => Box::new((name, parse_events::<Vec2, (f32, f32)>(r, &events, None)?)),
-                Variable::Color(events) => Box::new((name, parse_events::<Color, [u8; 4]>(r, &events, None)?)),
+                Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events, None, &def)?)),
+                Variable::Vec2(events) => Box::new((name, parse_events::<Vec2, (f32, f32)>(r, &events, None, &def)?)),
+                Variable::Color(events) => Box::new((name, parse_events::<Color, [u8; 4]>(r, &events, None, &def)?)),
             })
         })
         .collect::<Result<_>>()?;
@@ -437,8 +471,37 @@ async fn parse_effect(r: &mut BpmList, rpe: RPEEffect, fs: &mut dyn FileSystem) 
     )
 }
 
+fn add_bezier<T>(map: &mut BezierMap, event: &RPEEvent<T>) {
+    if event.bezier != 0 {
+        let p = &event.bezier_points;
+        let int = |p: f32| (p * 100.).round() as i16;
+        map.entry(((int(p[0]) * 100 + int(p[1])) as u16, int(p[2]), int(p[3])))
+            .or_insert_with(|| Rc::new(BezierTween::new((p[0], p[1]), (p[2], p[3]))));
+    }
+}
+
+fn get_bezier_map(rpe: &RPEChart) -> BezierMap {
+    let mut map = HashMap::new();
+    for line in &rpe.judge_line_list {
+        for event_layer in line.event_layers.iter().flatten() {
+            for event in event_layer
+                .alpha_events
+                .iter()
+                .chain(event_layer.move_x_events.iter())
+                .chain(event_layer.move_y_events.iter())
+                .chain(event_layer.rotate_events.iter())
+                .flatten()
+            {
+                add_bezier(&mut map, event);
+            }
+        }
+    }
+    map
+}
+
 pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
     let rpe: RPEChart = serde_json::from_str(source).context("Failed to parse JSON")?;
+    let bezier_map = get_bezier_map(&rpe);
     let mut r = BpmList::new(rpe.bpm_list.into_iter().map(|it| (it.start_time.beats(), it.bpm)).collect());
     fn vec<T>(v: &Option<Vec<T>>) -> impl Iterator<Item = &T> {
         v.iter().flat_map(|it| it.iter())
@@ -479,7 +542,7 @@ pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
     for (id, rpe) in rpe.judge_line_list.into_iter().enumerate() {
         let name = rpe.name.clone();
         lines.push(
-            parse_judge_line(&mut r, rpe, max_time, fs)
+            parse_judge_line(&mut r, rpe, max_time, fs, &bezier_map)
                 .await
                 .with_context(move || format!("In judge line #{id} ({})", name))?,
         );
