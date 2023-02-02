@@ -79,7 +79,8 @@ async fn the_main() -> Result<()> {
         .unwrap();
     let _guard = rt.enter();
 
-    let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
+let font = FontArc::try_from_vec(load_file("font.ttf").await?)?;
+    let mut painter = TextPainter::new(font);
 
     let (path, config) = {
         let mut args = std::env::args().skip(1);
@@ -144,13 +145,13 @@ async fn the_main() -> Result<()> {
                 touch.position.x -= lf / texture.width as f32 * 2.;
             })?;
             main.show_billboard = false;
-            main.render(&mut Ui::new())?;
+            main.render(&mut Ui::new(&mut painter))?;
             gl.flush();
             set_camera(&Camera2D {
                 zoom: vec2(1., -screen_width() / screen_height()),
                 ..Default::default()
             });
-            let mut ui = Ui::new();
+            let mut ui = Ui::new(&mut painter);
             clear_background(GRAY);
             draw_texture_ex(
                 tex,
@@ -172,7 +173,7 @@ async fn the_main() -> Result<()> {
             main.update()?;
             gl.quad_gl.viewport(None);
             gl.quad_gl.render_pass(None);
-            main.render(&mut Ui::new())?;
+            main.render(&mut Ui::new(&mut painter))?;
         }
         if main.should_exit() {
             break;
@@ -332,7 +333,7 @@ async fn the_main() -> Result<()> {
         gl.quad_gl.render_pass(Some(mst.output().render_pass));
         clear_background(BLACK);
         main.update()?;
-        main.render(&mut Ui::new())?;
+        main.render(&mut Ui::new(&mut painter))?;
         // TODO magic. can't remove this line.
         draw_rectangle(0., 0., 0., 0., Color::default());
         gl.flush();

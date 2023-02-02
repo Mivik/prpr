@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
+fastblur = "*"
+image = "*"
 macroquad = { git = "https://github.com/Mivik/prpr-macroquad", default-features = false }
 prpr = { path = "../prpr" }
-image = "*"
-fastblur = "*"
 serde_yaml = "0.9"
 tokio = "*"
 

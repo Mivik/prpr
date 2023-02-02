@@ -5,7 +5,7 @@ use crate::{
     fs::FileSystem,
     info::ChartInfo,
     time::TimeManager,
-    ui::{Ui, FONT},
+    ui::Ui,
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -23,7 +23,6 @@ pub struct LoadingScene {
     info: ChartInfo,
     background: SafeTexture,
     illustration: SafeTexture,
-    font: Font,
     load_task: LocalTask<Result<GameScene>>,
     next_scene: Option<NextScene>,
     finish_time: f32,
@@ -76,17 +75,15 @@ impl LoadingScene {
         let (illustration, background): (SafeTexture, SafeTexture) = background
             .map(|(ill, back)| (ill.into(), back.into()))
             .unwrap_or_else(|| (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone()));
-        let font = *FONT.get().unwrap();
         let get_size_fn = get_size_fn.unwrap_or_else(|| Rc::new(|| (screen_width() as u32, screen_height() as u32)));
         if info.tip.is_none() {
             info.tip = Some(crate::config::TIPS.choose().cloned().unwrap());
         }
-        let future = Box::pin(GameScene::new(mode, info.clone(), config, fs, player, background.clone(), illustration.clone(), font, get_size_fn));
+        let future = Box::pin(GameScene::new(mode, info.clone(), config, fs, player, background.clone(), illustration.clone(), get_size_fn));
         Ok(Self {
             info,
             background,
             illustration,
-            font,
             load_task: Some(future),
             next_scene: None,
             finish_time: f32::INFINITY,
@@ -153,7 +150,7 @@ impl Scene for LoadingScene {
         let mut size = 0.7;
         let p = (main.x + main.w * 0.09, main.y + main.h * 0.36);
         loop {
-            let text = ui.text(&self.info.name).pos(p.0, p.1).anchor(0., 0.5).size(size);
+            let mut text = ui.text(&self.info.name).pos(p.0, p.1).anchor(0., 0.5).size(size);
             if text.measure().w > main.w * 0.6 {
                 size *= 0.93;
             } else {
@@ -161,31 +158,23 @@ impl Scene for LoadingScene {
                 break;
             }
         }
-        draw_text_aligned(self.font, &self.info.composer, main.x + main.w * 0.09, main.y + main.h * 0.73, (0., 0.5), 0.36, WHITE);
+        draw_text_aligned(ui, &self.info.composer, main.x + main.w * 0.09, main.y + main.h * 0.73, (0., 0.5), 0.36, WHITE);
 
         let ext = 0.06;
         let sub = Rect::new(main.x + main.w * 0.71, main.y - main.h * ext, main.w * 0.26, main.h * (1. + ext * 2.));
         let mut ct = sub.center();
         ct.x += sub.w * 0.02;
         draw_parallelogram(sub, None, WHITE, true);
-        draw_text_aligned(self.font, &(self.info.difficulty as u32).to_string(), ct.x, ct.y + sub.h * 0.05, (0.5, 1.), 0.88, BLACK);
-        draw_text_aligned(
-            self.font,
-            self.info.level.split_whitespace().next().unwrap_or_default(),
-            ct.x,
-            ct.y + sub.h * 0.09,
-            (0.5, 0.),
-            0.34,
-            BLACK,
-        );
-        let t = draw_text_aligned(self.font, "Chart", main.x + main.w / 6., main.y + main.h * 1.27, (0., 0.), 0.3, WHITE);
-        draw_text_aligned(self.font, &self.info.charter, t.x, t.y + top / 20., (0., 0.), 0.47, WHITE);
+        draw_text_aligned(ui, &(self.info.difficulty as u32).to_string(), ct.x, ct.y + sub.h * 0.05, (0.5, 1.), 0.88, BLACK);
+        draw_text_aligned(ui, self.info.level.split_whitespace().next().unwrap_or_default(), ct.x, ct.y + sub.h * 0.09, (0.5, 0.), 0.34, BLACK);
+        let t = draw_text_aligned(ui, "Chart", main.x + main.w / 6., main.y + main.h * 1.2, (0., 0.), 0.3, WHITE);
+        draw_text_aligned(ui, &self.info.charter, t.x, t.y + top / 20., (0., 0.), 0.47, WHITE);
         let w = 0.027;
-        let t = draw_text_aligned(self.font, "Illustration", t.x - w, t.y + w / 0.13 / 13. * 5., (0., 0.), 0.3, WHITE);
-        draw_text_aligned(self.font, &self.info.illustrator, t.x, t.y + top / 20., (0., 0.), 0.47, WHITE);
+        let t = draw_text_aligned(ui, "Illustration", t.x - w, t.y + w / 0.13 / 13. * 5., (0., 0.), 0.3, WHITE);
+        draw_text_aligned(ui, &self.info.illustrator, t.x, t.y + top / 20., (0., 0.), 0.47, WHITE);
 
-        draw_text_aligned(self.font, self.info.tip.as_ref().unwrap(), -0.91, top * 0.92, (0., 1.), 0.47, WHITE);
-        let t = draw_text_aligned(self.font, "Loading...", 0.87, top * 0.92, (1., 1.), 0.44, WHITE);
+        draw_text_aligned(ui, self.info.tip.as_ref().unwrap(), -0.91, top * 0.92, (0., 1.), 0.47, WHITE);
+        let t = draw_text_aligned(ui, "Loading...", 0.87, top * 0.92, (1., 1.), 0.44, WHITE);
         let we = 0.2;
         let he = 0.5;
         let r = Rect::new(t.x - t.w * we, t.y - t.h * he, t.w * (1. + we * 2.), t.h * (1. + he * 2.));
@@ -200,7 +189,7 @@ impl Scene for LoadingScene {
         ui.fill_rect(r, WHITE);
         r.x += dx;
         ui.scissor(Some(r));
-        draw_text_aligned(self.font, "Loading...", 0.87, top * 0.92, (1., 1.), 0.44, BLACK);
+        draw_text_aligned(ui, "Loading...", 0.87, top * 0.92, (1., 1.), 0.44, BLACK);
         ui.scissor(None);
 
         if dx != 0. {

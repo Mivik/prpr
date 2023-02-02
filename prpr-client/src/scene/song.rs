@@ -317,7 +317,7 @@ impl SongScene {
                 }
                 let r = ui
                     .text(format!(
-                        "{}\n\n{}\n\n难度：{} ({:.1})\n曲师：{}\n插图：{}",
+                        "{}\n{}\n难度：{} ({:.1})\n曲师：{}\n插图：{}",
                         self.chart.info.intro,
                         self.chart.info.tags.iter().map(|it| format!("#{it}")).join(" "),
                         self.chart.info.level,

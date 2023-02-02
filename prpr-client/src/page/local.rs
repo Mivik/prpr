@@ -2,7 +2,7 @@ use super::{get_touched, load_local, trigger_grid, Page, SharedState, CARD_HEIGH
 use crate::{
     data::{BriefChartInfo, LocalChart},
     dir, get_data_mut, save_data,
-    scene::ChartOrderBox,
+    scene::{ChartOrderBox, CHARTS_BAR_HEIGHT},
     task::Task,
 };
 use anyhow::{Context, Result};
@@ -121,9 +121,10 @@ impl Page for LocalPage {
     fn render(&mut self, ui: &mut Ui, state: &mut SharedState) -> Result<()> {
         let r = self.order_box.render(ui);
         ui.dy(r.h);
-        SharedState::render_scroll(ui, state.content_size, &mut self.scroll, &mut state.charts_local);
+        let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
+        SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_local);
         if let Some((false, id, _, rect, _)) = &mut state.transit {
-            let width = state.content_size.0;
+            let width = content_size.0;
             *rect = ui.rect_to_global(Rect::new(
                 (*id % ROW_NUM) as f32 * width / ROW_NUM as f32,
                 (*id / ROW_NUM) as f32 * CARD_HEIGHT - self.scroll.y_scroller.offset(),
@@ -134,7 +135,7 @@ impl Page for LocalPage {
         {
             let pad = 0.03;
             let rad = 0.06;
-            let r = Rect::new(state.content_size.0 - pad - rad * 2., state.content_size.1 - pad - rad * 2., rad * 2., rad * 2.);
+            let r = Rect::new(content_size.0 - pad - rad * 2., content_size.1 - pad - rad * 2., rad * 2., rad * 2.);
             let ct = r.center();
             ui.fill_circle(ct.x, ct.y, rad, ui.accent());
             self.import_button.set(ui, r);

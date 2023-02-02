@@ -7,7 +7,7 @@ mod task;
 use anyhow::Result;
 use data::Data;
 use macroquad::prelude::*;
-use prpr::{build_conf, core::init_assets, time::TimeManager, ui::Ui, Main};
+use prpr::{build_conf, core::init_assets, time::TimeManager, ui::{Ui, TextPainter, FontArc}, Main};
 use scene::MainScene;
 use std::sync::{mpsc, Mutex};
 
@@ -112,7 +112,8 @@ async fn the_main() -> Result<()> {
         rx
     };
 
-    let _ = prpr::ui::FONT.set(load_ttf_font("font.ttf").await?);
+    let font = FontArc::try_from_vec(load_file("font.ttf").await?)?;
+    let mut painter = TextPainter::new(font);
 
     let mut main = Main::new(Box::new(MainScene::new().await?), TimeManager::default(), None)?;
 
@@ -121,7 +122,7 @@ async fn the_main() -> Result<()> {
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;
-        main.render(&mut Ui::new())?;
+        main.render(&mut Ui::new(&mut painter))?;
         if let Ok(paused) = rx.try_recv() {
             if paused {
                 main.pause()?;

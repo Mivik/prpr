@@ -2,7 +2,7 @@ use super::{Page, SharedState};
 use crate::{
     cloud::{Client, Message},
     get_data, get_data_mut, save_data,
-    task::Task, scene::CHARTS_BAR_HEIGHT,
+    task::Task,
 };
 use anyhow::Result;
 use chrono::{Local, Utc};
@@ -96,9 +96,8 @@ impl Page for MessagePage {
     }
 
     fn render(&mut self, ui: &mut Ui, state: &mut SharedState) -> Result<()> {
-        let content_size = (state.content_size.0, state.content_size.1 + CHARTS_BAR_HEIGHT);
         let width = 0.4;
-        self.list_scroll.size((width, content_size.1 - 0.01));
+        self.list_scroll.size((width, state.content_size.1 - 0.01));
         ui.fill_rect(self.list_scroll.rect(), Color::new(0., 0., 0., 0.3));
         self.list_scroll.render(ui, |ui| {
             let pd = 0.02;
@@ -124,8 +123,8 @@ impl Page for MessagePage {
         });
         let dx = width + 0.02;
         ui.dx(dx);
-        let width = content_size.0 - dx;
-        self.content_scroll.size((width, content_size.1 - 0.01));
+        let width = state.content_size.0 - dx;
+        self.content_scroll.size((width, state.content_size.1 - 0.01));
         if let Some(focus) = self.focus {
             let msg = &self.messages[focus].0;
             ui.fill_rect(self.content_scroll.rect(), Color::new(0., 0., 0., 0.3));

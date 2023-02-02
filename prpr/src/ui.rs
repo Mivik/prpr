@@ -10,9 +10,14 @@ pub use dialog::Dialog;
 mod scroll;
 pub use scroll::Scroll;
 
+mod text;
+pub use text::{DrawText, TextPainter};
+
+pub use glyph_brush::ab_glyph::FontArc;
+
 use crate::{
     core::{Matrix, Point, Tweenable, Vector},
-    ext::{draw_text_aligned_scale, get_viewport, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType},
+    ext::{get_viewport, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType},
     judge::Judge,
     scene::{request_input, return_input, take_input},
 };
@@ -23,10 +28,7 @@ use lyon::{
 };
 use macroquad::prelude::*;
 use miniquad::PassAction;
-use once_cell::sync::OnceCell;
-use std::{cell::RefCell, collections::HashMap, ops::Range};
-
-pub static FONT: OnceCell<Font> = OnceCell::new();
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, ops::Range};
 
 #[derive(Default, Clone, Copy)]
 pub struct Gravity(u8);
@@ -73,137 +75,6 @@ impl FillVertexConstructor<Vertex> for ShadedConstructor {
     fn new_vertex(&mut self, vertex: FillVertex) -> Vertex {
         let pos = vertex.position();
         self.1.new_vertex(&self.0, pos.x, pos.y)
-    }
-}
-
-#[must_use = "DrawText does nothing until you 'draw' or 'measure' it"]
-pub struct DrawText<'a> {
-    pub ui: &'a mut Ui,
-    text: String,
-    font: Option<Font>,
-    size: f32,
-    pos: (f32, f32),
-    anchor: (f32, f32),
-    color: Color,
-    max_width: Option<f32>,
-    baseline: bool,
-    multiline: bool,
-    scale: Matrix,
-}
-
-impl<'a> DrawText<'a> {
-    fn new(ui: &'a mut Ui, text: String) -> Self {
-        Self {
-            ui,
-            text,
-            font: None,
-            size: 1.,
-            pos: (0., 0.),
-            anchor: (0., 0.),
-            color: WHITE,
-            max_width: None,
-            baseline: true,
-            multiline: false,
-            scale: Matrix::identity(),
-        }
-    }
-
-    pub fn font(mut self, font: Font) -> Self {
-        self.font = Some(font);
-        self
-    }
-
-    pub fn size(mut self, size: f32) -> Self {
-        self.size = size;
-        self
-    }
-
-    pub fn pos(mut self, x: f32, y: f32) -> Self {
-        self.pos = (x, y);
-        self
-    }
-
-    pub fn anchor(mut self, x: f32, y: f32) -> Self {
-        self.anchor = (x, y);
-        self
-    }
-
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = color;
-        self
-    }
-
-    pub fn max_width(mut self, max_width: f32) -> Self {
-        self.max_width = Some(max_width);
-        self
-    }
-
-    pub fn no_baseline(mut self) -> Self {
-        self.baseline = false;
-        self
-    }
-
-    pub fn multiline(mut self) -> Self {
-        self.multiline = true;
-        self
-    }
-
-    pub fn scale(mut self, scale: Matrix) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    pub fn measure(&self) -> Rect {
-        let size = (screen_width() / 23. * self.size) as u16;
-        let scale = 0.08 * self.size / size as f32;
-        let dim = measure_text(&self.text, Some(self.font.unwrap_or_else(|| *FONT.get().unwrap())), size, scale);
-        Rect::new(self.pos.0 - dim.width * self.anchor.0, self.pos.1 - dim.offset_y * self.anchor.1, dim.width, dim.offset_y)
-    }
-
-    pub fn draw(mut self) -> Rect {
-        let mut tmp = None;
-        if let Some(width) = self.max_width {
-            if self.measure().w > width || self.multiline {
-                let text = std::mem::take(&mut self.text);
-                for ch in text.chars() {
-                    self.text.push(ch);
-                    if self.measure().w > width || (self.multiline && ch == '\n') {
-                        if ch != '\n' {
-                            self.text.pop();
-                        }
-                        break;
-                    }
-                }
-                tmp = Some(text);
-            } else {
-                tmp = Some(self.text.clone());
-            }
-        }
-        let mut res = self.ui.apply(|| {
-            draw_text_aligned_scale(
-                self.font.unwrap_or_else(|| *FONT.get().unwrap()),
-                &self.text,
-                self.pos.0,
-                self.pos.1,
-                self.anchor,
-                self.size,
-                self.color,
-                self.baseline,
-                self.scale,
-            )
-        });
-        if self.multiline {
-            // only supports anchor (0, 0)
-            if self.text.len() < tmp.as_ref().unwrap().len() {
-                self.text = tmp.unwrap()[self.text.len()..].to_string();
-                res.h += 0.01;
-                self.pos.1 += res.h;
-                let new = self.draw();
-                res.w = res.w.max(res.w);
-                res.h += new.h;
-            }
-        }
-        res
     }
 }
 
@@ -407,8 +278,10 @@ impl From<f32> for InputParams {
     }
 }
 
-pub struct Ui {
+pub struct Ui<'a> {
     pub top: f32,
+
+    text_painter: &'a mut TextPainter,
 
     model_stack: Vec<Matrix>,
     touches: Option<Vec<Touch>>,
@@ -418,14 +291,8 @@ pub struct Ui {
     fill_options: FillOptions,
 }
 
-impl Default for Ui {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Ui {
-    pub fn new() -> Self {
+impl<'a> Ui<'a> {
+    pub fn new(text_painter: &'a mut TextPainter) -> Self {
         unsafe { get_internal_gl() }.quad_context.begin_default_pass(PassAction::Clear {
             depth: None,
             stencil: Some(0),
@@ -433,6 +300,8 @@ impl Ui {
         });
         Self {
             top: 1. / screen_aspect(),
+
+            text_painter,
 
             model_stack: vec![Matrix::identity()],
             touches: None,
@@ -563,14 +432,11 @@ impl Ui {
     }
 
     #[inline]
-    pub fn apply<R>(&self, f: impl FnOnce() -> R) -> R {
-        self.apply_model_of(self.model_stack.last().unwrap(), f)
-    }
-
-    #[inline]
-    fn apply_model_of<R>(&self, mat: &Matrix, f: impl FnOnce() -> R) -> R {
-        unsafe { get_internal_gl() }.quad_gl.push_model_matrix(nalgebra_to_glm(mat));
-        let res = f();
+    pub fn apply<R>(&mut self, f: impl FnOnce(&mut Ui) -> R) -> R {
+        unsafe { get_internal_gl() }
+            .quad_gl
+            .push_model_matrix(nalgebra_to_glm(self.model_stack.last().unwrap()));
+        let res = f(self);
         unsafe { get_internal_gl() }.quad_gl.pop_model_matrix();
         res
     }
@@ -588,7 +454,7 @@ impl Ui {
         }
     }
 
-    pub fn text(&mut self, text: impl Into<String>) -> DrawText<'_> {
+    pub fn text<'s, 'ui>(&'ui mut self, text: impl Into<Cow<'s, str>>) -> DrawText<'a, 's, 'ui> {
         DrawText::new(self, text.into())
     }
 

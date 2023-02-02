@@ -214,7 +214,7 @@ impl NoteBuffer {
         let gl = gl.quad_gl;
         gl.draw_mode(DrawMode::Triangles);
         for ((_, tex_id), meshes) in std::mem::take(&mut self.0).into_iter() {
-            gl.texture(Some(Texture2D::from_miniquad_texture(unsafe { Texture::from_raw_id(tex_id) })));
+            gl.texture(Some(Texture2D::from_miniquad_texture(unsafe { Texture::from_raw_id(tex_id, miniquad::TextureFormat::RGBA8) })));
             for mesh in meshes {
                 gl.geometry(&mesh.0, &mesh.1);
             }
@@ -238,7 +238,6 @@ pub struct Resource {
     pub camera: Camera2D,
     pub camera_matrix: Mat4,
 
-    pub font: Font,
     pub background: SafeTexture,
     pub illustration: SafeTexture,
     pub icons: [SafeTexture; 8],
@@ -318,7 +317,6 @@ impl Resource {
         player: Option<SafeTexture>,
         background: SafeTexture,
         illustration: SafeTexture,
-        font: Font,
         has_no_effect: bool,
     ) -> Result<Self> {
         macro_rules! load_tex {
@@ -370,7 +368,6 @@ impl Resource {
             camera,
             camera_matrix: camera.matrix(),
 
-            font,
             background,
             illustration,
             icons: Self::load_icons().await?,
