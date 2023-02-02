@@ -696,7 +696,7 @@ impl Scene for GameScene {
                             self.judge.result(),
                             self.res.challenge_icons[self.res.config.challenge_color.clone() as usize].clone(),
                             &self.res.config,
-                            self.res.ending_bgm_bytes.clone(),
+                            self.res.skin.ending.clone(),
                         )?))),
                         GameMode::TweakOffset => Some(NextScene::PopWithResult(Box::new(None::<f32>))),
                         GameMode::Exercise => None,

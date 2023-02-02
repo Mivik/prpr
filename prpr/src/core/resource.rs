@@ -99,6 +99,10 @@ pub struct SkinPack {
     pub info: SkinPackInfo,
     pub note_style: NoteStyle,
     pub note_style_mh: NoteStyle,
+    pub sfx_click: AudioClip,
+    pub sfx_drag: AudioClip,
+    pub sfx_flick: AudioClip,
+    pub ending: AudioClip,
     pub hit_fx: SafeTexture,
 }
 
@@ -159,10 +163,24 @@ impl SkinPack {
             get_body(&mut note_style_mh);
         }
         let hit_fx = image::load_from_memory(&fs.load_file("hit_fx.png").await.context("Missing hit_fx.png")?)?.into();
+
+        macro_rules! load_clip {
+            ($path:literal) => {
+                if let Some(sfx) = fs.load_file($path).await.ok().map(|it| AudioClip::new(it)).transpose()? {
+                    sfx
+                } else {
+                    AudioClip::new(load_file($path).await?)?
+                }
+            };
+        }
         Ok(Self {
             info,
             note_style,
             note_style_mh,
+            sfx_click: load_clip!("click.ogg"),
+            sfx_drag: load_clip!("drag.ogg"),
+            sfx_flick: load_clip!("flick.ogg"),
+            ending: load_clip!("ending.mp3"),
             hit_fx,
         })
     }
@@ -300,7 +318,6 @@ pub struct Resource {
 
     pub audio: AudioManager,
     pub music: AudioClip,
-    pub ending_bgm_bytes: Vec<u8>,
     pub track_length: f32,
     pub sfx_click: Sfx,
     pub sfx_drag: Sfx,
@@ -379,16 +396,12 @@ impl Resource {
         };
 
         let mut audio = create_audio_manger(&config)?;
-        macro_rules! load_sfx {
-            ($path:literal) => {
-                audio.create_sfx(AudioClip::new(load_file($path).await?)?, Some(1024))?
-            };
-        }
         let music = AudioClip::new(fs.load_file(&info.music).await?)?;
         let track_length = music.length();
-        let sfx_click = load_sfx!("click.ogg");
-        let sfx_drag = load_sfx!("drag.ogg");
-        let sfx_flick = load_sfx!("flick.ogg");
+        let buffer_size = Some(1024);
+        let sfx_click = audio.create_sfx(skin.sfx_click.clone(), buffer_size)?;
+        let sfx_drag = audio.create_sfx(skin.sfx_drag.clone(), buffer_size)?;
+        let sfx_flick = audio.create_sfx(skin.sfx_flick.clone(), buffer_size)?;
 
         let aspect_ratio = config.aspect_ratio.unwrap_or(info.aspect_ratio);
         let note_width = config.note_scale * NOTE_WIDTH_RATIO_BASE;
@@ -430,7 +443,6 @@ impl Resource {
 
             audio,
             music,
-            ending_bgm_bytes: load_file("ending.mp3").await?,
             track_length,
             sfx_click,
             sfx_drag,

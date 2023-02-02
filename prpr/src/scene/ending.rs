@@ -46,11 +46,11 @@ impl EndingScene {
         result: PlayResult,
         challenge_texture: SafeTexture,
         config: &Config,
-        bgm_bytes: Vec<u8>,
+        bgm: AudioClip,
     ) -> Result<Self> {
         let mut audio = create_audio_manger(config)?;
         let bgm = audio.create_music(
-            AudioClip::new(bgm_bytes)?,
+            bgm,
             MusicParams {
                 amplifier: config.volume_music,
                 loop_: true,
