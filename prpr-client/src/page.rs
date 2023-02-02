@@ -16,7 +16,13 @@ pub use remote::RemotePage;
 mod settings;
 pub use settings::SettingsPage;
 
-use crate::{cloud::{Images, LCFile}, data::BriefChartInfo, dir, get_data, scene::ChartOrder, task::Task};
+use crate::{
+    cloud::{Images, LCFile},
+    data::BriefChartInfo,
+    dir, get_data,
+    scene::ChartOrder,
+    task::Task,
+};
 use anyhow::Result;
 use image::DynamicImage;
 use lyon::{
@@ -146,6 +152,7 @@ impl SharedState {
 
     fn render_scroll(ui: &mut Ui, content_size: (f32, f32), scroll: &mut Scroll, charts: &mut Vec<ChartItem>) {
         scroll.size(content_size);
+        let sy = scroll.y_scroller.offset();
         scroll.render(ui, |ui| {
             let cw = content_size.0 / ROW_NUM as f32;
             let ch = CARD_HEIGHT;
@@ -155,7 +162,13 @@ impl SharedState {
                 path.add_rounded_rectangle(&lm::Box2D::new(lm::point(p, p), lm::point(cw - p, ch - p)), &BorderRadii::new(0.01), Winding::Positive);
                 path.build()
             };
+            let start_line = (sy / ch) as u32;
+            let end_line = ((sy + content_size.1) / ch).ceil() as u32;
+            let range = (start_line * ROW_NUM)..((end_line + 1) * ROW_NUM);
             ui.hgrids(content_size.0, ch, ROW_NUM, charts.len() as u32, |ui, id| {
+                if !range.contains(&id) {
+                    return;
+                }
                 let chart = &mut charts[id as usize];
                 if let Some(task) = &mut chart.illustration_task {
                     if let Some(image) = task.take() {
