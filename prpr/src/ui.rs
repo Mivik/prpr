@@ -462,32 +462,43 @@ impl<'a> Ui<'a> {
         let rect = self.rect_to_global(rect);
         let mut exists = false;
         let mut any = false;
-        for touch in self.ensure_touches().iter().filter({
-            let entry = *entry;
-            move |it| {
-                exists = exists || entry == Some(it.id);
-                rect.contains(it.position)
+        let old_entry = *entry;
+        let mut res = false;
+        self.ensure_touches().retain(|touch| {
+            exists = exists || old_entry == Some(touch.id);
+            if !rect.contains(touch.position) {
+                return true;
             }
-        }) {
             any = true;
             match touch.phase {
                 TouchPhase::Started => {
                     *entry = Some(touch.id);
+                    false
                 }
                 TouchPhase::Moved | TouchPhase::Stationary => {
                     if *entry != Some(touch.id) {
                         *entry = None;
+                        true
+                    } else {
+                        false
                     }
                 }
                 TouchPhase::Cancelled => {
                     *entry = None;
+                    true
                 }
                 TouchPhase::Ended => {
                     if entry.take() == Some(touch.id) {
-                        return true;
+                        res = true;
+                        false
+                    } else {
+                        true
                     }
                 }
             }
+        });
+        if res {
+            return true;
         }
         if !any && exists {
             *entry = None;
