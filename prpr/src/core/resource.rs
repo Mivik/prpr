@@ -32,18 +32,21 @@ fn default_duration() -> f32 {
 pub struct ResPackInfo {
     pub name: String,
     pub author: String,
-    hit_fx: (u32, u32),
+
+    pub hit_fx: (u32, u32),
     #[serde(default = "default_duration")]
-    duration: f32,
+    pub hit_fx_duration: f32,
     #[serde(default = "default_scale")]
-    scale: f32,
-    hold_atlas: (u32, u32),
-    #[serde(rename = "holdAtlasMH")]
-    hold_atlas_mh: (u32, u32),
+    pub hit_fx_scale: f32,
     #[serde(default)]
-    pub keep_rotation: bool,
+    pub hit_fx_rotate: bool,
     #[serde(default)]
     pub hide_particles: bool,
+
+    pub hold_atlas: (u32, u32),
+    #[serde(rename = "holdAtlasMH")]
+    pub hold_atlas_mh: (u32, u32),
+
     #[serde(default)]
     pub hold_keep_head: bool,
     #[serde(default)]
@@ -204,11 +207,11 @@ impl ParticleEmitter {
             ColorCurve { start, mid, end }
         };
         let mut res = Self {
-            scale: res_pack.info.scale,
+            scale: res_pack.info.hit_fx_scale,
             emitter: Emitter::new(EmitterConfig {
                 local_coords: false,
                 texture: Some(*res_pack.hit_fx),
-                lifetime: res_pack.info.duration,
+                lifetime: res_pack.info.hit_fx_duration,
                 lifetime_randomness: 0.0,
                 initial_rotation_randomness: 0.0,
                 initial_direction_spread: 0.0,
@@ -220,7 +223,7 @@ impl ParticleEmitter {
             }),
             emitter_square: Emitter::new(EmitterConfig {
                 local_coords: false,
-                lifetime: res_pack.info.duration,
+                lifetime: res_pack.info.hit_fx_duration,
                 lifetime_randomness: 0.0,
                 initial_direction_spread: 2. * std::f32::consts::PI,
                 size_randomness: 0.3,
@@ -464,7 +467,7 @@ impl Resource {
         let pt = self.world_to_screen(Point::default());
 
         self.emitter
-            .emit_at(vec2(pt.x, -pt.y), if self.res_pack.info.keep_rotation { rotation.to_radians() } else { 0. }, color);
+            .emit_at(vec2(pt.x, -pt.y), if self.res_pack.info.hit_fx_rotate { rotation.to_radians() } else { 0. }, color);
     }
 
     pub fn update_size(&mut self, dim: (u32, u32)) -> bool {
