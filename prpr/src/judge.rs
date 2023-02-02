@@ -398,6 +398,9 @@ impl Judge {
                     let x = &mut note.object.translation.0;
                     x.set_time(t);
                     let dist = (x.now() - pos.x).abs();
+                    if dist > X_DIFF_MAX {
+                        continue;
+                    }
                     if dt.abs()
                         > if matches!(note.kind, NoteKind::Click) {
                             LIMIT_BAD - LIMIT_PERFECT * (dist - 0.9).max(0.)
