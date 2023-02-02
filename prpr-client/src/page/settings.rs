@@ -23,7 +23,7 @@ pub struct SettingsPage {
     cali_last: bool,
     click_texture: SafeTexture,
     emitter: ParticleEmitter,
-    _res_pack: ResourcePack, // prevent resource pack textures from being destroyed (ParticleEmitter holds a `weak` reference)
+    res_pack: ResourcePack, // prevent resource pack textures from being destroyed (ParticleEmitter holds a `weak` reference)
 
     chal_buttons: [RectButton; 6],
 
@@ -58,7 +58,7 @@ impl SettingsPage {
             cali_last: false,
             click_texture: res_pack.note_style.click.clone(),
             emitter,
-            _res_pack: res_pack,
+            res_pack,
 
             chal_buttons: [RectButton::new(); 6],
 
@@ -125,7 +125,7 @@ impl Page for SettingsPage {
                     Ok((res_pack, dst)) => {
                         self.click_texture = res_pack.note_style.click.clone();
                         self.emitter = ParticleEmitter::new(&res_pack, get_data().config.note_scale, res_pack.info.hide_particles)?;
-                        self._res_pack = res_pack;
+                        self.res_pack = res_pack;
                         get_data_mut().config.res_pack_path = dst;
                         save_data()?;
                         show_message("加载皮肤成功");
@@ -232,7 +232,7 @@ impl Page for SettingsPage {
                 ui.dx(0.65);
                 let r = ui.text("皮肤").size(0.4).anchor(1., 0.).draw();
                 let mut r = Rect::new(0.02, r.y - 0.01, 0.3, r.h + 0.02);
-                if ui.button("choose_res_pack", r, config.res_pack_path.as_deref().unwrap_or("[默认]")) {
+                if ui.button("choose_res_pack", r, &self.res_pack.info.name) {
                     request_file("res_pack");
                 }
                 r.x += 0.3 + 0.02;

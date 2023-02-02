@@ -30,8 +30,8 @@ fn default_duration() -> f32 {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResPackInfo {
-    name: String,
-    author: String,
+    pub name: String,
+    pub author: String,
     hit_fx: (u32, u32),
     #[serde(default = "default_duration")]
     duration: f32,
