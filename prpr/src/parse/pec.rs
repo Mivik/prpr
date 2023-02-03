@@ -9,6 +9,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use macroquad::prelude::warn;
+use std::cell::RefCell;
 
 trait Take {
     fn take_f32(&mut self) -> Result<f32>;
@@ -160,6 +161,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
             rotation: parse_events(pec.rotate_events, id, "rotate")?,
             scale: AnimVector(AnimFloat::fixed(3.91 / 6.), AnimFloat::default()),
         },
+        ctrl_obj: RefCell::default(),
         kind: JudgeLineKind::Normal,
         height,
         incline: AnimFloat::default(),
@@ -203,8 +205,8 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                        bail!("No note has been inserted yet");
-                    };
+                                                bail!("No note has been inserted yet");
+                                            };
             lines[last_line].notes.last_mut().unwrap()
         }};
     }

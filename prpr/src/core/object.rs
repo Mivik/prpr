@@ -11,6 +11,15 @@ pub struct Object {
 }
 
 impl Object {
+    pub fn is_default(&self) -> bool {
+        self.alpha.is_default()
+            && self.scale.0.is_default()
+            && self.scale.1.is_default()
+            && self.rotation.is_default()
+            && self.translation.0.is_default()
+            && self.translation.1.is_default()
+    }
+
     pub fn set_time(&mut self, time: f32) {
         self.alpha.set_time(time);
         self.scale.0.set_time(time);
@@ -58,5 +67,22 @@ impl Object {
     #[inline]
     pub fn now_scale(&self) -> Matrix {
         Matrix::identity().append_nonuniform_scaling(&self.scale.now_with_def(1.0, 1.0))
+    }
+}
+
+#[derive(Default)]
+pub struct CtrlObject {
+    pub alpha: AnimFloat,
+    pub size: AnimFloat,
+    pub pos: AnimFloat,
+    pub y: AnimFloat,
+}
+
+impl CtrlObject {
+    pub fn set_height(&mut self, height: f32) {
+        self.alpha.set_time(height);
+        self.size.set_time(height);
+        self.pos.set_time(height);
+        self.y.set_time(height);
     }
 }

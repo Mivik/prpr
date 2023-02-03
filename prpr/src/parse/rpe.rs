@@ -1,8 +1,8 @@
 use super::{process_lines, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, BezierTween, BpmList, Chart, ChartSettings, ClampedTween, Effect, JudgeLine, JudgeLineCache, JudgeLineKind,
-        Keyframe, Note, NoteKind, Object, StaticTween, Triple, TweenFunction, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO,
+        Anim, AnimFloat, AnimVector, BezierTween, BpmList, Chart, ChartSettings, ClampedTween, CtrlObject, Effect, JudgeLine, JudgeLineCache,
+        JudgeLineKind, Keyframe, Note, NoteKind, Object, StaticTween, Triple, TweenFunction, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO,
         JUDGE_LINE_PERFECT_COLOR,
     },
     ext::NotNanExt,
@@ -12,10 +12,10 @@ use crate::{
 use anyhow::{anyhow, bail, Context, Result};
 use macroquad::prelude::{Color, Vec2};
 use serde::Deserialize;
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-const RPE_WIDTH: f32 = 1350.;
-const RPE_HEIGHT: f32 = 900.;
+pub const RPE_WIDTH: f32 = 1350.;
+pub const RPE_HEIGHT: f32 = 900.;
 const SPEED_RATIO: f32 = 10. / 45. / HEIGHT_RATIO;
 
 #[derive(Deserialize)]
@@ -51,6 +51,15 @@ struct RPEEvent<T = f32> {
     end: T,
     start_time: Triple,
     end_time: Triple,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RPECtrlEvent {
+    easing: u8,
+    x: f32,
+    #[serde(flatten)]
+    value: HashMap<String, f32>,
 }
 
 #[derive(Deserialize)]
@@ -128,6 +137,15 @@ struct RPEJudgeLine {
     z_order: i32,
     #[serde(rename = "attachUI")]
     attach_ui: Option<UIElement>,
+
+    #[serde(default)]
+    pos_control: Vec<RPECtrlEvent>,
+    #[serde(default)]
+    size_control: Vec<RPECtrlEvent>,
+    #[serde(default)]
+    alpha_control: Vec<RPECtrlEvent>,
+    #[serde(default)]
+    y_control: Vec<RPECtrlEvent>,
 }
 
 #[derive(Deserialize)]
@@ -332,6 +350,19 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
         .collect()
 }
 
+fn parse_ctrl_events(rpe: &[RPECtrlEvent], key: &str) -> AnimFloat {
+    let vals: Vec<_> = rpe.iter().map(|it| it.value[key]).collect();
+    if rpe.is_empty() || (rpe.len() == 2 && rpe[0].easing == 1 && (vals[0] - 1.).abs() < 1e-4) {
+        return AnimFloat::default();
+    }
+    AnimFloat::new(
+        rpe.iter()
+            .zip(vals.into_iter())
+            .map(|(it, val)| Keyframe::new(it.x, val, TWEEN_MAP.get(it.easing.max(1) as usize).copied().unwrap_or(TWEEN_MAP[0])))
+            .collect(),
+    )
+}
+
 async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs: &mut dyn FileSystem, bezier_map: &BezierMap) -> Result<JudgeLine> {
     let event_layers: Vec<_> = rpe.event_layers.into_iter().flatten().collect();
     fn events_with_factor(
@@ -405,6 +436,13 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
                     .unwrap_or_default()
             },
         },
+        ctrl_obj: RefCell::new(CtrlObject {
+            alpha: parse_ctrl_events(&rpe.alpha_control, "alpha"),
+            size: parse_ctrl_events(&rpe.size_control, "size"),
+            pos: parse_ctrl_events(&rpe.pos_control, "pos"),
+            y: parse_ctrl_events(&rpe.y_control, "y"),
+            ..Default::default()
+        }),
         height,
         incline: if let Some(events) = rpe.extended.as_ref().and_then(|e| e.incline_events.as_ref()) {
             parse_events(r, events, Some(0.), bezier_map).context("Failed to parse incline events")?

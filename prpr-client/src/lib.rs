@@ -7,7 +7,13 @@ mod task;
 use anyhow::Result;
 use data::Data;
 use macroquad::prelude::*;
-use prpr::{build_conf, core::init_assets, time::TimeManager, ui::{Ui, TextPainter, FontArc}, Main};
+use prpr::{
+    build_conf,
+    core::init_assets,
+    time::TimeManager,
+    ui::{FontArc, TextPainter, Ui},
+    Main,
+};
 use scene::MainScene;
 use std::sync::{mpsc, Mutex};
 
@@ -55,7 +61,11 @@ mod dir {
 
     pub fn cache_image_local() -> Result<String> {
         // TODO generalize
-        ensure(if cfg!(target_os = "ios") { "Caches/image/local" } else { "cache/image/local" })
+        ensure(if cfg!(target_os = "ios") {
+            "Caches/image/local"
+        } else {
+            "cache/image/local"
+        })
     }
 
     pub fn root() -> Result<String> {

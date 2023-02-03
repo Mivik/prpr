@@ -59,6 +59,10 @@ impl<T: Tweenable> Anim<T> {
         }
     }
 
+    pub fn is_default(&self) -> bool {
+        self.keyframes.is_empty() && self.next.is_none()
+    }
+
     pub fn chain(elements: Vec<Anim<T>>) -> Self {
         if elements.is_empty() {
             return Self::default();

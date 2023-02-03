@@ -1,4 +1,4 @@
-use super::{chart::ChartSettings, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig, Resource, Vector};
+use super::{chart::ChartSettings, object::CtrlObject, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig, Resource, Vector};
 use crate::{
     ext::{draw_text_aligned, NotNanExt, SafeTexture},
     judge::JudgeStatus,
@@ -7,6 +7,7 @@ use crate::{
 use macroquad::prelude::*;
 use nalgebra::Rotation2;
 use serde::Deserialize;
+use std::cell::RefCell;
 
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -31,6 +32,7 @@ pub enum JudgeLineKind {
 
 pub struct JudgeLineCache {
     update_order: Vec<u32>,
+    not_plain_count: usize,
     above_indices: Vec<usize>,
     below_indices: Vec<usize>,
 }
@@ -40,6 +42,7 @@ impl JudgeLineCache {
         notes.sort_by_key(|it| (it.plain(), !it.above, it.speed.not_nan(), (it.height + it.object.translation.1.now()).not_nan()));
         let mut res = Self {
             update_order: Vec::new(),
+            not_plain_count: 0,
             above_indices: Vec::new(),
             below_indices: Vec::new(),
         };
@@ -52,6 +55,7 @@ impl JudgeLineCache {
         self.above_indices.clear();
         self.below_indices.clear();
         let mut index = notes.iter().position(|it| it.plain()).unwrap_or(notes.len());
+        self.not_plain_count = index;
         while notes.get(index).map_or(false, |it| it.above) {
             self.above_indices.push(index);
             let speed = notes[index].speed;
@@ -77,6 +81,7 @@ impl JudgeLineCache {
 
 pub struct JudgeLine {
     pub object: Object,
+    pub ctrl_obj: RefCell<CtrlObject>,
     pub kind: JudgeLineKind,
     pub height: AnimFloat,
     pub incline: AnimFloat,
@@ -94,16 +99,19 @@ impl JudgeLine {
     pub fn update(&mut self, res: &mut Resource, tr: Matrix) {
         // self.object.set_time(res.time); // this is done by chart, chart has to calculate transform for us
         let rot = self.object.rotation.now();
+        self.height.set_time(res.time);
+        let line_height = self.height.now();
+        let mut ctrl_obj = self.ctrl_obj.borrow_mut();
         self.cache.update_order.retain(|id| {
             let note = &mut self.notes[*id as usize];
-            note.update(res, rot, &tr);
+            note.update(res, rot, &tr, &mut ctrl_obj, line_height);
             !note.dead()
         });
+        drop(ctrl_obj);
         if let JudgeLineKind::Text(anim) = &mut self.kind {
             anim.set_time(res.time);
         }
         self.color.set_time(res.time);
-        self.height.set_time(res.time);
         self.cache.above_indices.retain_mut(|index| {
             while matches!(self.notes[*index].judge, JudgeStatus::Judged) {
                 if self
@@ -179,9 +187,10 @@ impl JudgeLine {
                     }
                 })
             });
-            let height = self.height.now();
             let mut config = RenderConfig {
                 settings,
+                ctrl_obj: &mut self.ctrl_obj.borrow_mut(),
+                line_height: self.height.now(),
                 appear_before: f32::INFINITY,
                 draw_below: self.show_below,
                 incline_sin: self.incline.now_opt().map(|it| it.to_radians().sin()).unwrap_or_default(),
@@ -217,8 +226,8 @@ impl JudgeLine {
             let height_above = p[0].y.max(p[1].y.max(p[2].y.max(p[3].y))) * res.aspect_ratio;
             let height_below = -p[0].y.min(p[1].y.min(p[2].y.min(p[3].y))) * res.aspect_ratio;
             let agg = res.config.aggressive;
-            for note in self.notes.iter().take_while(|it| !it.plain()).filter(|it| it.above) {
-                note.render(res, height, &config, bpm_list);
+            for note in self.notes.iter().take(self.cache.not_plain_count).filter(|it| it.above) {
+                note.render(res, &mut config, bpm_list);
             }
             for index in &self.cache.above_indices {
                 let speed = self.notes[*index].speed;
@@ -226,15 +235,15 @@ impl JudgeLine {
                     if !note.above || speed != note.speed {
                         break;
                     }
-                    if agg && note.height - height + note.object.translation.1.now() > height_above {
+                    if agg && note.height - config.line_height + note.object.translation.1.now() > height_above {
                         break;
                     }
-                    note.render(res, height, &config, bpm_list);
+                    note.render(res, &mut config, bpm_list);
                 }
             }
             res.with_model(Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
-                for note in self.notes.iter().take_while(|it| !it.plain()).filter(|it| !it.above) {
-                    note.render(res, height, &config, bpm_list);
+                for note in self.notes.iter().take(self.cache.not_plain_count).filter(|it| !it.above) {
+                    note.render(res, &mut config, bpm_list);
                 }
                 for index in &self.cache.below_indices {
                     let speed = self.notes[*index].speed;
@@ -242,10 +251,10 @@ impl JudgeLine {
                         if speed != note.speed {
                             break;
                         }
-                        if agg && note.height - height + note.object.translation.1.now() > height_below {
+                        if agg && note.height - config.line_height + note.object.translation.1.now() > height_below {
                             break;
                         }
-                        note.render(res, height, &config, bpm_list);
+                        note.render(res, &mut config, bpm_list);
                     }
                 }
             });

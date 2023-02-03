@@ -29,7 +29,7 @@ use macroquad::prelude::set_pc_assets_folder;
 pub use note::{BadNote, Note, NoteKind, RenderConfig};
 
 mod object;
-pub use object::Object;
+pub use object::{CtrlObject, Object};
 
 mod render;
 pub use render::{copy_fbo, MSRenderTarget};

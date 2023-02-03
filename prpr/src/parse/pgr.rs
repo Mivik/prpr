@@ -10,6 +10,7 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use macroquad::prelude::warn;
 use serde::Deserialize;
+use std::cell::RefCell;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -199,6 +200,7 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
             translation: parse_move_events(r, pgr.move_events).context("Failed to parse move events")?,
             ..Default::default()
         },
+        ctrl_obj: RefCell::default(),
         kind: JudgeLineKind::Normal,
         height,
         incline: AnimFloat::default(),

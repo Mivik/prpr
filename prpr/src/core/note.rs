@@ -1,5 +1,5 @@
-use super::{chart::ChartSettings, BpmList, JudgeLine, Matrix, Object, Point, Resource, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
-use crate::judge::JudgeStatus;
+use super::{chart::ChartSettings, BpmList, CtrlObject, JudgeLine, Matrix, Object, Point, Resource, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR};
+use crate::{judge::JudgeStatus, parse::RPE_HEIGHT};
 use macroquad::prelude::*;
 
 const HOLD_PARTICLE_INTERVAL: f32 = 0.15;
@@ -40,6 +40,8 @@ pub struct Note {
 
 pub struct RenderConfig<'a> {
     pub settings: &'a ChartSettings,
+    pub ctrl_obj: &'a mut CtrlObject,
+    pub line_height: f32,
     pub appear_before: f32,
     pub draw_below: bool,
     pub incline_sin: f32,
@@ -123,9 +125,10 @@ impl Note {
 
     pub fn plain(&self) -> bool {
         !self.fake && !matches!(self.kind, NoteKind::Hold { .. }) && self.object.translation.1.keyframes.len() <= 1
+        // && self.ctrl_obj.is_default()
     }
 
-    pub fn update(&mut self, res: &mut Resource, parent_rot: f32, parent_tr: &Matrix) {
+    pub fn update(&mut self, res: &mut Resource, parent_rot: f32, parent_tr: &Matrix, ctrl_obj: &mut CtrlObject, line_height: f32) {
         self.object.set_time(res.time);
         if let Some(color) = if let JudgeStatus::Hold(perfect, at, ..) = &mut self.judge {
             if res.time > *at {
@@ -137,7 +140,8 @@ impl Note {
         } else {
             None
         } {
-            res.with_model(parent_tr * self.now_transform(res, 0., 0.), |res| {
+            self.init_ctrl_obj(ctrl_obj, line_height);
+            res.with_model(parent_tr * self.now_transform(res, ctrl_obj, 0., 0.), |res| {
                 res.emit_at_origin(parent_rot + if self.above { 0. } else { 180. }, color)
             });
         }
@@ -145,17 +149,24 @@ impl Note {
 
     pub fn dead(&self) -> bool {
         (!matches!(self.kind, NoteKind::Hold { .. }) || matches!(self.judge, JudgeStatus::Judged)) && self.object.dead()
+        // && self.ctrl_obj.dead()
     }
 
-    pub fn now_transform(&self, res: &Resource, base: f32, incline_sin: f32) -> Matrix {
-        let incline_val = 1. - incline_sin * (base * res.aspect_ratio + self.object.translation.1.now()) * 450. / 360.;
+    fn init_ctrl_obj(&self, ctrl_obj: &mut CtrlObject, line_height: f32) {
+        ctrl_obj.set_height((self.height - line_height + self.object.translation.1.now() / self.speed) * RPE_HEIGHT / 2.);
+    }
+
+    pub fn now_transform(&self, res: &Resource, ctrl_obj: &CtrlObject, base: f32, incline_sin: f32) -> Matrix {
+        let incline_val = 1. - incline_sin * (base * res.aspect_ratio + self.object.translation.1.now()) * RPE_HEIGHT / 2. / 360.;
         let mut tr = self.object.now_translation(res);
-        tr.x *= incline_val;
+        tr.x *= incline_val * ctrl_obj.pos.now_opt().unwrap_or(1.);
         tr.y += base;
-        self.object.now_rotation().append_translation(&tr) * self.object.now_scale()
+        let mut scale = self.object.scale.now_with_def(1., 1.);
+        scale.x *= ctrl_obj.size.now_opt().unwrap_or(1.);
+        self.object.now_rotation().append_translation(&tr).append_nonuniform_scaling(&scale)
     }
 
-    pub fn render(&self, res: &mut Resource, line_height: f32, config: &RenderConfig, bpm_list: &mut BpmList) {
+    pub fn render(&self, res: &mut Resource, config: &mut RenderConfig, bpm_list: &mut BpmList) {
         if matches!(self.judge, JudgeStatus::Judged) && !matches!(self.kind, NoteKind::Hold { .. }) {
             return;
         }
@@ -172,11 +183,14 @@ impl Note {
         } else {
             1.0
         }) * res.note_width;
+        let ctrl_obj = &mut config.ctrl_obj;
+        self.init_ctrl_obj(ctrl_obj, config.line_height);
         let mut color = self.object.now_color();
-        color.a *= res.alpha;
+        color.a *= res.alpha * ctrl_obj.alpha.now_opt().unwrap_or(1.);
+        let spd = self.speed * ctrl_obj.y.now_opt().unwrap_or(1.);
 
-        let line_height = line_height / res.aspect_ratio * self.speed;
-        let height = self.height / res.aspect_ratio * self.speed;
+        let line_height = config.line_height / res.aspect_ratio * spd;
+        let height = self.height / res.aspect_ratio * spd;
 
         let base = height - line_height;
         if !config.draw_below
@@ -196,7 +210,7 @@ impl Note {
             if !config.draw_below {
                 color.a *= (self.time - res.time).min(0.) / FADEOUT_TIME + 1.;
             }
-            res.with_model(self.now_transform(res, base, config.incline_sin), |res| {
+            res.with_model(self.now_transform(res, ctrl_obj, base, config.incline_sin), |res| {
                 draw_center(res, tex, order, scale, color);
             });
         };
@@ -205,7 +219,7 @@ impl Note {
                 draw(res, *style.click);
             }
             NoteKind::Hold { end_time, end_height } => {
-                res.with_model(self.now_transform(res, 0., 0.), |res| {
+                res.with_model(self.now_transform(res, ctrl_obj, 0., 0.), |res| {
                     let style = if res.config.multiple_hint && self.multiple_hint {
                         &res.res_pack.note_style_mh
                     } else {
@@ -218,7 +232,7 @@ impl Note {
                     if res.time >= end_time {
                         return;
                     }
-                    let end_height = end_height / res.aspect_ratio * self.speed;
+                    let end_height = end_height / res.aspect_ratio * spd;
 
                     let clip = !config.draw_below && config.settings.hold_partial_cover;
 
