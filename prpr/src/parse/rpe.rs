@@ -98,6 +98,7 @@ struct RPEExtendedEvents {
     scale_x_events: Option<Vec<RPEEvent>>,
     scale_y_events: Option<Vec<RPEEvent>>,
     incline_events: Option<Vec<RPEEvent>>,
+    paint_events: Option<Vec<RPEEvent>>,
 }
 
 #[derive(Deserialize)]
@@ -451,7 +452,9 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
         },
         notes,
         kind: if rpe.texture == "line.png" {
-            if let Some(events) = rpe.extended.as_ref().and_then(|e| e.text_events.as_ref()) {
+            if let Some(events) = rpe.extended.as_ref().and_then(|e| e.paint_events.as_ref()) {
+                JudgeLineKind::Paint(parse_events(r, events, Some(-1.), bezier_map).context("Failed to parse paint events")?, RefCell::default())
+            } else if let Some(events) = rpe.extended.as_ref().and_then(|e| e.text_events.as_ref()) {
                 JudgeLineKind::Text(parse_events(r, events, Some(String::new()), bezier_map).context("Failed to parse text events")?)
             } else {
                 JudgeLineKind::Normal

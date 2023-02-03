@@ -339,7 +339,7 @@ impl<'a> Ui<'a> {
     }
 
     fn set_tolerance(&mut self) {
-        let tol = 0.2 / (self.model_stack.last().unwrap().transform_vector(&Vector::new(1., 0.)).norm() * screen_width() / 2.);
+        let tol = 0.15 / (self.model_stack.last().unwrap().transform_vector(&Vector::new(1., 0.)).norm() * screen_width() / 2.);
         self.fill_options.tolerance = tol;
     }
 

@@ -1,10 +1,14 @@
-use super::{chart::ChartSettings, object::CtrlObject, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig, Resource, Vector};
+use super::{
+    chart::ChartSettings, object::CtrlObject, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig,
+    Resource, Vector,
+};
 use crate::{
-    ext::{draw_text_aligned, NotNanExt, SafeTexture},
+    ext::{draw_text_aligned, get_viewport, NotNanExt, SafeTexture},
     judge::JudgeStatus,
     ui::Ui,
 };
 use macroquad::prelude::*;
+use miniquad::{RenderPass, Texture, TextureParams, TextureWrap};
 use nalgebra::Rotation2;
 use serde::Deserialize;
 use std::cell::RefCell;
@@ -28,6 +32,7 @@ pub enum JudgeLineKind {
     Normal,
     Texture(SafeTexture),
     Text(Anim<String>),
+    Paint(Anim<f32>, RefCell<(Option<RenderPass>, bool)>),
 }
 
 pub struct JudgeLineCache {
@@ -108,8 +113,14 @@ impl JudgeLine {
             !note.dead()
         });
         drop(ctrl_obj);
-        if let JudgeLineKind::Text(anim) = &mut self.kind {
-            anim.set_time(res.time);
+        match &mut self.kind {
+            JudgeLineKind::Text(anim) => {
+                anim.set_time(res.time);
+            }
+            JudgeLineKind::Paint(anim, ..) => {
+                anim.set_time(res.time);
+            }
+            _ => {}
         }
         self.color.set_time(res.time);
         self.cache.above_indices.retain_mut(|index| {
@@ -185,8 +196,64 @@ impl JudgeLine {
                             draw_text_aligned(ui, &now, 0., 0., (0.5, 0.5), 1., color);
                         });
                     }
+                    JudgeLineKind::Paint(anim, state) => {
+                        let mut color = color.unwrap_or(WHITE);
+                        color.a = alpha.max(0.0) * 2.55;
+                        let mut gl = unsafe { get_internal_gl() };
+                        let mut guard = state.borrow_mut();
+                        let vp = get_viewport();
+                        let pass = *guard.0.get_or_insert_with(|| {
+                            let ctx = &mut gl.quad_context;
+                            let tex = Texture::new_render_texture(
+                                ctx,
+                                TextureParams {
+                                    width: vp.2 as _,
+                                    height: vp.3 as _,
+                                    format: miniquad::TextureFormat::RGBA8,
+                                    filter: FilterMode::Linear,
+                                    wrap: TextureWrap::Clamp,
+                                },
+                            );
+                            RenderPass::new(ctx, tex, None)
+                        });
+                        gl.flush();
+                        let old_pass = gl.quad_gl.get_active_render_pass();
+                        gl.quad_gl.render_pass(Some(pass));
+                        gl.quad_gl.viewport(None);
+                        let size = anim.now();
+                        if size <= 0. {
+                            if guard.1 {
+                                clear_background(Color::default());
+                                guard.1 = false;
+                            }
+                        } else {
+                            ui.fill_circle(0., 0., size / vp.2 as f32 * 2., color);
+                            guard.1 = true;
+                        }
+                        gl.flush();
+                        gl.quad_gl.render_pass(old_pass);
+                        gl.quad_gl.viewport(Some(vp));
+                    }
                 })
             });
+            if let JudgeLineKind::Paint(_, state) = &self.kind {
+                let guard = state.borrow_mut();
+                if guard.1 {
+                    let ctx = unsafe { get_internal_gl() }.quad_context;
+                    let tex = guard.0.as_ref().unwrap().texture(ctx);
+                    let top = 1. / res.aspect_ratio;
+                    draw_texture_ex(
+                        Texture2D::from_miniquad_texture(tex),
+                        -1.,
+                        -top,
+                        WHITE,
+                        DrawTextureParams {
+                            dest_size: Some(vec2(2., top * 2.)),
+                            ..Default::default()
+                        },
+                    );
+                }
+            }
             let mut config = RenderConfig {
                 settings,
                 ctrl_obj: &mut self.ctrl_obj.borrow_mut(),
