@@ -132,6 +132,11 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
                 + 0.03
         }));
 
+        ui.dx(-rt);
+        let r = ui.slider("背景昏暗", 0.0..1.0, 0.05, &mut info.background_dim, Some(width - 0.2));
+        dy!(r.h + s + 0.01);
+        ui.dx(rt);
+
         #[cfg(not(target_arch = "wasm32"))]
         {
             use crate::scene::{request_file, return_file, take_file};

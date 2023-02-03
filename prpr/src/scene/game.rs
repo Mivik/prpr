@@ -880,7 +880,7 @@ impl Scene for GameScene {
         self.gl.quad_gl.viewport(res.camera.viewport);
 
         let h = 1. / res.aspect_ratio;
-        draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * 0.6));
+        draw_rectangle(-1., -h, 2., h * 2., Color::new(0., 0., 0., res.alpha * res.info.background_dim));
 
         self.chart.render(ui, res);
 

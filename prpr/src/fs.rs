@@ -233,8 +233,11 @@ fn info_from_kv<'a>(it: impl Iterator<Item = (&'a str, String)>, csv: bool) -> R
             infer_diff(&mut info, &value);
         }
         if key == "AspectRatio" {
-            info.aspect_ratio = value.parse().context("Failed to parse aspect ratio")?;
+            info.aspect_ratio = value.parse().context("invalid aspect ratio")?;
             continue;
+        }
+        if key == "BackgroundDim" {
+            info.background_dim = value.parse().context("invalid background dim")?;
         }
         if key == "NoteScale" || key == "ScaleRatio" {
             warn!("Note scale is ignored");
@@ -242,10 +245,6 @@ fn info_from_kv<'a>(it: impl Iterator<Item = (&'a str, String)>, csv: bool) -> R
         }
         if key == "GlobalAlpha" {
             warn!("Global alpha is ignored");
-            continue;
-        }
-        if key == "BackgroundDim" {
-            warn!("Background dim is ignored");
             continue;
         }
         *match key {
