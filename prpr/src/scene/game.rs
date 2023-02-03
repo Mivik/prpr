@@ -248,7 +248,7 @@ impl GameScene {
             State::Playing => 1.,
             State::Ending => {
                 let t = time - self.res.track_length - WAIT_TIME;
-                1. - (t / AFTER_TIME).min(1.).powi(2)
+                1. - (t / (AFTER_TIME + 0.3)).min(1.).powi(2)
             }
         };
         let c = Color::new(1., 1., 1., self.res.alpha);

@@ -5,9 +5,8 @@ use miniquad::{Texture, TextureFormat, TextureParams, TextureWrap};
 use std::{
     cell::RefCell,
     io::{BufRead, Read, Write},
-    path::{Path, PathBuf},
+    path::Path,
     process::{Child, ChildStdout, Command, Stdio},
-    sync::Mutex,
 };
 use tempfile::NamedTempFile;
 
