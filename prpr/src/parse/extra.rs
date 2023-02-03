@@ -1,11 +1,46 @@
 use crate::{
     core::{Anim, BpmList, ChartExtra, Effect, Keyframe, Triple, Tweenable, Uniform, Video},
-    fs::FileSystem, ext::ScaleType,
+    ext::ScaleType,
+    fs::FileSystem,
 };
 use anyhow::{anyhow, Context, Result};
 use macroquad::prelude::{Color, Vec2};
 use serde::Deserialize;
 use std::{collections::HashMap, path::Path};
+
+#[derive(Deserialize)]
+struct ExtKeyframe<T> {
+    time: Triple,
+    value: T,
+    #[serde(default)]
+    easing: u8,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(untagged)]
+enum ExtAnim<V> {
+    #[default]
+    Default,
+    Fixed(V),
+    Keyframes(Vec<ExtKeyframe<V>>),
+}
+
+impl<V> ExtAnim<V> {
+    fn into<T: Tweenable>(self, r: &mut BpmList) -> Anim<T>
+    where
+        V: Into<T>,
+    {
+        match self {
+            ExtAnim::Default => Anim::default(),
+            ExtAnim::Fixed(value) => Anim::fixed(value.into()),
+            ExtAnim::Keyframes(kfs) => Anim::new(
+                kfs.into_iter()
+                    .map(|it| Keyframe::new(r.time(&it.time), it.value.into(), it.easing))
+                    .collect(),
+            ),
+        }
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,19 +66,11 @@ impl From<BpmForm> for BpmList {
 }
 
 #[derive(Deserialize)]
-struct ExtKeyframe<T = f32> {
-    time: Triple,
-    value: T,
-    #[serde(default)]
-    easing: u8,
-}
-
-#[derive(Deserialize)]
 #[serde(untagged)]
 enum Variable {
-    Float(Vec<ExtKeyframe<f32>>),
-    Vec2(Vec<ExtKeyframe<(f32, f32)>>),
-    Color(Vec<ExtKeyframe<[u8; 4]>>),
+    Float(ExtAnim<f32>),
+    Vec2(ExtAnim<(f32, f32)>),
+    Color(ExtAnim<[u8; 4]>),
 }
 
 #[derive(Deserialize)]
@@ -64,6 +91,10 @@ struct ExtVideo {
     time: Triple,
     #[serde(default)]
     scale: ScaleType,
+    #[serde(default)]
+    alpha: ExtAnim<f32>,
+    #[serde(default)]
+    dim: ExtAnim<f32>,
 }
 
 #[derive(Deserialize)]
@@ -76,15 +107,6 @@ struct Extra {
     videos: Vec<ExtVideo>,
 }
 
-#[inline]
-fn parse_events<T: Tweenable, V: Clone + Into<T>>(r: &mut BpmList, kfs: &[ExtKeyframe<V>]) -> Anim<T> {
-    Anim::new(
-        kfs.iter()
-            .map(|it| Keyframe::new(r.time(&it.time), it.value.clone().into(), it.easing))
-            .collect(),
-    )
-}
-
 async fn parse_effect(r: &mut BpmList, rpe: ExtEffect, fs: &mut dyn FileSystem) -> Result<Effect> {
     let range = r.time(&rpe.start)..r.time(&rpe.end);
     let vars = rpe
@@ -92,9 +114,9 @@ async fn parse_effect(r: &mut BpmList, rpe: ExtEffect, fs: &mut dyn FileSystem) 
         .into_iter()
         .map(|(name, var)| -> Result<Box<dyn Uniform>> {
             Ok(match var {
-                Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events))),
-                Variable::Vec2(events) => Box::new((name, parse_events::<Vec2, (f32, f32)>(r, &events))),
-                Variable::Color(events) => Box::new((name, parse_events::<Color, [u8; 4]>(r, &events))),
+                Variable::Float(events) => Box::new((name, events.into::<f32>(r))),
+                Variable::Vec2(events) => Box::new((name, events.into::<Vec2>(r))),
+                Variable::Color(events) => Box::new((name, events.into::<Color>(r))),
             })
         })
         .collect::<Result<_>>()?;
@@ -132,6 +154,8 @@ pub async fn parse_extra(source: &str, fs: &mut dyn FileSystem, ffmpeg: Option<&
                         .with_context(|| format!("Failed to read video from {}", video.path))?,
                     r.time(&video.time),
                     video.scale,
+                    video.alpha.into(&mut r),
+                    video.dim.into(&mut r),
                 )
                 .with_context(|| format!("Failed to load video from {}", video.path))?,
             );

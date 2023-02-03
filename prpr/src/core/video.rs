@@ -1,6 +1,6 @@
-use crate::ext::{ScaleType, source_of_image};
+use crate::ext::{source_of_image, ScaleType};
 
-use super::Resource;
+use super::{Anim, Resource};
 use anyhow::{bail, Context, Result};
 use macroquad::prelude::*;
 use miniquad::{Texture, TextureFormat, TextureParams, TextureWrap};
@@ -27,7 +27,9 @@ pub struct Video {
     tex_v: Texture2D,
 
     start_time: f32,
-     scale_type: ScaleType,
+    scale_type: ScaleType,
+    alpha: Anim<f32>,
+    dim: Anim<f32>,
     size: (u32, u32),
     frame_delta: f64,
     next_frame: usize,
@@ -48,7 +50,7 @@ fn new_tex(w: u32, h: u32) -> Texture2D {
 }
 
 impl Video {
-    pub fn new(ffmpeg: &Path, data: Vec<u8>, start_time: f32, scale_type: ScaleType) -> Result<Self> {
+    pub fn new(ffmpeg: &Path, data: Vec<u8>, start_time: f32, scale_type: ScaleType, alpha: Anim<f32>, dim: Anim<f32>) -> Result<Self> {
         let mut video_file = NamedTempFile::new()?;
         video_file.write_all(&data)?;
         drop(data);
@@ -123,6 +125,8 @@ impl Video {
 
             start_time,
             scale_type,
+            alpha,
+            dim,
             size: (w, h),
             frame_delta,
             next_frame: 0,
@@ -134,6 +138,8 @@ impl Video {
         if t < self.start_time || self.ended {
             return Ok(());
         }
+        self.alpha.set_time(t);
+        self.dim.set_time(t);
         let that_frame = ((t - self.start_time) as f64 / self.frame_delta) as usize;
         if self.next_frame <= that_frame {
             if VIDEO_BUFFERS
@@ -169,20 +175,19 @@ impl Video {
         if res.time < self.start_time || self.ended {
             return;
         }
-        self.material.set_texture("tex_y", self.tex_y);
-        self.material.set_texture("tex_u", self.tex_u);
-        self.material.set_texture("tex_v", self.tex_v);
         gl_use_material(self.material);
         let top = 1. / res.aspect_ratio;
         let r = Rect::new(-1., -top, 2., top * 2.);
         let s = source_of_image(&self.tex_y, r, self.scale_type).unwrap_or_else(|| Rect::new(0., 0., 1., 1.));
+        let dim = 1. - self.dim.now();
+        let color = Color::new(dim, dim, dim, self.alpha.now_opt().unwrap_or(1.));
         let vertices = [
-            Vertex::new(r.x, r.y, 0., s.x, s.y, WHITE),
-            Vertex::new(r.right(), r.y, 0., s.right(), s.y, WHITE),
-            Vertex::new(r.x, r.bottom(), 0., s.x, s.bottom(), WHITE),
-            Vertex::new(r.right(), r.bottom(), 0., s.right(), s.bottom(), WHITE),
+            Vertex::new(r.x, r.y, 0., s.x, s.y, color),
+            Vertex::new(r.right(), r.y, 0., s.right(), s.y, color),
+            Vertex::new(r.x, r.bottom(), 0., s.x, s.bottom(), color),
+            Vertex::new(r.right(), r.bottom(), 0., s.right(), s.bottom(), color),
         ];
-        let gl = unsafe{get_internal_gl()}.quad_gl;
+        let gl = unsafe { get_internal_gl() }.quad_gl;
         gl.draw_mode(DrawMode::Triangles);
         gl.geometry(&vertices, &[0, 2, 3, 0, 1, 3]);
         gl_use_default_material();
@@ -237,6 +242,6 @@ void main() {
         vec3(1.0,   1.772,   0.0  )
     );
 
-    gl_FragColor = vec4(yuv * color_matrix, 1.0);
+    gl_FragColor = vec4(yuv * color_matrix, 1.0) * color;
 }"#;
 }
