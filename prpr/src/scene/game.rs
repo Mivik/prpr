@@ -1,12 +1,12 @@
 use super::{draw_background, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene};
 use crate::{
     config::Config,
-    core::{copy_fbo, BadNote, Chart, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
+    core::{copy_fbo, BadNote, Chart, ChartExtra, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
     ext::{screen_aspect, RectExt, SafeTexture},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
     judge::Judge,
-    parse::{parse_pec, parse_phigros, parse_rpe},
+    parse::{parse_extra, parse_pec, parse_phigros, parse_rpe},
     time::TimeManager,
     ui::{RectButton, Ui},
 };
@@ -113,6 +113,12 @@ impl GameScene {
             }
             bail!("Cannot find chart file")
         }
+        let extra = fs.load_file("extra.json").await.ok().map(|it| String::from_utf8(it)).transpose()?;
+        let extra = if let Some(extra) = extra {
+            parse_extra(&extra, fs.deref_mut()).await.context("Failed to parse extra")?
+        } else {
+            ChartExtra::default()
+        };
         let text = String::from_utf8(load_chart_bytes(fs, info).await.context("Failed to load chart")?)?;
         let format = info.format.clone().unwrap_or_else(|| {
             if text.starts_with('{') {
@@ -126,9 +132,9 @@ impl GameScene {
             }
         });
         let mut chart = match format {
-            ChartFormat::Rpe => parse_rpe(&text, fs.deref_mut()).await,
-            ChartFormat::Pgr => parse_phigros(&text),
-            ChartFormat::Pec => parse_pec(&text),
+            ChartFormat::Rpe => parse_rpe(&text, fs.deref_mut(), extra).await,
+            ChartFormat::Pgr => parse_phigros(&text, extra),
+            ChartFormat::Pec => parse_pec(&text, extra),
         }?;
         chart.settings.hold_partial_cover = info.hold_partial_cover;
         Ok(chart)
@@ -154,15 +160,16 @@ impl GameScene {
             _ => {}
         }
         let mut chart = Self::load_chart(&mut fs, &info).await?;
-        let effects = std::mem::take(&mut chart.global_effects);
+        let effects = std::mem::take(&mut chart.extra.global_effects);
         if config.fxaa {
             chart
+                .extra
                 .effects
                 .push(Effect::new(0.0..f32::INFINITY, include_str!("fxaa.glsl"), Vec::new(), false).unwrap());
         }
 
         let info_offset = info.offset;
-        let mut res = Resource::new(config, info, fs, player, background, illustration, chart.effects.is_empty() && effects.is_empty())
+        let mut res = Resource::new(config, info, fs, player, background, illustration, chart.extra.effects.is_empty() && effects.is_empty())
             .await
             .context("Failed to load resources")?;
         let exercise_range = (chart.offset + info_offset + res.config.offset)..res.track_length;

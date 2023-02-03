@@ -16,7 +16,7 @@ mod anim;
 pub use anim::{Anim, AnimFloat, AnimVector, Keyframe};
 
 mod chart;
-pub use chart::{Chart, ChartSettings};
+pub use chart::{Chart, ChartExtra, ChartSettings};
 
 mod effect;
 pub use effect::{Effect, Uniform};

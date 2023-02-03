@@ -4,6 +4,12 @@ use macroquad::prelude::*;
 use std::cell::RefCell;
 
 #[derive(Default)]
+pub struct ChartExtra {
+    pub effects: Vec<Effect>,
+    pub global_effects: Vec<Effect>,
+}
+
+#[derive(Default)]
 pub struct ChartSettings {
     pub pe_alpha_extension: bool,
     pub hold_partial_cover: bool,
@@ -14,15 +20,14 @@ pub struct Chart {
     pub lines: Vec<JudgeLine>,
     pub bpm_list: RefCell<BpmList>,
     pub settings: ChartSettings,
+    pub extra: ChartExtra,
 
-    pub effects: Vec<Effect>,
-    pub global_effects: Vec<Effect>,
     pub order: Vec<usize>,
     pub attach_ui: [Option<usize>; 7],
 }
 
 impl Chart {
-    pub fn new(offset: f32, lines: Vec<JudgeLine>, bpm_list: BpmList, effects: Vec<Effect>, settings: ChartSettings) -> Self {
+    pub fn new(offset: f32, lines: Vec<JudgeLine>, bpm_list: BpmList, settings: ChartSettings, extra: ChartExtra) -> Self {
         let mut attach_ui = [None; 7];
         let mut order = (0..lines.len())
             .filter(|it| {
@@ -35,15 +40,13 @@ impl Chart {
             })
             .collect::<Vec<_>>();
         order.sort_by_key(|it| (lines[*it].z_index, *it));
-        let (global_effects, effects) = effects.into_iter().partition(|e| e.global);
         Self {
             offset,
             lines,
             bpm_list: RefCell::new(bpm_list),
             settings,
+            extra,
 
-            effects,
-            global_effects,
             order,
             attach_ui,
         }
@@ -82,7 +85,7 @@ impl Chart {
         for (line, tr) in self.lines.iter_mut().zip(trs) {
             line.update(res, tr);
         }
-        for effect in &mut self.effects {
+        for effect in &mut self.extra.effects {
             effect.update(res);
         }
     }
@@ -102,7 +105,7 @@ impl Chart {
                 }
             }
             if !res.no_effect {
-                for effect in &self.effects {
+                for effect in &self.extra.effects {
                     effect.render(res);
                 }
             }

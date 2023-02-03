@@ -1,8 +1,8 @@
 use super::{process_lines, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, BpmList, Chart, ChartSettings, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object,
-        TweenId, EPS,
+        Anim, AnimFloat, AnimVector, BpmList, Chart, ChartExtra, ChartSettings, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind,
+        Object, TweenId, EPS,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -176,7 +176,7 @@ fn parse_judge_line(mut pec: PECJudgeLine, id: usize, max_time: f32) -> Result<J
     })
 }
 
-pub fn parse_pec(source: &str) -> Result<Chart> {
+pub fn parse_pec(source: &str, extra: ChartExtra) -> Result<Chart> {
     let mut offset = None;
     let mut r = None;
     let mut lines = Vec::new();
@@ -205,8 +205,8 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                                                bail!("No note has been inserted yet");
-                                            };
+                                                                bail!("No note has been inserted yet");
+                                                            };
             lines[last_line].notes.last_mut().unwrap()
         }};
     }
@@ -366,10 +366,10 @@ pub fn parse_pec(source: &str) -> Result<Chart> {
         offset.unwrap(),
         lines,
         r.unwrap(),
-        Vec::new(),
         ChartSettings {
             pe_alpha_extension: true,
             ..Default::default()
         },
+        extra,
     ))
 }

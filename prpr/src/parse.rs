@@ -1,3 +1,6 @@
+mod extra;
+pub use extra::parse_extra;
+
 mod pec;
 pub use pec::parse_pec;
 

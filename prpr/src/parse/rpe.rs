@@ -1,16 +1,15 @@
 use super::{process_lines, TWEEN_MAP};
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, BezierTween, BpmList, Chart, ChartSettings, ClampedTween, CtrlObject, Effect, JudgeLine, JudgeLineCache,
-        JudgeLineKind, Keyframe, Note, NoteKind, Object, StaticTween, Triple, TweenFunction, Tweenable, UIElement, Uniform, EPS, HEIGHT_RATIO,
-        JUDGE_LINE_PERFECT_COLOR,
+        Anim, AnimFloat, AnimVector, BezierTween, BpmList, Chart, ChartSettings, ClampedTween, CtrlObject, JudgeLine, JudgeLineCache, JudgeLineKind,
+        Keyframe, Note, NoteKind, Object, StaticTween, Triple, TweenFunction, Tweenable, UIElement, EPS, HEIGHT_RATIO, JUDGE_LINE_PERFECT_COLOR, ChartExtra,
     },
     ext::NotNanExt,
     fs::FileSystem,
     judge::JudgeStatus,
 };
-use anyhow::{anyhow, bail, Context, Result};
-use macroquad::prelude::{Color, Vec2};
+use anyhow::{bail, Context, Result};
+use macroquad::prelude::Color;
 use serde::Deserialize;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -156,26 +155,6 @@ struct RPEMetadata {
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
-enum Variable {
-    Float(Vec<RPEEvent<f32>>),
-    Vec2(Vec<RPEEvent<(f32, f32)>>),
-    Color(Vec<RPEEvent<[u8; 4]>>),
-}
-
-// custom extension
-#[derive(Deserialize)]
-struct RPEEffect {
-    start: Triple,
-    end: Triple,
-    shader: String,
-    #[serde(default)]
-    vars: HashMap<String, Variable>,
-    #[serde(default)]
-    global: bool,
-}
-
-#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RPEChart {
     #[serde(rename = "META")]
@@ -183,7 +162,6 @@ struct RPEChart {
     #[serde(rename = "BPMList")]
     bpm_list: Vec<RPEBpmItem>,
     judge_line_list: Vec<RPEJudgeLine>,
-    effects: Option<Vec<RPEEffect>>,
 }
 
 type BezierMap = HashMap<(u16, i16, i16), Rc<dyn TweenFunction>>;
@@ -490,34 +468,6 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
     })
 }
 
-async fn parse_effect(r: &mut BpmList, rpe: RPEEffect, fs: &mut dyn FileSystem) -> Result<Effect> {
-    let range = r.time(&rpe.start)..r.time(&rpe.end);
-    let def = BezierMap::new();
-    let vars = rpe
-        .vars
-        .into_iter()
-        .map(|(name, var)| -> Result<Box<dyn Uniform>> {
-            Ok(match var {
-                Variable::Float(events) => Box::new((name, parse_events::<f32, f32>(r, &events, None, &def)?)),
-                Variable::Vec2(events) => Box::new((name, parse_events::<Vec2, (f32, f32)>(r, &events, None, &def)?)),
-                Variable::Color(events) => Box::new((name, parse_events::<Color, [u8; 4]>(r, &events, None, &def)?)),
-            })
-        })
-        .collect::<Result<_>>()?;
-    let string;
-    Effect::new(
-        range,
-        if let Some(path) = rpe.shader.strip_prefix('/') {
-            string = String::from_utf8(fs.load_file(path).await?).with_context(|| format!("Cannot load shader from {path}"))?;
-            &string
-        } else {
-            Effect::get_preset(&rpe.shader).ok_or_else(|| anyhow!("Cannot find preset shader {}", rpe.shader))?
-        },
-        vars,
-        rpe.global,
-    )
-}
-
 fn add_bezier<T>(map: &mut BezierMap, event: &RPEEvent<T>) {
     if event.bezier != 0 {
         let p = &event.bezier_points;
@@ -546,7 +496,7 @@ fn get_bezier_map(rpe: &RPEChart) -> BezierMap {
     map
 }
 
-pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
+pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem, extra: ChartExtra) -> Result<Chart> {
     let rpe: RPEChart = serde_json::from_str(source).context("Failed to parse JSON")?;
     let bezier_map = get_bezier_map(&rpe);
     let mut r = BpmList::new(rpe.bpm_list.into_iter().map(|it| (it.start_time.beats(), it.bpm)).collect());
@@ -595,9 +545,5 @@ pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem) -> Result<Chart> {
         );
     }
     process_lines(&mut lines);
-    let mut effects = Vec::new();
-    for (id, rpe) in rpe.effects.into_iter().flatten().enumerate() {
-        effects.push(parse_effect(&mut r, rpe, fs).await.with_context(|| format!("In effect #{id}"))?);
-    }
-    Ok(Chart::new(rpe.meta.offset as f32 / 1000.0, lines, r, effects, ChartSettings::default()))
+    Ok(Chart::new(rpe.meta.offset as f32 / 1000.0, lines, r, ChartSettings::default(), extra))
 }

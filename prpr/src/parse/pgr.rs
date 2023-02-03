@@ -1,8 +1,8 @@
 use super::process_lines;
 use crate::{
     core::{
-        Anim, AnimFloat, AnimVector, BpmList, Chart, ChartSettings, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind, Object,
-        HEIGHT_RATIO,
+        Anim, AnimFloat, AnimVector, BpmList, Chart, ChartExtra, ChartSettings, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind,
+        Object, HEIGHT_RATIO,
     },
     ext::NotNanExt,
     judge::JudgeStatus,
@@ -215,7 +215,7 @@ fn parse_judge_line(pgr: PgrJudgeLine, max_time: f32) -> Result<JudgeLine> {
     })
 }
 
-pub fn parse_phigros(source: &str) -> Result<Chart> {
+pub fn parse_phigros(source: &str, extra: ChartExtra) -> Result<Chart> {
     let pgr: PgrChart = serde_json::from_str(source).context("Failed to parse JSON")?;
     let max_time = *pgr
         .judge_line_list
@@ -239,5 +239,5 @@ pub fn parse_phigros(source: &str) -> Result<Chart> {
         .map(|(id, pgr)| parse_judge_line(pgr, max_time).with_context(|| format!("In judge line #{id}")))
         .collect::<Result<Vec<_>>>()?;
     process_lines(&mut lines);
-    Ok(Chart::new(pgr.offset, lines, BpmList::default(), Vec::new(), ChartSettings::default()))
+    Ok(Chart::new(pgr.offset, lines, BpmList::default(), ChartSettings::default(), extra))
 }
