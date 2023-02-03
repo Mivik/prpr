@@ -281,7 +281,7 @@ fn parse_notes(r: &mut BpmList, rpe: Vec<RPENote>, height: &mut AnimFloat) -> Re
             let time = r.time(&note.start_time);
             height.set_time(time);
             let note_height = height.now();
-            let y_offset = note.y_offset * 2. / RPE_HEIGHT;
+            let y_offset = note.y_offset * 2. / RPE_HEIGHT * note.speed;
             Ok(Note {
                 object: Object {
                     alpha: if note.visible_time >= time {

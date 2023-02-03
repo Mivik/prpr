@@ -1,8 +1,7 @@
-use std::cell::RefCell;
-
 use super::{BpmList, Effect, JudgeLine, Matrix, Resource, UIElement, Vector};
 use crate::{judge::JudgeStatus, ui::Ui};
 use macroquad::prelude::*;
+use std::cell::RefCell;
 
 #[derive(Default)]
 pub struct ChartSettings {
@@ -51,7 +50,7 @@ impl Chart {
     }
 
     #[inline]
-    pub fn with_element<R>(&self, ui: &mut Ui, res: &Resource, element: UIElement, f: impl FnOnce(&mut Ui, Color, Matrix)-> R) -> R{
+    pub fn with_element<R>(&self, ui: &mut Ui, res: &Resource, element: UIElement, f: impl FnOnce(&mut Ui, Color, Matrix) -> R) -> R {
         if let Some(id) = self.attach_ui[element as usize] {
             let obj = &self.lines[id].object;
             let mut tr = obj.now_translation(res);
