@@ -1,4 +1,4 @@
-use super::{BpmList, Effect, JudgeLine, Matrix, Resource, UIElement, Vector};
+use super::{BpmList, Effect, JudgeLine, Matrix, Resource, UIElement, Vector, Video};
 use crate::{judge::JudgeStatus, ui::Ui};
 use macroquad::prelude::*;
 use std::cell::RefCell;
@@ -7,6 +7,7 @@ use std::cell::RefCell;
 pub struct ChartExtra {
     pub effects: Vec<Effect>,
     pub global_effects: Vec<Effect>,
+    pub videos: Vec<Video>,
 }
 
 #[derive(Default)]
@@ -88,9 +89,17 @@ impl Chart {
         for effect in &mut self.extra.effects {
             effect.update(res);
         }
+        for video in &mut self.extra.videos {
+            if let Err(err) = video.update(res.time) {
+                warn!("Video error: {:?}", err);
+            }
+        }
     }
 
     pub fn render(&self, ui: &mut Ui, res: &mut Resource) {
+        for video in &self.extra.videos {
+            video.render(res);
+        }
         res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
             let mut guard = self.bpm_list.borrow_mut();
             for id in &self.order {

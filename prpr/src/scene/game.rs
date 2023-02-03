@@ -15,9 +15,15 @@ use concat_string::concat_string;
 use macroquad::{prelude::*, window::InternalGlContext};
 use sasa::{Music, MusicParams};
 use std::{
+    io::ErrorKind,
     ops::{DerefMut, Range},
+    path::PathBuf,
+    process::{Command, Stdio},
     rc::Rc,
+    sync::Mutex,
 };
+
+pub static FFMPEG_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 const WAIT_TIME: f32 = 0.5;
 const AFTER_TIME: f32 = 0.7;
@@ -115,7 +121,17 @@ impl GameScene {
         }
         let extra = fs.load_file("extra.json").await.ok().map(|it| String::from_utf8(it)).transpose()?;
         let extra = if let Some(extra) = extra {
-            parse_extra(&extra, fs.deref_mut()).await.context("Failed to parse extra")?
+            let ffmpeg: PathBuf = FFMPEG_PATH.lock().unwrap().to_owned().unwrap_or_else(|| "ffmpeg".into());
+            let ffmpeg = if match Command::new(&ffmpeg).stdout(Stdio::null()).stderr(Stdio::null()).spawn() {
+                Ok(_) => true,
+                Err(err) => err.kind() != ErrorKind::NotFound,
+            } {
+                Some(ffmpeg.as_path())
+            } else {
+                warn!("ffmpeg not found at {}, disabling video", ffmpeg.display());
+                None
+            };
+            parse_extra(&extra, fs.deref_mut(), ffmpeg).await.context("Failed to parse extra")?
         } else {
             ChartExtra::default()
         };

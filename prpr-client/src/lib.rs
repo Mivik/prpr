@@ -211,6 +211,13 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setDataPath(_: *mut std::f
 
 #[cfg(target_os = "android")]
 #[no_mangle]
+pub unsafe extern "C" fn Java_quad_1native_QuadNative_setTempDir(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, path: ndk_sys::jstring) {
+    let env = crate::miniquad::native::attach_jni_env();
+    std::env::set_var("TMPDIR", string_from_java(env, path));
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
 pub unsafe extern "C" fn Java_quad_1native_QuadNative_setDpi(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, dpi: ndk_sys::jint) {
     prpr::core::DPI_VALUE.store(dpi as _, std::sync::atomic::Ordering::SeqCst);
 }
@@ -239,4 +246,13 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setInputText(_: *mut std::
 
     let env = crate::miniquad::native::attach_jni_env();
     INPUT_TEXT.lock().unwrap().1 = Some(string_from_java(env, text));
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "C" fn Java_quad_1native_QuadNative_setFfmpegPath(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, path: ndk_sys::jstring) {
+    use prpr::scene::FFMPEG_PATH;
+
+    let env = crate::miniquad::native::attach_jni_env();
+    *FFMPEG_PATH.lock().unwrap() = Some(string_from_java(env, path).into());
 }

@@ -40,6 +40,9 @@ pub use resource::{ParticleEmitter, Resource, ResourcePack, DPI_VALUE};
 mod tween;
 pub use tween::{easing_from, BezierTween, ClampedTween, StaticTween, TweenFunction, TweenId, TweenMajor, TweenMinor, Tweenable, TWEEN_FUNCTIONS};
 
+mod video;
+pub use video::Video;
+
 pub fn init_assets() {
     if let Ok(mut exe) = std::env::current_exe() {
         while exe.pop() {
@@ -54,6 +57,11 @@ pub fn init_assets() {
 
 #[derive(serde::Deserialize)]
 pub struct Triple(i32, u32, u32);
+impl Default for Triple {
+    fn default() -> Self {
+        Self(0, 0, 1)
+    }
+}
 
 impl Triple {
     pub fn beats(&self) -> f32 {

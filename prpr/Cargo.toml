@@ -30,6 +30,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 symphonia = { version = "0.5", features = ["flac", "mp3", "ogg", "vorbis", "wav", "pcm"] }
+tempfile = "3.3.0"
 zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

@@ -1,17 +1,33 @@
 use crate::{
-    core::{Anim, BpmList, ChartExtra, Effect, Keyframe, Triple, Tweenable, Uniform},
+    core::{Anim, BpmList, ChartExtra, Effect, Keyframe, Triple, Tweenable, Uniform, Video},
     fs::FileSystem,
 };
 use anyhow::{anyhow, Context, Result};
 use macroquad::prelude::{Color, Vec2};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ExtBpmItem {
     time: Triple,
     bpm: f32,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum BpmForm {
+    Single(f32),
+    List(Vec<ExtBpmItem>),
+}
+
+impl From<BpmForm> for BpmList {
+    fn from(value: BpmForm) -> Self {
+        match value {
+            BpmForm::Single(value) => BpmList::new(vec![(0., value)]),
+            BpmForm::List(list) => BpmList::new(list.into_iter().map(|it| (it.time.beats(), it.bpm)).collect()),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -42,19 +58,10 @@ struct ExtEffect {
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
-enum BpmForm {
-    Single(f32),
-    List(Vec<ExtBpmItem>),
-}
-
-impl From<BpmForm> for BpmList {
-    fn from(value: BpmForm) -> Self {
-        match value {
-            BpmForm::Single(value) => BpmList::new(vec![(0., value)]),
-            BpmForm::List(list) => BpmList::new(list.into_iter().map(|it| (it.time.beats(), it.bpm)).collect()),
-        }
-    }
+struct ExtVideo {
+    path: String,
+    #[serde(default)]
+    time: Triple,
 }
 
 #[derive(Deserialize)]
@@ -63,6 +70,8 @@ struct Extra {
     bpm: BpmForm,
     #[serde(default)]
     effects: Vec<ExtEffect>,
+    #[serde(default)]
+    videos: Vec<ExtVideo>,
 }
 
 #[inline]
@@ -101,7 +110,7 @@ async fn parse_effect(r: &mut BpmList, rpe: ExtEffect, fs: &mut dyn FileSystem) 
     )
 }
 
-pub async fn parse_extra(source: &str, fs: &mut dyn FileSystem) -> Result<ChartExtra> {
+pub async fn parse_extra(source: &str, fs: &mut dyn FileSystem, ffmpeg: Option<&Path>) -> Result<ChartExtra> {
     let ext: Extra = serde_json::from_str(source).context("Failed to parse JSON")?;
     let mut r: BpmList = ext.bpm.into();
     let mut effects = Vec::new();
@@ -110,5 +119,24 @@ pub async fn parse_extra(source: &str, fs: &mut dyn FileSystem) -> Result<ChartE
         (if effect.global { &mut global_effects } else { &mut effects })
             .push(parse_effect(&mut r, effect, fs).await.with_context(|| format!("In effect #{id}"))?);
     }
-    Ok(ChartExtra { effects, global_effects })
+    let mut videos = Vec::new();
+    if let Some(ffmpeg) = ffmpeg {
+        for video in ext.videos {
+            videos.push(
+                Video::new(
+                    ffmpeg,
+                    fs.load_file(&video.path)
+                        .await
+                        .with_context(|| format!("Failed to read video from {}", video.path))?,
+                    r.time(&video.time),
+                )
+                .with_context(|| format!("Failed to load video from {}", video.path))?,
+            );
+        }
+    }
+    Ok(ChartExtra {
+        effects,
+        global_effects,
+        videos,
+    })
 }

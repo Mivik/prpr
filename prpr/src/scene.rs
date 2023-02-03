@@ -2,7 +2,7 @@ mod ending;
 pub use ending::EndingScene;
 
 mod game;
-pub use game::{GameMode, GameScene};
+pub use game::{GameMode, GameScene, FFMPEG_PATH};
 
 mod loading;
 pub use loading::LoadingScene;
