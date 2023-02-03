@@ -1,6 +1,7 @@
 use crate::{
     config::Config,
-    core::{Matrix, Point, Vector}, ui::Ui,
+    core::{Matrix, Point, Vector},
+    ui::Ui,
 };
 use anyhow::Result;
 use image::DynamicImage;
@@ -9,6 +10,7 @@ use miniquad::{BlendFactor, BlendState, BlendValue, CompareFunc, Equation, Primi
 use once_cell::sync::Lazy;
 use ordered_float::{Float, NotNan};
 use sasa::AudioManager;
+use serde::Deserialize;
 use std::{
     future::Future,
     ops::Deref,
@@ -139,17 +141,18 @@ pub fn draw_text_aligned(ui: &mut Ui, text: &str, x: f32, y: f32, anchor: (f32, 
     ui.text(text).pos(x, y).anchor(anchor.0, anchor.1).size(scale).color(color).draw()
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ScaleType {
     #[default]
-    Scale,
+    CropCenter,
     Inside,
     Fit,
 }
 
 pub fn source_of_image(tex: &Texture2D, rect: Rect, scale_type: ScaleType) -> Option<Rect> {
     match scale_type {
-        ScaleType::Scale => {
+        ScaleType::CropCenter => {
             let exp = rect.w / rect.h;
             let act = tex.width() / tex.height();
             Some(if exp > act {

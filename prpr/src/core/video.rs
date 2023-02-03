@@ -1,3 +1,5 @@
+use crate::ext::{ScaleType, source_of_image};
+
 use super::Resource;
 use anyhow::{bail, Context, Result};
 use macroquad::prelude::*;
@@ -25,6 +27,7 @@ pub struct Video {
     tex_v: Texture2D,
 
     start_time: f32,
+     scale_type: ScaleType,
     size: (u32, u32),
     frame_delta: f64,
     next_frame: usize,
@@ -45,7 +48,7 @@ fn new_tex(w: u32, h: u32) -> Texture2D {
 }
 
 impl Video {
-    pub fn new(ffmpeg: &Path, data: Vec<u8>, start_time: f32) -> Result<Self> {
+    pub fn new(ffmpeg: &Path, data: Vec<u8>, start_time: f32, scale_type: ScaleType) -> Result<Self> {
         let mut video_file = NamedTempFile::new()?;
         video_file.write_all(&data)?;
         drop(data);
@@ -119,6 +122,7 @@ impl Video {
             tex_v,
 
             start_time,
+            scale_type,
             size: (w, h),
             frame_delta,
             next_frame: 0,
@@ -170,7 +174,17 @@ impl Video {
         self.material.set_texture("tex_v", self.tex_v);
         gl_use_material(self.material);
         let top = 1. / res.aspect_ratio;
-        draw_rectangle(-1., -top, 2., top * 2., WHITE);
+        let r = Rect::new(-1., -top, 2., top * 2.);
+        let s = source_of_image(&self.tex_y, r, self.scale_type).unwrap_or_else(|| Rect::new(0., 0., 1., 1.));
+        let vertices = [
+            Vertex::new(r.x, r.y, 0., s.x, s.y, WHITE),
+            Vertex::new(r.right(), r.y, 0., s.right(), s.y, WHITE),
+            Vertex::new(r.x, r.bottom(), 0., s.x, s.bottom(), WHITE),
+            Vertex::new(r.right(), r.bottom(), 0., s.right(), s.bottom(), WHITE),
+        ];
+        let gl = unsafe{get_internal_gl()}.quad_gl;
+        gl.draw_mode(DrawMode::Triangles);
+        gl.geometry(&vertices, &[0, 2, 3, 0, 1, 3]);
         gl_use_default_material();
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     core::{Anim, BpmList, ChartExtra, Effect, Keyframe, Triple, Tweenable, Uniform, Video},
-    fs::FileSystem,
+    fs::FileSystem, ext::ScaleType,
 };
 use anyhow::{anyhow, Context, Result};
 use macroquad::prelude::{Color, Vec2};
@@ -62,6 +62,8 @@ struct ExtVideo {
     path: String,
     #[serde(default)]
     time: Triple,
+    #[serde(default)]
+    scale: ScaleType,
 }
 
 #[derive(Deserialize)]
@@ -129,6 +131,7 @@ pub async fn parse_extra(source: &str, fs: &mut dyn FileSystem, ffmpeg: Option<&
                         .await
                         .with_context(|| format!("Failed to read video from {}", video.path))?,
                     r.time(&video.time),
+                    video.scale,
                 )
                 .with_context(|| format!("Failed to load video from {}", video.path))?,
             );

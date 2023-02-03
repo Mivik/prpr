@@ -288,7 +288,7 @@ impl Scene for MainScene {
                 &mut self.shared_state.charts_local
             };
             let chart = &dst[id];
-            ui.fill_path(&path, (*chart.illustration.1, rect, ScaleType::Scale));
+            ui.fill_path(&path, (*chart.illustration.1, rect, ScaleType::CropCenter));
             ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
             if *back && p <= 0. {
                 if SHOULD_DELETE.fetch_and(false, Ordering::SeqCst) {
