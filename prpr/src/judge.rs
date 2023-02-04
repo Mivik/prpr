@@ -145,6 +145,7 @@ pub enum Judgement {
     Miss,
 }
 
+#[repr(C)]
 pub struct Judge {
     // notes of each line in order
     // LinkedList::drain_filter is unstable...
@@ -596,9 +597,8 @@ impl Judge {
         for (judgement, line_id, id, diff) in judgements.into_iter() {
             let line = &mut chart.lines[line_id];
             let note = &mut line.notes[id as usize];
-            let nt = note.time;
-            line.object.set_time(nt);
-            note.object.set_time(nt);
+            line.object.set_time(t);
+            note.object.set_time(t);
             let line = &chart.lines[line_id];
             let note = &line.notes[id as usize];
             let line_tr = line.now_transform(res, &chart.lines);
@@ -710,7 +710,7 @@ impl Judge {
             let (note_transform, note_kind) = {
                 let line = &mut chart.lines[line_id];
                 let note = &mut line.notes[id as usize];
-                let nt = note.time;
+                let nt = if matches!(note.kind, NoteKind::Hold { .. }) { t } else { note.time };
                 line.object.set_time(nt);
                 note.object.set_time(nt);
                 (note.object.now(res), note.kind.clone())
