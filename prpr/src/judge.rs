@@ -9,6 +9,7 @@ use macroquad::prelude::{
 };
 use miniquad::{EventHandler, MouseButton};
 use once_cell::sync::Lazy;
+use prpr_secure::JudgeFfi;
 use sasa::{PlaySfxParams, Sfx};
 use std::{
     cell::RefCell,
@@ -740,6 +741,18 @@ impl Judge {
             counts: self.counts,
             early,
             late: self.diffs.len() as u32 - early,
+        }
+    }
+
+    pub fn to_ffi(&self) -> JudgeFfi {
+        JudgeFfi {
+            last_time: self.last_time,
+            diffs: self.diffs.clone().into(),
+
+            combo: self.combo,
+            max_combo: self.max_combo,
+            counts: self.counts,
+            num_of_notes: self.num_of_notes,
         }
     }
 }

@@ -707,6 +707,8 @@ impl Scene for GameScene {
             State::Ending => {
                 let t = time - self.res.track_length - WAIT_TIME;
                 if t >= AFTER_TIME + 0.3 {
+                    let res = prpr_secure::encode_record(self.judge.to_ffi(), "0123456789012345678901", "0123456789012345678901");
+                    eprintln!("{}", base64::encode(&res));
                     self.next_scene = match self.mode {
                         GameMode::Normal => Some(NextScene::Overlay(Box::new(EndingScene::new(
                             self.res.background.clone(),
