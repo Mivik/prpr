@@ -15,6 +15,7 @@ use crate::{
 };
 use anyhow::{bail, Context, Result};
 use concat_string::concat_string;
+use lyon::path::Path;
 use macroquad::{prelude::*, window::InternalGlContext};
 use sasa::{Music, MusicParams};
 use std::{
@@ -25,6 +26,8 @@ use std::{
     rc::Rc,
     sync::Mutex,
 };
+
+const PAUSE_CLICK_INTERVAL: f32 = 0.7;
 
 #[cfg(feature = "closed")]
 mod inner;
@@ -96,6 +99,7 @@ pub struct GameScene {
     state: State,
     last_update_time: f64,
     pause_rewind: Option<f64>,
+    pause_first_time: f32,
 
     bad_notes: Vec<BadNote>,
 
@@ -237,6 +241,7 @@ impl GameScene {
             state: State::Starting,
             last_update_time: 0.,
             pause_rewind: None,
+            pause_first_time: f32::NEG_INFINITY,
 
             bad_notes: Vec::new(),
 
@@ -278,7 +283,7 @@ impl GameScene {
         let top = -1. / res.aspect_ratio;
         let pause_w = 0.015;
         let pause_h = pause_w * 3.2;
-        let pause_center = Point::new(pause_w * 3.5 - 1., top + eps * 2.8 + pause_h / 2.);
+        let pause_center = Point::new(pause_w * 4.0 - 1., top + eps * 3.5 - (1. - p) * 0.4 + pause_h / 2.);
         if res.config.interactive
             && !tm.paused()
             && self.pause_rewind.is_none()
@@ -290,11 +295,21 @@ impl GameScene {
                 }
             })
         {
-            if !self.music.paused() {
-                self.music.pause()?;
+            let t = tm.now() as f32;
+            if t - self.pause_first_time > PAUSE_CLICK_INTERVAL {
+                self.pause_first_time = t;
+            } else {
+                self.pause_first_time = f32::NEG_INFINITY;
+                if !self.music.paused() {
+                    self.music.pause()?;
+                }
+                tm.pause();
             }
-            tm.pause();
         }
+        if tm.now() as f32 - self.pause_first_time <= PAUSE_CLICK_INTERVAL {
+            ui.fill_circle(pause_center.x, pause_center.y, 0.05, Color::new(1., 1., 1., 0.5));
+        }
+
         let margin = 0.03;
 
         self.chart.with_element(ui, res, UIElement::Score, |ui, color, scale| {
@@ -307,8 +322,8 @@ impl GameScene {
                 .draw();
         });
         self.chart.with_element(ui, res, UIElement::Pause, |ui, color, scale| {
-            let mut r = Rect::new(pause_w * 3.0 - 1., top + eps * 3.5 - (1. - p) * 0.4, pause_w, pause_h);
-            let ct = Vector::new(r.x + pause_w, r.y + r.h / 2.);
+            let mut r = Rect::new(pause_center.x - pause_w * 1.5, pause_center.y - pause_h / 2., pause_w, pause_h);
+            let ct = pause_center.coords;
             let c = Color { a: color.a * c.a, ..color };
             ui.with(scale.prepend_translation(&-ct).append_translation(&ct), |ui| {
                 ui.fill_rect(r, c);
