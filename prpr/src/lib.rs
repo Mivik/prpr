@@ -11,6 +11,9 @@ pub mod task;
 pub mod time;
 pub mod ui;
 
+#[cfg(feature = "closed")]
+pub mod inner;
+
 #[cfg(target_os = "ios")]
 pub mod objc;
 

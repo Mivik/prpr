@@ -211,11 +211,18 @@ impl Scene for EndingScene {
             let text = if self.autoplay {
                 format!("PRPR[AUTOPLAY] {spd}")
             } else if !self.rated {
-                format!("PRPR[UNRATED] {spd}  {:07}", res.score)
+                format!("PRPR[UNRATED] {spd}")
             } else if let Some(state) = &self.update_state {
-                format!("PRPR {spd}  {}+{:07}", if state.best { "NEW BEST " } else { "" }, state.improvement)
+                format!(
+                    "PRPR {spd}  {}",
+                    if state.best {
+                        format!("NEW BEST +{:07}", state.improvement)
+                    } else {
+                        String::new()
+                    }
+                )
             } else {
-                "Uploading……".to_owned()
+                "Uploading…".to_owned()
             };
             let r = draw_text_aligned(ui, &text, main.x + dx, main.bottom() - 0.035, (0., 1.), 0.34, WHITE);
             let r = draw_text_aligned(ui, &format!("{:07}", res.score), r.x, r.y - 0.023, (0., 1.), 1., WHITE);

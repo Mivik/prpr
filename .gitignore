@@ -1,3 +1,5 @@
+inner.rs
+
 /target
 /assets/font.ttf
 /assets/charts
@@ -8,7 +10,8 @@ Cargo.lock
 /conf.yml
 /cache
 /data
-/libprpr_secure*
+/.cargo
+/config.txt
 
 # Mac
 

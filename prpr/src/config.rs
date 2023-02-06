@@ -49,7 +49,7 @@ impl Default for Config {
             aggressive: true,
             aspect_ratio: None,
             audio_buffer_size: None,
-            autoplay: true,
+            autoplay: false,
             challenge_color: ChallengeModeColor::Golden,
             challenge_rank: 45,
             disable_effect: false,

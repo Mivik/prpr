@@ -1,4 +1,6 @@
-use super::{draw_background, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene, ending::RecordUpdateState};
+#![allow(unused)]
+
+use super::{draw_background, ending::RecordUpdateState, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene};
 use crate::{
     config::Config,
     core::{copy_fbo, BadNote, Chart, ChartExtra, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
@@ -23,6 +25,11 @@ use std::{
     rc::Rc,
     sync::Mutex,
 };
+
+#[cfg(feature = "closed")]
+mod inner;
+#[cfg(feature = "closed")]
+use inner::*;
 
 pub static FFMPEG_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 
@@ -125,7 +132,7 @@ impl GameScene {
         bail!("Cannot find chart file")
     }
 
-    pub async fn load_chart(fs: &mut Box<dyn FileSystem>, info: &ChartInfo) -> Result<(Chart, String, ChartFormat)> {
+    pub async fn load_chart(fs: &mut dyn FileSystem, info: &ChartInfo) -> Result<(Chart, String, ChartFormat)> {
         let extra = fs.load_file("extra.json").await.ok().map(|it| String::from_utf8(it)).transpose()?;
         let extra = if let Some(extra) = extra {
             let ffmpeg: PathBuf = FFMPEG_PATH.lock().unwrap().to_owned().unwrap_or_else(|| "ffmpeg".into());
@@ -138,11 +145,11 @@ impl GameScene {
                 warn!("ffmpeg not found at {}, disabling video", ffmpeg.display());
                 None
             };
-            parse_extra(&extra, fs.deref_mut(), ffmpeg).await.context("Failed to parse extra")?
+            parse_extra(&extra, fs, ffmpeg).await.context("Failed to parse extra")?
         } else {
             ChartExtra::default()
         };
-        let text = String::from_utf8(Self::load_chart_bytes(fs.deref_mut(), info).await.context("Failed to load chart")?)?;
+        let text = String::from_utf8(Self::load_chart_bytes(fs, info).await.context("Failed to load chart")?)?;
         let format = info.format.clone().unwrap_or_else(|| {
             if text.starts_with('{') {
                 if text.contains("\"META\"") {
@@ -155,7 +162,7 @@ impl GameScene {
             }
         });
         let mut chart = match format {
-            ChartFormat::Rpe => parse_rpe(&text, fs.deref_mut(), extra).await,
+            ChartFormat::Rpe => parse_rpe(&text, fs, extra).await,
             ChartFormat::Pgr => parse_phigros(&text, extra),
             ChartFormat::Pec => parse_pec(&text, extra),
         }?;
@@ -183,7 +190,7 @@ impl GameScene {
             }
             _ => {}
         }
-        let (mut chart, chart_str, chart_format) = Self::load_chart(&mut fs, &info).await?;
+        let (mut chart, chart_str, chart_format) = Self::load_chart(fs.deref_mut(), &info).await?;
         let effects = std::mem::take(&mut chart.extra.global_effects);
         if config.fxaa {
             chart
@@ -309,9 +316,9 @@ impl GameScene {
                 ui.fill_rect(r, c);
             });
         });
-        if self.judge.combo >= 3 {
+        if self.judge.combo() >= 3 {
             let btm = self.chart.with_element(ui, res, UIElement::ComboNumber, |ui, color, scale| {
-                ui.text(self.judge.combo.to_string())
+                ui.text(self.judge.combo().to_string())
                     .pos(0., top + eps * 2. - (1. - p) * 0.4)
                     .anchor(0.5, 0.)
                     .color(Color { a: color.a * c.a, ..color })
@@ -723,28 +730,13 @@ impl Scene for GameScene {
                 if t >= AFTER_TIME + 0.3 {
                     let mut task = None;
                     // TODO strengthen the protection
+                    #[cfg(feature = "closed")]
                     if let Some(upload_fn) = self.upload_fn {
                         if !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
                             if let Some(player) = &self.player {
                                 if let Some(chart) = &self.res.info.id {
                                     use base64::Engine as _;
-                                    use prpr_secure::*;
-                                    let cs = std::ffi::CString::new(self.chart_str.clone()).unwrap();
-                                    let info = ChartInfoFfi {
-                                        chart: cs.as_ptr() as _,
-                                        chart_format: self.chart_format.clone() as _,
-                                        difficulty: self.res.info.difficulty,
-                                        duration: self.res.track_length,
-
-                                        last_time: self.judge.last_time,
-                                        diffs: self.judge.diffs.clone().into(),
-
-                                        combo: self.judge.combo,
-                                        max_combo: self.judge.max_combo,
-                                        counts: self.judge.counts,
-                                        num_of_notes: self.judge.num_of_notes,
-                                    };
-                                    task = Some(upload_fn(base64::engine::general_purpose::STANDARD.encode(encode_record(info, player, chart))));
+                                    task = Some(upload_fn(base64::engine::general_purpose::STANDARD.encode(encode_record(self, player, chart))));
                                 }
                             }
                         }
@@ -779,8 +771,9 @@ impl Scene for GameScene {
             self.judge.update(&mut self.res, &mut self.chart, &mut self.bad_notes);
             self.gl.quad_gl.viewport(None);
         }
-        self.res.judge_line_color = if self.judge.counts[2] + self.judge.counts[3] == 0 {
-            if self.judge.counts[1] == 0 {
+        let counts = self.judge.counts();
+        self.res.judge_line_color = if counts[2] + counts[3] == 0 {
+            if counts[1] == 0 {
                 JUDGE_LINE_PERFECT_COLOR
             } else {
                 JUDGE_LINE_GOOD_COLOR

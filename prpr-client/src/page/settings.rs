@@ -181,7 +181,7 @@ impl Page for SettingsPage {
                 ui.dy(r.h + s);
                 let mut low = config.sample_count == 1;
                 let r = ui.checkbox("低性能模式", &mut low);
-                config.sample_count = if low { 1 } else { 4 };
+                config.sample_count = if low { 1 } else { 2 };
                 ui.dy(r.h + s);
                 let r = ui.slider("玩家 RKS", 1.0..17.0, 0.01, &mut config.player_rks, Some(0.45));
                 ui.dy(r.h + s);
