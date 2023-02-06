@@ -20,7 +20,9 @@ prpr 是一款 Phigros 模拟器，旨在为自制谱游玩提供一个统一化
 
 prpr 是开源软件，遵循 GNU General Public License v3.0 协议。
 测试群：660488396
-GitHub: https://github.com/Mivik/prpr",
+GitHub：https://github.com/Mivik/prpr
+
+欢迎在爱发电上支持 prpr 的开发：https://afdian.net/a/mivik",
                 env!("CARGO_PKG_VERSION")
             ),
         }

@@ -395,10 +395,8 @@ impl SongScene {
             ui.scope(|ui| {
                 ui.dx(lf);
                 ui.dy(-ui.top);
-                let r = Rect::new(-0.04, 0., 0.04, ui.top * 2.);
-                ui.fill_rect(r, (Color::default(), (r.x, r.y), BLACK, (r.right(), r.y)));
-                let r = Rect::new(0., 0., 1. - lf, ui.top * 2.);
-                ui.fill_rect(r, BLACK);
+                let r = Rect::new(-0.2, 0., 0.2 + self.side_width, ui.top * 2.);
+                ui.fill_rect(r, (Color::default(), (r.x, r.y), Color::new(0., 0., 0., 0.6), (r.right(), r.y)));
 
                 match self.side_content {
                     SideContent::Edit => self.side_chart_info(ui, rt),
