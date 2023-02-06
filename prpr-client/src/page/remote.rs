@@ -188,12 +188,14 @@ impl Page for RemotePage {
                 if self.page != 0 {
                     if ui.button("prev_page", r, "上一页") {
                         self.page -= 1;
+                        self.scroll.y_scroller.set_offset(0.);
                         self.refresh_remote(state);
                     }
                     ui.dx(r.w + 0.01);
                 }
                 if self.page + 1 < self.total_page && ui.button("next_page", r, "下一页") {
                     self.page += 1;
+                    self.scroll.y_scroller.set_offset(0.);
                     self.refresh_remote(state);
                 }
             }
