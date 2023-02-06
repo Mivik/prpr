@@ -25,6 +25,7 @@ Cargo.lock
 /dist
 /project.yml
 /prpr.scent
+/.cargo
 
 # Test
 
