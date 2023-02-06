@@ -13,6 +13,13 @@ use crate::{
 use anyhow::Result;
 use macroquad::prelude::*;
 use sasa::{AudioClip, AudioManager, Music, MusicParams};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+pub struct RecordUpdateState {
+    pub best: bool,
+    pub improvement: u32,
+}
 
 pub struct EndingScene {
     background: SafeTexture,
@@ -34,8 +41,10 @@ pub struct EndingScene {
     autoplay: bool,
     speed: f32,
     next: u8, // 0 -> none, 1 -> pop, 2 -> exit
+    update_state: Option<RecordUpdateState>,
+    rated: bool,
 
-    upload_task: Option<Task<Result<()>>>,
+    upload_task: Option<Task<Result<RecordUpdateState>>>,
 }
 
 impl EndingScene {
@@ -51,7 +60,7 @@ impl EndingScene {
         challenge_texture: SafeTexture,
         config: &Config,
         bgm: AudioClip,
-        upload_task: Option<Task<Result<()>>>,
+        upload_task: Option<Task<Result<RecordUpdateState>>>,
     ) -> Result<Self> {
         let mut audio = create_audio_manger(config)?;
         let bgm = audio.create_music(
@@ -62,6 +71,9 @@ impl EndingScene {
                 ..Default::default()
             },
         )?;
+        if upload_task.is_some() {
+            show_message("成绩上传中");
+        }
         Ok(Self {
             background,
             illustration,
@@ -72,6 +84,15 @@ impl EndingScene {
             target: None,
             audio,
             bgm,
+            update_state: if upload_task.is_some() {
+                None
+            } else {
+                Some(RecordUpdateState {
+                    best: true,
+                    improvement: result.score,
+                })
+            },
+            rated: upload_task.is_some(),
 
             info,
             result,
@@ -118,7 +139,8 @@ impl Scene for EndingScene {
                     Err(err) => {
                         show_error(err.context("上传成绩失败"));
                     }
-                    Ok(_) => {
+                    Ok(state) => {
+                        self.update_state = Some(state);
                         show_message("成绩上传成功");
                     }
                 }
@@ -181,25 +203,21 @@ impl Scene for EndingScene {
         let main = Rect::new(r.right() - 0.05, r.y, r.w * 0.84, r.h / 2.);
         draw_parallelogram(main, None, c, true);
         {
-            let r = draw_text_aligned(
-                ui,
-                &format!(
-                    "PRPR{} {}   {:07}  +{:07}",
-                    if self.autoplay { "[AUTOPLAY]" } else { "" },
-                    if (self.speed - 1.).abs() <= 1e-4 {
-                        String::new()
-                    } else {
-                        format!(" {:.2}x", self.speed)
-                    },
-                    res.score,
-                    res.score
-                ),
-                main.x + dx,
-                main.bottom() - 0.035,
-                (0., 1.),
-                0.34,
-                WHITE,
-            );
+            let spd = if (self.speed - 1.).abs() <= 1e-4 {
+                String::new()
+            } else {
+                format!(" {:.2}x", self.speed)
+            };
+            let text = if self.autoplay {
+                format!("PRPR[AUTOPLAY] {spd}")
+            } else if !self.rated {
+                format!("PRPR[UNRATED] {spd}  {:07}", res.score)
+            } else if let Some(state) = &self.update_state {
+                format!("PRPR {spd}  {}+{:07}", if state.best { "NEW BEST " } else { "" }, state.improvement)
+            } else {
+                "Uploading……".to_owned()
+            };
+            let r = draw_text_aligned(ui, &text, main.x + dx, main.bottom() - 0.035, (0., 1.), 0.34, WHITE);
             let r = draw_text_aligned(ui, &format!("{:07}", res.score), r.x, r.y - 0.023, (0., 1.), 1., WHITE);
             let icon = match (res.score, res.num_of_notes == res.max_combo) {
                 (x, _) if x < 700000 => 0,

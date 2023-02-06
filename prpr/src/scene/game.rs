@@ -1,4 +1,4 @@
-use super::{draw_background, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene};
+use super::{draw_background, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene, ending::RecordUpdateState};
 use crate::{
     config::Config,
     core::{copy_fbo, BadNote, Chart, ChartExtra, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
@@ -92,7 +92,7 @@ pub struct GameScene {
 
     bad_notes: Vec<BadNote>,
 
-    upload_fn: Option<fn(String) -> Task<Result<()>>>,
+    upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
 }
 
 macro_rules! reset {
@@ -172,7 +172,7 @@ impl GameScene {
         background: SafeTexture,
         illustration: SafeTexture,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
-        upload_fn: Option<fn(String) -> Task<Result<()>>>,
+        upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
     ) -> Result<Self> {
         match mode {
             GameMode::TweakOffset => {

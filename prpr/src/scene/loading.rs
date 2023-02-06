@@ -1,11 +1,12 @@
-use super::{draw_background, draw_illustration, game::GameMode, GameScene, NextScene, Scene};
+use super::{draw_background, draw_illustration, ending::RecordUpdateState, game::GameMode, GameScene, NextScene, Scene};
 use crate::{
     config::Config,
     ext::{draw_parallelogram, draw_text_aligned, poll_future, screen_aspect, LocalTask, SafeTexture, BLACK_TEXTURE},
     fs::FileSystem,
     info::ChartInfo,
+    task::Task,
     time::TimeManager,
-    ui::Ui, task::Task,
+    ui::Ui,
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -39,7 +40,7 @@ impl LoadingScene {
         mut fs: Box<dyn FileSystem>,
         player: (Option<SafeTexture>, Option<String>),
         get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>,
-        upload_fn: Option<fn(String) -> Task<Result<()>>>,
+        upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
     ) -> Result<Self> {
         async fn load(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<(Texture2D, Texture2D)> {
             let image = image::load_from_memory(&fs.load_file(path).await?).context("Failed to decode image")?;
@@ -80,7 +81,8 @@ impl LoadingScene {
         if info.tip.is_none() {
             info.tip = Some(crate::config::TIPS.choose().cloned().unwrap());
         }
-        let future = Box::pin(GameScene::new(mode, info.clone(), config, fs, player, background.clone(), illustration.clone(), get_size_fn, upload_fn));
+        let future =
+            Box::pin(GameScene::new(mode, info.clone(), config, fs, player, background.clone(), illustration.clone(), get_size_fn, upload_fn));
         Ok(Self {
             info,
             background,

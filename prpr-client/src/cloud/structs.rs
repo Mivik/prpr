@@ -143,9 +143,9 @@ impl LCObject for LCRecord {
 }
 
 #[derive(Deserialize)]
-pub struct LCFunctionResult {
+pub struct LCFunctionResult<T> {
     #[serde(default)]
     pub code: u32,
     pub error: Option<String>,
-    pub result: Option<String>,
+    pub result: Option<T>,
 }

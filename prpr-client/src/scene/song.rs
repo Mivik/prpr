@@ -1,12 +1,12 @@
 use super::main::{UPDATE_INFO, UPDATE_REMOTE_TEXTURE, UPDATE_TEXTURE};
 use crate::{
-    cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, RequestExt, UserManager, QueryResult},
+    cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, QueryResult, RequestExt, UserManager},
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
     save_data,
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use futures_util::StreamExt;
 use image::DynamicImage;
 use macroquad::prelude::*;
@@ -17,7 +17,7 @@ use prpr::{
     ext::{poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, ZipFileSystem},
     info::ChartInfo,
-    scene::{show_error, show_message, GameMode, GameScene, LoadingScene, NextScene, Scene},
+    scene::{show_error, show_message, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
     task::Task,
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Dialog, RectButton, Scroll, Ui},
@@ -280,7 +280,7 @@ impl SongScene {
         (self.scroll.y_scroller.offset() / (1. / screen_aspect() * 0.7)).clamp(0., 1.)
     }
 
-    fn ui(&mut self, ui: &mut Ui, t: f32) {
+    fn ui(&mut self, ui: &mut Ui, t: f32, rt: f32) {
         let sp = self.scroll_progress();
         let r = ui.screen_rect();
         ui.fill_rect(r, (*self.illustration, r));
@@ -387,7 +387,7 @@ impl SongScene {
             });
         });
         if self.side_enter_time.is_finite() {
-            let p = ((t - self.side_enter_time.abs()) / EDIT_TRANSIT).min(1.);
+            let p = ((rt - self.side_enter_time.abs()) / EDIT_TRANSIT).min(1.);
             let p = 1. - (1. - p).powi(3);
             let p = if self.side_enter_time < 0. { 1. - p } else { p };
             ui.fill_rect(ui.screen_rect(), Color::new(0., 0., 0., p * 0.6));
@@ -401,7 +401,7 @@ impl SongScene {
                 ui.fill_rect(r, BLACK);
 
                 match self.side_content {
-                    SideContent::Edit => self.side_chart_info(ui, t),
+                    SideContent::Edit => self.side_chart_info(ui, rt),
                     SideContent::Tool => self.side_tools(ui),
                     SideContent::Leaderboard => self.side_leaderboard(ui),
                 }
@@ -485,7 +485,7 @@ impl SongScene {
         }
     }
 
-    fn side_chart_info(&mut self, ui: &mut Ui, t: f32) {
+    fn side_chart_info(&mut self, ui: &mut Ui, rt: f32) {
         let h = 0.11;
         let pad = 0.03;
         let width = self.side_width - pad;
@@ -495,7 +495,7 @@ impl SongScene {
         let dx = width / 3.;
         let mut r = Rect::new(hpad, ui.top * 2. - h + vpad, dx - hpad * 2., h - vpad * 2.);
         if ui.button("cancel", r, "取消") {
-            self.side_enter_time = -t;
+            self.side_enter_time = -rt;
         }
         r.x += dx;
         if ui.button(
@@ -661,11 +661,11 @@ impl SongScene {
                         .with_session()
                         .send()
                         .await?;
-                        let resp: LCFunctionResult = serde_json::from_str(&resp.text().await?)?;
+                        let resp: LCFunctionResult<RecordUpdateState> = serde_json::from_str(&resp.text().await?)?;
                         if let Some(err) = resp.error {
                             bail!("错误（代码 {}）：{err}", resp.code);
                         }
-                        Ok::<_, anyhow::Error>(())
+                        resp.result.ok_or_else(|| anyhow!("服务器未返回"))
                     })
                 }),
             )
@@ -722,10 +722,11 @@ impl Scene for SongScene {
         let loaded = self.chart_info.is_some();
         if self.scroll_progress() < 0.4 {
             if self.side_enter_time.is_infinite() {
+                let rt = tm.real_time() as f32;
                 if self.get_id().is_some() && self.leaderboard_button.touch(touch) {
                     self.side_content = SideContent::Leaderboard;
                     self.side_width = 0.8;
-                    self.side_enter_time = tm.now() as _;
+                    self.side_enter_time = rt;
                     return Ok(true);
                 }
                 if loaded && !self.remote {
@@ -735,14 +736,14 @@ impl Scene for SongScene {
                     if self.tool_button.touch(touch) {
                         self.side_content = SideContent::Tool;
                         self.side_width = 0.5;
-                        self.side_enter_time = tm.now() as _;
+                        self.side_enter_time = rt;
                         return Ok(true);
                     }
                     if self.edit_button.touch(touch) {
                         self.info_edit = Some(ChartInfoEdit::new(self.chart_info.clone().unwrap()));
                         self.side_content = SideContent::Edit;
                         self.side_width = 0.7;
-                        self.side_enter_time = tm.now() as _;
+                        self.side_enter_time = rt;
                         return Ok(true);
                     }
                 }
@@ -762,13 +763,13 @@ impl Scene for SongScene {
                     self.next_scene = Some(NextScene::Pop);
                     return Ok(true);
                 }
-            } else if self.side_enter_time > 0. && tm.now() as f32 > self.side_enter_time + EDIT_TRANSIT {
+            } else if self.side_enter_time > 0. && tm.real_time() as f32 > self.side_enter_time + EDIT_TRANSIT {
                 if touch.position.x < 1. - self.side_width
                     && touch.phase == TouchPhase::Started
                     && self.save_task.is_none()
                     && self.illustration_task.is_none()
                 {
-                    self.side_enter_time = -tm.now() as _;
+                    self.side_enter_time = -tm.real_time() as _;
                     return Ok(true);
                 }
                 if self.edit_scroll.touch(touch, tm.now() as _) {
@@ -804,7 +805,7 @@ impl Scene for SongScene {
         self.scroll.update(t);
         self.edit_scroll.update(t);
         self.leaderboard_scroll.update(t);
-        if self.side_enter_time < 0. && -tm.now() as f32 + EDIT_TRANSIT < self.side_enter_time {
+        if self.side_enter_time < 0. && -tm.real_time() as f32 + EDIT_TRANSIT < self.side_enter_time {
             self.side_enter_time = f32::INFINITY;
         }
         if let Some(task) = &mut self.info_task {
@@ -958,7 +959,7 @@ impl Scene for SongScene {
             render_target: self.target,
             ..Default::default()
         });
-        self.ui(ui, tm.now() as _);
+        self.ui(ui, tm.now() as _, tm.real_time() as _);
         Ok(())
     }
 

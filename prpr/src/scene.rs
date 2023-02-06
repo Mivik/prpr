@@ -1,5 +1,5 @@
 mod ending;
-pub use ending::EndingScene;
+pub use ending::{EndingScene, RecordUpdateState};
 
 mod game;
 pub use game::{GameMode, GameScene, FFMPEG_PATH};
