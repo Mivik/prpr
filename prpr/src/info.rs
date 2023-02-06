@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
+#[repr(u8)]
 #[serde(rename_all = "lowercase")]
 pub enum ChartFormat {
-    Rpe,
+    Rpe = 0,
     Pec,
     Pgr,
 }

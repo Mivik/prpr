@@ -1,9 +1,7 @@
 use super::{Page, SharedState};
 use crate::{
     cloud::{Client, User, UserManager},
-    get_data, get_data_mut, save_data,
-    task::Task,
-    Rect, Ui,
+    get_data, get_data_mut, save_data, Rect, Ui,
 };
 use anyhow::{Context, Result};
 use image::imageops::FilterType;
@@ -11,6 +9,7 @@ use macroquad::prelude::Touch;
 use once_cell::sync::Lazy;
 use prpr::{
     scene::{request_file, request_input, return_file, return_input, show_error, show_message, take_file, take_input},
+    task::Task,
     ui::RectButton,
 };
 use regex::Regex;

@@ -1,10 +1,9 @@
 use super::{Client, Images, User};
-use crate::task::Task;
 use anyhow::Result;
 use image::{DynamicImage, GenericImage, Rgba};
 use macroquad::prelude::warn;
 use once_cell::sync::Lazy;
-use prpr::ext::SafeTexture;
+use prpr::{ext::SafeTexture, task::Task};
 use std::{collections::HashMap, sync::Mutex};
 
 static TASKS: Lazy<Mutex<HashMap<String, Task<Result<DynamicImage>>>>> = Lazy::new(Mutex::default);
@@ -60,7 +59,6 @@ impl UserManager {
                         RESULTS.lock().unwrap().get_mut(user_id).unwrap().1 = Some(image.into());
                     }
                 }
-                guard.remove(user_id);
             }
         } else {
             drop(guard);

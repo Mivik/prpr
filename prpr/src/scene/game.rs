@@ -7,6 +7,7 @@ use crate::{
     info::{ChartFormat, ChartInfo},
     judge::Judge,
     parse::{parse_extra, parse_pec, parse_phigros, parse_rpe},
+    task::Task,
     time::TimeManager,
     ui::{RectButton, Ui},
 };
@@ -69,6 +70,9 @@ pub struct GameScene {
     pub chart: Chart,
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
+    player: Option<String>,
+    chart_str: String,
+    chart_format: ChartFormat,
     info_offset: f32,
     compatible_mode: bool,
     effects: Vec<Effect>,
@@ -87,6 +91,8 @@ pub struct GameScene {
     pause_rewind: Option<f64>,
 
     bad_notes: Vec<BadNote>,
+
+    upload_fn: Option<fn(String) -> Task<Result<()>>>,
 }
 
 macro_rules! reset {
@@ -107,18 +113,19 @@ impl GameScene {
     pub const BEFORE_TIME: f32 = 0.7;
     pub const FADEOUT_TIME: f32 = WAIT_TIME + AFTER_TIME + 0.3;
 
-    pub async fn load_chart(fs: &mut Box<dyn FileSystem>, info: &ChartInfo) -> Result<Chart> {
-        async fn load_chart_bytes(fs: &mut Box<dyn FileSystem>, info: &ChartInfo) -> Result<Vec<u8>> {
-            if let Ok(bytes) = fs.load_file(&info.chart).await {
+    pub async fn load_chart_bytes(fs: &mut dyn FileSystem, info: &ChartInfo) -> Result<Vec<u8>> {
+        if let Ok(bytes) = fs.load_file(&info.chart).await {
+            return Ok(bytes);
+        }
+        if let Some(name) = info.chart.strip_suffix(".pec") {
+            if let Ok(bytes) = fs.load_file(&concat_string!(name, ".json")).await {
                 return Ok(bytes);
             }
-            if let Some(name) = info.chart.strip_suffix(".pec") {
-                if let Ok(bytes) = fs.load_file(&concat_string!(name, ".json")).await {
-                    return Ok(bytes);
-                }
-            }
-            bail!("Cannot find chart file")
         }
+        bail!("Cannot find chart file")
+    }
+
+    pub async fn load_chart(fs: &mut Box<dyn FileSystem>, info: &ChartInfo) -> Result<(Chart, String, ChartFormat)> {
         let extra = fs.load_file("extra.json").await.ok().map(|it| String::from_utf8(it)).transpose()?;
         let extra = if let Some(extra) = extra {
             let ffmpeg: PathBuf = FFMPEG_PATH.lock().unwrap().to_owned().unwrap_or_else(|| "ffmpeg".into());
@@ -135,7 +142,7 @@ impl GameScene {
         } else {
             ChartExtra::default()
         };
-        let text = String::from_utf8(load_chart_bytes(fs, info).await.context("Failed to load chart")?)?;
+        let text = String::from_utf8(Self::load_chart_bytes(fs.deref_mut(), info).await.context("Failed to load chart")?)?;
         let format = info.format.clone().unwrap_or_else(|| {
             if text.starts_with('{') {
                 if text.contains("\"META\"") {
@@ -153,7 +160,7 @@ impl GameScene {
             ChartFormat::Pec => parse_pec(&text, extra),
         }?;
         chart.settings.hold_partial_cover = info.hold_partial_cover;
-        Ok(chart)
+        Ok((chart, text, format))
     }
 
     pub async fn new(
@@ -161,10 +168,11 @@ impl GameScene {
         info: ChartInfo,
         mut config: Config,
         mut fs: Box<dyn FileSystem>,
-        player: Option<SafeTexture>,
+        player: (Option<SafeTexture>, Option<String>),
         background: SafeTexture,
         illustration: SafeTexture,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
+        upload_fn: Option<fn(String) -> Task<Result<()>>>,
     ) -> Result<Self> {
         match mode {
             GameMode::TweakOffset => {
@@ -175,7 +183,7 @@ impl GameScene {
             }
             _ => {}
         }
-        let mut chart = Self::load_chart(&mut fs, &info).await?;
+        let (mut chart, chart_str, chart_format) = Self::load_chart(&mut fs, &info).await?;
         let effects = std::mem::take(&mut chart.extra.global_effects);
         if config.fxaa {
             chart
@@ -185,7 +193,8 @@ impl GameScene {
         }
 
         let info_offset = info.offset;
-        let mut res = Resource::new(config, info, fs, player, background, illustration, chart.extra.effects.is_empty() && effects.is_empty())
+        let (avatar, player) = player;
+        let mut res = Resource::new(config, info, fs, avatar, background, illustration, chart.extra.effects.is_empty() && effects.is_empty())
             .await
             .context("Failed to load resources")?;
         let exercise_range = (chart.offset + info_offset + res.config.offset)..res.track_length;
@@ -202,6 +211,9 @@ impl GameScene {
             chart,
             judge,
             gl: unsafe { get_internal_gl() },
+            player,
+            chart_str,
+            chart_format,
             compatible_mode: false,
             effects,
             info_offset,
@@ -220,6 +232,8 @@ impl GameScene {
             pause_rewind: None,
 
             bad_notes: Vec::new(),
+
+            upload_fn,
         })
     }
 
@@ -707,8 +721,34 @@ impl Scene for GameScene {
             State::Ending => {
                 let t = time - self.res.track_length - WAIT_TIME;
                 if t >= AFTER_TIME + 0.3 {
-                    let res = prpr_secure::encode_record(self.judge.to_ffi(), "0123456789012345678901", "0123456789012345678901");
-                    eprintln!("{}", base64::encode(&res));
+                    let mut task = None;
+                    // TODO strengthen the protection
+                    if let Some(upload_fn) = self.upload_fn {
+                        if !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
+                            if let Some(player) = &self.player {
+                                if let Some(chart) = &self.res.info.id {
+                                    use base64::Engine as _;
+                                    use prpr_secure::*;
+                                    let cs = std::ffi::CString::new(self.chart_str.clone()).unwrap();
+                                    let info = ChartInfoFfi {
+                                        chart: cs.as_ptr() as _,
+                                        chart_format: self.chart_format.clone() as _,
+                                        difficulty: self.res.info.difficulty,
+                                        duration: self.res.track_length,
+
+                                        last_time: self.judge.last_time,
+                                        diffs: self.judge.diffs.clone().into(),
+
+                                        combo: self.judge.combo,
+                                        max_combo: self.judge.max_combo,
+                                        counts: self.judge.counts,
+                                        num_of_notes: self.judge.num_of_notes,
+                                    };
+                                    task = Some(upload_fn(base64::engine::general_purpose::STANDARD.encode(encode_record(info, player, chart))));
+                                }
+                            }
+                        }
+                    }
                     self.next_scene = match self.mode {
                         GameMode::Normal => Some(NextScene::Overlay(Box::new(EndingScene::new(
                             self.res.background.clone(),
@@ -722,6 +762,7 @@ impl Scene for GameScene {
                             self.res.challenge_icons[self.res.config.challenge_color.clone() as usize].clone(),
                             &self.res.config,
                             self.res.res_pack.ending.clone(),
+                            task,
                         )?))),
                         GameMode::TweakOffset => Some(NextScene::PopWithResult(Box::new(None::<f32>))),
                         GameMode::Exercise => None,

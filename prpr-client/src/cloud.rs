@@ -85,6 +85,7 @@ struct UploadToken {
 pub struct QueryBuilder<T: LCObject> {
     #[serde(rename = "where")]
     where_: Option<String>,
+    limit: Option<usize>,
     order: Option<String>,
     #[serde(skip)]
     phantom: PhantomData<T>,
@@ -93,6 +94,11 @@ pub struct QueryBuilder<T: LCObject> {
 impl<T: LCObject> QueryBuilder<T> {
     pub fn with_where(mut self, clause: Value) -> Self {
         self.where_ = Some(clause.to_string());
+        self
+    }
+
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
         self
     }
 
@@ -109,23 +115,23 @@ impl<T: LCObject> QueryBuilder<T> {
 pub struct Client;
 
 impl Client {
-    fn get(path: impl AsRef<str>) -> RequestBuilder {
+    pub fn get(path: impl AsRef<str>) -> RequestBuilder {
         Self::request(Method::GET, path)
     }
 
-    fn post(path: impl AsRef<str>, data: Value) -> RequestBuilder {
+    pub fn post(path: impl AsRef<str>, data: Value) -> RequestBuilder {
         Self::request(Method::POST, path)
             .header(header::CONTENT_TYPE, "application/json")
             .body(data.to_string())
     }
 
-    fn put(path: impl AsRef<str>, data: Value) -> RequestBuilder {
+    pub fn put(path: impl AsRef<str>, data: Value) -> RequestBuilder {
         Self::request(Method::PUT, path)
             .header(header::CONTENT_TYPE, "application/json")
             .body(data.to_string())
     }
 
-    fn request(method: Method, path: impl AsRef<str>) -> RequestBuilder {
+    pub fn request(method: Method, path: impl AsRef<str>) -> RequestBuilder {
         reqwest::Client::new()
             .request(method, API_URL.to_string() + path.as_ref())
             .header("X-LC-Id", API_ID)
@@ -145,6 +151,7 @@ impl Client {
         QueryBuilder {
             where_: None,
             order: None,
+            limit: None,
             phantom: PhantomData::default(),
         }
     }

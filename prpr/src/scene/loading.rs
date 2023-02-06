@@ -5,7 +5,7 @@ use crate::{
     fs::FileSystem,
     info::ChartInfo,
     time::TimeManager,
-    ui::Ui,
+    ui::Ui, task::Task,
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -37,8 +37,9 @@ impl LoadingScene {
         mut info: ChartInfo,
         config: Config,
         mut fs: Box<dyn FileSystem>,
-        player: Option<SafeTexture>,
+        player: (Option<SafeTexture>, Option<String>),
         get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>,
+        upload_fn: Option<fn(String) -> Task<Result<()>>>,
     ) -> Result<Self> {
         async fn load(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<(Texture2D, Texture2D)> {
             let image = image::load_from_memory(&fs.load_file(path).await?).context("Failed to decode image")?;
@@ -79,7 +80,7 @@ impl LoadingScene {
         if info.tip.is_none() {
             info.tip = Some(crate::config::TIPS.choose().cloned().unwrap());
         }
-        let future = Box::pin(GameScene::new(mode, info.clone(), config, fs, player, background.clone(), illustration.clone(), get_size_fn));
+        let future = Box::pin(GameScene::new(mode, info.clone(), config, fs, player, background.clone(), illustration.clone(), get_size_fn, upload_fn));
         Ok(Self {
             info,
             background,

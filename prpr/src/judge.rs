@@ -9,7 +9,6 @@ use macroquad::prelude::{
 };
 use miniquad::{EventHandler, MouseButton};
 use once_cell::sync::Lazy;
-use prpr_secure::JudgeFfi;
 use sasa::{PlaySfxParams, Sfx};
 use std::{
     cell::RefCell,
@@ -152,8 +151,8 @@ pub struct Judge {
     // LinkedList::drain_filter is unstable...
     notes: Vec<(Vec<u32>, usize)>,
     trackers: HashMap<u64, VelocityTracker>,
-    last_time: f32,
-    diffs: Vec<f32>,
+    pub last_time: f32,
+    pub diffs: Vec<f32>,
 
     pub combo: u32,
     pub max_combo: u32,
@@ -320,7 +319,7 @@ impl Judge {
             fn to_local(Vec2 { x, y }: Vec2) -> Point {
                 Point::new(x / screen_width() * 2. - 1., y / screen_height() * 2. - 1.)
             }
-            let delta = (t - self.last_time) as f64 / (events.len() + 1) as f64;
+            let delta = (t / spd - self.last_time) as f64 / (events.len() + 1) as f64;
             let mut t = self.last_time as f64;
             for Touch { id, phase, position: p } in events.into_iter() {
                 t += delta;
@@ -328,7 +327,7 @@ impl Judge {
                 let p = to_local(p);
                 match phase {
                     TouchPhase::Started => {
-                        self.trackers.insert(id, VelocityTracker::new(t / spd, p));
+                        self.trackers.insert(id, VelocityTracker::new(t, p));
                         touches
                             .entry(id)
                             .or_insert_with(|| Touch {
@@ -340,7 +339,7 @@ impl Judge {
                     }
                     TouchPhase::Moved | TouchPhase::Stationary => {
                         if let Some(tracker) = self.trackers.get_mut(&id) {
-                            tracker.push(t / spd, p);
+                            tracker.push(t, p);
                         }
                     }
                     TouchPhase::Ended | TouchPhase::Cancelled => {
@@ -666,7 +665,7 @@ impl Judge {
                 *st += 1;
             }
         }
-        self.last_time = t;
+        self.last_time = t / spd;
     }
 
     fn auto_play_update(&mut self, res: &mut Resource, chart: &mut Chart) {
@@ -741,18 +740,6 @@ impl Judge {
             counts: self.counts,
             early,
             late: self.diffs.len() as u32 - early,
-        }
-    }
-
-    pub fn to_ffi(&self) -> JudgeFfi {
-        JudgeFfi {
-            last_time: self.last_time,
-            diffs: self.diffs.clone().into(),
-
-            combo: self.combo,
-            max_combo: self.max_combo,
-            counts: self.counts,
-            num_of_notes: self.num_of_notes,
         }
     }
 }

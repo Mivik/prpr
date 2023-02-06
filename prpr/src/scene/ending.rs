@@ -1,4 +1,4 @@
-use super::{draw_background, draw_illustration, NextScene, Scene};
+use super::{draw_background, draw_illustration, show_error, NextScene, Scene};
 use crate::{
     config::Config,
     ext::{
@@ -6,6 +6,8 @@ use crate::{
     },
     info::ChartInfo,
     judge::{Judge, PlayResult},
+    scene::show_message,
+    task::Task,
     ui::Ui,
 };
 use anyhow::Result;
@@ -32,6 +34,8 @@ pub struct EndingScene {
     autoplay: bool,
     speed: f32,
     next: u8, // 0 -> none, 1 -> pop, 2 -> exit
+
+    upload_task: Option<Task<Result<()>>>,
 }
 
 impl EndingScene {
@@ -47,6 +51,7 @@ impl EndingScene {
         challenge_texture: SafeTexture,
         config: &Config,
         bgm: AudioClip,
+        upload_task: Option<Task<Result<()>>>,
     ) -> Result<Self> {
         let mut audio = create_audio_manger(config)?;
         let bgm = audio.create_music(
@@ -77,6 +82,7 @@ impl EndingScene {
             autoplay: config.autoplay,
             speed: config.speed,
             next: 0,
+            upload_task,
         })
     }
 }
@@ -105,6 +111,19 @@ impl Scene for EndingScene {
         self.audio.recover_if_needed()?;
         if tm.now() >= 0. && self.target.is_none() && self.bgm.paused() {
             self.bgm.play()?;
+        }
+        if let Some(task) = &mut self.upload_task {
+            if let Some(result) = task.take() {
+                match result {
+                    Err(err) => {
+                        show_error(err.context("上传成绩失败"));
+                    }
+                    Ok(_) => {
+                        show_message("成绩上传成功");
+                    }
+                }
+                self.upload_task = None;
+            }
         }
         Ok(())
     }
@@ -274,6 +293,9 @@ impl Scene for EndingScene {
         draw_texture_ex(*self.icon_retry, ct.x - hs, ct.y - hs, WHITE, params.clone());
         gl.pop_model_matrix();
         if p <= 0. && touched(r) {
+            if self.upload_task.is_some() {
+                show_message("尚在上传成绩");
+            }
             self.next = 1;
         }
 
@@ -285,6 +307,9 @@ impl Scene for EndingScene {
         draw_texture_ex(*self.icon_proceed, ct.x - hs, ct.y - hs, WHITE, params);
         gl.pop_model_matrix();
         if p <= 0. && touched(r) {
+            if self.upload_task.is_some() {
+                show_message("尚在上传成绩");
+            }
             self.next = 2;
         }
 

@@ -3,7 +3,6 @@ use crate::{
     data::{BriefChartInfo, LocalChart},
     dir, get_data_mut, save_data,
     scene::{ChartOrderBox, CHARTS_BAR_HEIGHT},
-    task::Task,
 };
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
@@ -11,9 +10,10 @@ use prpr::{
     ext::SafeTexture,
     fs,
     scene::{request_file, return_file, show_error, show_message, take_file},
+    task::Task,
     ui::{RectButton, Scroll, Ui},
 };
-use std::{ops::DerefMut, sync::atomic::Ordering, path::Path};
+use std::{ops::DerefMut, path::Path, sync::atomic::Ordering};
 
 pub struct LocalPage {
     scroll: Scroll,

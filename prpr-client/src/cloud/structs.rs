@@ -92,6 +92,7 @@ pub struct LCChartItem {
 
     pub file: LCFile,
     pub illustration: LCFile,
+    pub checksum: Option<String>,
 }
 
 impl LCObject for LCChartItem {
@@ -109,4 +110,42 @@ pub struct Message {
 
 impl LCObject for Message {
     const CLASS_NAME: &'static str = "Message";
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct LCDate {
+    pub iso: DateTime<Utc>,
+}
+
+impl From<LCDate> for DateTime<Utc> {
+    fn from(value: LCDate) -> Self {
+        value.iso
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LCRecord {
+    pub chart: Pointer,
+    pub player: Pointer,
+    pub score: u32,
+    pub accuracy: f32,
+    pub max_combo: u32,
+    pub perfect: u32,
+    pub good: u32,
+    pub bad: u32,
+    pub miss: u32,
+    pub time: LCDate,
+}
+
+impl LCObject for LCRecord {
+    const CLASS_NAME: &'static str = "Record";
+}
+
+#[derive(Deserialize)]
+pub struct LCFunctionResult {
+    #[serde(default)]
+    pub code: u32,
+    pub error: Option<String>,
+    pub result: Option<String>,
 }

@@ -26,7 +26,7 @@ use std::sync::{
 const PAGE_NUM: usize = 6;
 const SIDE_PADDING: f32 = 0.02;
 const CARD_PADDING: f32 = 0.02;
-pub const CHARTS_BAR_HEIGHT: f32 = 0.06;
+pub const CHARTS_BAR_HEIGHT: f32 = 0.08;
 
 const SWITCH_TIME: f32 = 0.4;
 const TRANSIT_TIME: f32 = 0.4;
@@ -42,6 +42,7 @@ pub struct MainScene {
     icon_back: SafeTexture,
     icon_download: SafeTexture,
     icon_play: SafeTexture,
+    icon_leaderboard: SafeTexture,
     icon_tool: SafeTexture,
     icon_edit: SafeTexture,
     icon_delete: SafeTexture,
@@ -75,6 +76,7 @@ impl MainScene {
             icon_back: load_tex!("back.png"),
             icon_download: load_tex!("download.png"),
             icon_play: icon_play.clone(),
+            icon_leaderboard: load_tex!("leaderboard.png"),
             icon_tool: load_tex!("tool.png"),
             icon_edit: load_tex!("edit.png"),
             icon_delete: load_tex!("delete.png"),
@@ -160,6 +162,7 @@ impl MainScene {
                 illustration_task: None,
             },
             chart.illustration.1.clone(),
+            self.icon_leaderboard.clone(),
             self.icon_tool.clone(),
             self.icon_edit.clone(),
             self.icon_back.clone(),

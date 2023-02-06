@@ -7,6 +7,7 @@ pub mod judge;
 pub mod parse;
 pub mod particle;
 pub mod scene;
+pub mod task;
 pub mod time;
 pub mod ui;
 

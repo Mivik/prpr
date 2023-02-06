@@ -21,7 +21,6 @@ use crate::{
     data::BriefChartInfo,
     dir, get_data,
     scene::ChartOrder,
-    task::Task,
 };
 use anyhow::Result;
 use image::DynamicImage;
@@ -33,6 +32,7 @@ use macroquad::prelude::*;
 use prpr::{
     ext::{SafeTexture, BLACK_TEXTURE},
     fs,
+    task::Task,
     ui::{Scroll, Ui},
 };
 use std::{ops::DerefMut, sync::atomic::AtomicBool};

@@ -238,6 +238,7 @@ fn info_from_kv<'a>(it: impl Iterator<Item = (&'a str, String)>, csv: bool) -> R
         }
         if key == "BackgroundDim" {
             info.background_dim = value.parse().context("invalid background dim")?;
+            continue;
         }
         if key == "NoteScale" || key == "ScaleRatio" {
             warn!("Note scale is ignored");
