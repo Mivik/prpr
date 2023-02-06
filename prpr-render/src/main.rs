@@ -270,8 +270,10 @@ async fn the_main() -> Result<()> {
     }));
     let fs = Box::new(PatchedFileSystem(fs, edit.to_patches().await?));
     static MSAA: AtomicBool = AtomicBool::new(false);
-    let mut main =
-        Main::new(Box::new(LoadingScene::new(GameMode::Normal, edit.info, config, fs, None, Some(Rc::new(move || (vw, vh)))).await?), tm, {
+    let mut main = Main::new(
+        Box::new(LoadingScene::new(GameMode::Normal, edit.info, config, fs, (None, None), Some(Rc::new(move || (vw, vh))), None).await?),
+        tm,
+        {
             let mut cnt = 0;
             let mst = Rc::clone(&mst);
             move || {
@@ -284,7 +286,8 @@ async fn the_main() -> Result<()> {
                     Some(mst.output())
                 }
             }
-        })?;
+        },
+    )?;
     main.show_billboard = false;
 
     const O: f64 = LoadingScene::TOTAL_TIME as f64 + GameScene::BEFORE_TIME as f64;

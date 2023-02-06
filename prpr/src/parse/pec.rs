@@ -1,4 +1,4 @@
-use super::{process_lines, TWEEN_MAP};
+use super::{process_lines, RPE_TWEEN_MAP};
 use crate::{
     core::{
         Anim, AnimFloat, AnimVector, BpmList, Chart, ChartExtra, ChartSettings, JudgeLine, JudgeLineCache, JudgeLineKind, Keyframe, Note, NoteKind,
@@ -38,7 +38,7 @@ impl<'a, T: Iterator<Item = &'a str>> Take for T {
             .ok_or_else(|| anyhow!("Unexpected end of line"))
             .and_then(|it| -> Result<u8> {
                 let t = it.parse::<u8>()?;
-                Ok(*TWEEN_MAP.get(t as usize).ok_or_else(|| anyhow!("Unknown tween id {t}"))?)
+                Ok(*RPE_TWEEN_MAP.get(t as usize).ok_or_else(|| anyhow!("Unknown tween id {t}"))?)
             })
             .context("Expected tween")
     }

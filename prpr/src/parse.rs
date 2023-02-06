@@ -63,7 +63,7 @@ fn process_lines(v: &mut [crate::core::JudgeLine]) {
 }
 
 #[rustfmt::skip]
-const TWEEN_MAP: [crate::core::TweenId; 30] = {
+pub const RPE_TWEEN_MAP: [crate::core::TweenId; 30] = {
     use crate::core::{easing_from as e, TweenMajor::*, TweenMinor::*};
     [
         2, 2, // linear

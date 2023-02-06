@@ -98,7 +98,10 @@ async fn main() -> Result<()> {
     let tm = TimeManager::default();
     let ctm = TimeManager::from_config(&config); // strange variable name...
     let mut main = Main::new(
-        Box::new(BaseScene(Some(NextScene::Overlay(Box::new(LoadingScene::new(GameMode::Normal, info, config, fs, None, None).await?))), false)),
+        Box::new(BaseScene(
+            Some(NextScene::Overlay(Box::new(LoadingScene::new(GameMode::Normal, info, config, fs, (None, None), None, None).await?))),
+            false,
+        )),
         ctm,
         None,
     )?;

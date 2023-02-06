@@ -1,19 +1,36 @@
 use crate::{
-    core::{Anim, BpmList, ChartExtra, Effect, Keyframe, Triple, Tweenable, Uniform, Video},
+    core::{Anim, BpmList, ChartExtra, ClampedTween, Effect, Keyframe, StaticTween, Triple, Tweenable, Uniform, Video, EPS},
     ext::ScaleType,
     fs::FileSystem,
 };
 use anyhow::{anyhow, Context, Result};
 use macroquad::prelude::{Color, Vec2};
 use serde::Deserialize;
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, rc::Rc};
+
+use super::RPE_TWEEN_MAP;
+
+// serde is weird...
+fn f32_zero() -> f32 {
+    0.
+}
+
+fn f32_one() -> f32 {
+    1.
+}
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ExtKeyframe<T> {
-    time: Triple,
-    value: T,
-    #[serde(default)]
-    easing: u8,
+    #[serde(default = "f32_zero")]
+    easing_left: f32,
+    #[serde(default = "f32_one")]
+    easing_right: f32,
+    easing_type: i32,
+    start: T,
+    end: T,
+    start_time: Triple,
+    end_time: Triple,
 }
 
 #[derive(Default, Deserialize)]
@@ -26,18 +43,37 @@ enum ExtAnim<V> {
 }
 
 impl<V> ExtAnim<V> {
-    fn into<T: Tweenable>(self, r: &mut BpmList) -> Anim<T>
+    fn into<T: Tweenable>(self, r: &mut BpmList, default: Option<T>) -> Anim<T>
     where
         V: Into<T>,
     {
         match self {
             ExtAnim::Default => Anim::default(),
             ExtAnim::Fixed(value) => Anim::fixed(value.into()),
-            ExtAnim::Keyframes(kfs) => Anim::new(
-                kfs.into_iter()
-                    .map(|it| Keyframe::new(r.time(&it.time), it.value.into(), it.easing))
-                    .collect(),
-            ),
+            ExtAnim::Keyframes(events) => {
+                let mut kfs = Vec::new();
+                if let Some(default) = default {
+                    if events[0].start_time.beats() != 0.0 {
+                        kfs.push(Keyframe::new(0.0, default, 0));
+                    }
+                }
+                for e in events {
+                    kfs.push(Keyframe {
+                        time: r.time(&e.start_time),
+                        value: e.start.into(),
+                        tween: {
+                            let tween = RPE_TWEEN_MAP.get(e.easing_type.max(1) as usize).copied().unwrap_or(RPE_TWEEN_MAP[0]);
+                            if e.easing_left.abs() < EPS && (e.easing_right - 1.0).abs() < EPS {
+                                StaticTween::get_rc(tween)
+                            } else {
+                                Rc::new(ClampedTween::new(tween, e.easing_left..e.easing_right))
+                            }
+                        },
+                    });
+                    kfs.push(Keyframe::new(r.time(&e.end_time), e.end.into(), 0));
+                }
+                Anim::new(kfs)
+            }
         }
     }
 }
@@ -114,9 +150,9 @@ async fn parse_effect(r: &mut BpmList, rpe: ExtEffect, fs: &mut dyn FileSystem) 
         .into_iter()
         .map(|(name, var)| -> Result<Box<dyn Uniform>> {
             Ok(match var {
-                Variable::Float(events) => Box::new((name, events.into::<f32>(r))),
-                Variable::Vec2(events) => Box::new((name, events.into::<Vec2>(r))),
-                Variable::Color(events) => Box::new((name, events.into::<Color>(r))),
+                Variable::Float(events) => Box::new((name, events.into::<f32>(r, None))),
+                Variable::Vec2(events) => Box::new((name, events.into::<Vec2>(r, None))),
+                Variable::Color(events) => Box::new((name, events.into::<Color>(r, None))),
             })
         })
         .collect::<Result<_>>()?;
@@ -154,8 +190,8 @@ pub async fn parse_extra(source: &str, fs: &mut dyn FileSystem, ffmpeg: Option<&
                         .with_context(|| format!("Failed to read video from {}", video.path))?,
                     r.time(&video.time),
                     video.scale,
-                    video.alpha.into(&mut r),
-                    video.dim.into(&mut r),
+                    video.alpha.into(&mut r, Some(1.)),
+                    video.dim.into(&mut r, Some(0.)),
                 )
                 .with_context(|| format!("Failed to load video from {}", video.path))?,
             );
