@@ -1,6 +1,6 @@
 use super::main::{UPDATE_INFO, UPDATE_REMOTE_TEXTURE, UPDATE_TEXTURE};
 use crate::{
-    cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, RequestExt, UserManager},
+    cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, RequestExt, UserManager, QueryResult},
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
@@ -162,7 +162,7 @@ pub struct SongScene {
     side_enter_time: f32,
 
     downloading: Option<(String, Arc<Mutex<f32>>, Task<Result<LocalChart>>)>,
-    leaderboard_task: Option<Task<Result<Vec<LCRecord>>>>,
+    leaderboard_task: Option<Task<Result<QueryResult<LCRecord>>>>,
     leaderboard_scroll: Scroll,
     leaderboards: Option<Vec<LCRecord>>,
     remote: bool,
@@ -844,10 +844,10 @@ impl Scene for SongScene {
                         show_error(err.context("加载排行榜失败"));
                     }
                     Ok(records) => {
-                        for rec in &records {
+                        for rec in &records.results {
                             UserManager::request(&rec.player.id);
                         }
-                        self.leaderboards = Some(records);
+                        self.leaderboards = Some(records.results);
                     }
                 }
                 self.leaderboard_task = None;

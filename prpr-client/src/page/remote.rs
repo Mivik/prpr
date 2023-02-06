@@ -1,8 +1,8 @@
 use super::{get_touched, trigger_grid, ChartItem, Page, SharedState, CARD_HEIGHT, ROW_NUM};
 use crate::{
-    cloud::{Client, Images, LCChartItem, LCFile},
+    cloud::{Client, Images, LCChartItem, LCFile, QueryResult},
     data::BriefChartInfo,
-    scene::{ChartOrderBox, CHARTS_BAR_HEIGHT},
+    scene::{ChartOrder, ChartOrderBox, CHARTS_BAR_HEIGHT},
 };
 use anyhow::Result;
 use macroquad::prelude::{Rect, Touch};
@@ -13,6 +13,8 @@ use prpr::{
     ui::{Scroll, Ui},
 };
 
+const PAGE_NUM: usize = 28;
+
 pub struct RemotePage {
     focus: bool,
 
@@ -21,7 +23,10 @@ pub struct RemotePage {
 
     order_box: ChartOrderBox,
 
-    task_load: Task<Result<Vec<(ChartItem, LCFile)>>>,
+    page: usize,
+    total_page: usize,
+
+    task_load: Task<Result<(Vec<(ChartItem, LCFile)>, usize)>>,
     illu_files: Vec<LCFile>,
     first_time: bool,
     loading: bool,
@@ -36,6 +41,9 @@ impl RemotePage {
             choose: None,
 
             order_box: ChartOrderBox::new(icon_play),
+
+            page: 0,
+            total_page: 0,
 
             task_load: Task::pending(),
             illu_files: Vec::new(),
@@ -52,11 +60,25 @@ impl RemotePage {
         show_message("正在加载");
         self.loading = true;
         let order = self.order_box.to_order();
+        let page = self.page;
         self.task_load = Task::new({
             let tex = state.tex.clone();
             async move {
-                let charts: Vec<LCChartItem> = Client::query().order("updatedAt").send().await?;
-                let mut charts = charts
+                let result: QueryResult<LCChartItem> = Client::query()
+                    .order(match order {
+                        (ChartOrder::Default, false) => "-updatedAt",
+                        (ChartOrder::Default, true) => "updatedAt",
+                        (ChartOrder::Name, false) => "name",
+                        (ChartOrder::Name, true) => "-name",
+                    })
+                    .limit(PAGE_NUM)
+                    .skip(page * PAGE_NUM)
+                    .with_count()
+                    .send()
+                    .await?;
+                let total_page = (result.count.unwrap() - 1) / PAGE_NUM + 1;
+                let charts = result
+                    .results
                     .into_iter()
                     .map(|it| {
                         let illu = it.illustration.clone();
@@ -77,11 +99,7 @@ impl RemotePage {
                         )
                     })
                     .collect::<Vec<_>>();
-                order.0.apply_delegate(&mut charts, |it| &it.0);
-                if order.1 {
-                    charts.reverse();
-                }
-                Ok(charts)
+                Ok((charts, total_page))
             }
         });
     }
@@ -107,8 +125,9 @@ impl Page for RemotePage {
         if let Some(charts) = self.task_load.take() {
             self.loading = false;
             match charts {
-                Ok(charts) => {
+                Ok((charts, total_page)) => {
                     show_message("加载完成");
+                    self.total_page = total_page;
                     (state.charts_remote, self.illu_files) = charts.into_iter().unzip();
                 }
                 Err(err) => {
@@ -123,6 +142,7 @@ impl Page for RemotePage {
     fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool> {
         let t = state.t;
         if !self.loading && self.order_box.touch(touch) {
+            self.page = 0;
             self.refresh_remote(state);
             return Ok(true);
         }
@@ -152,6 +172,32 @@ impl Page for RemotePage {
 
     fn render(&mut self, ui: &mut Ui, state: &mut SharedState) -> Result<()> {
         let r = self.order_box.render(ui);
+
+        ui.scope(|ui| {
+            ui.dx(r.w + 0.02);
+            let tr = ui
+                .text(format!("第 {}/{} 页", self.page + 1, self.total_page))
+                .size(0.6)
+                .pos(0., r.h / 2.)
+                .anchor(0., 0.5)
+                .no_baseline()
+                .draw();
+            if !self.loading {
+                ui.dx(tr.w + 0.02);
+                let r = Rect::new(0., 0.01, 0.2, r.h - 0.02);
+                if self.page != 0 {
+                    if ui.button("prev_page", r, "上一页") {
+                        self.page -= 1;
+                        self.refresh_remote(state);
+                    }
+                    ui.dx(r.w + 0.01);
+                }
+                if self.page + 1 < self.total_page && ui.button("next_page", r, "下一页") {
+                    self.page += 1;
+                    self.refresh_remote(state);
+                }
+            }
+        });
         ui.dy(r.h);
         let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
         SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_remote);

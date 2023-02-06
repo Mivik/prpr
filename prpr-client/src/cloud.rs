@@ -37,13 +37,15 @@ async fn parse_lc<T: LCObject>(request: RequestBuilder) -> Result<T> {
     serde_json::from_str(&recv_lc(request).await?).context("Failed to parse content")
 }
 
-async fn parse_lc_many<T: LCObject>(request: RequestBuilder) -> Result<Vec<T>> {
-    let mut json: serde_json::Value = serde_json::from_str(&recv_lc(request).await?).context("Failed to parse content")?;
-    let mut results = json["results"].take();
-    std::mem::take(results.as_array_mut().unwrap())
-        .into_iter()
-        .map(|it| Ok(serde_json::from_value(it)?))
-        .collect::<Result<_>>()
+#[derive(Deserialize)]
+pub struct QueryResult<T> {
+    pub results: Vec<T>,
+    pub count: Option<usize>,
+}
+
+#[inline]
+async fn parse_lc_many<T: LCObject>(request: RequestBuilder) -> Result<QueryResult<T>> {
+    serde_json::from_str(&recv_lc(request).await?).context("Failed to parse content")
 }
 
 pub trait LCObject: DeserializeOwned {
@@ -86,7 +88,9 @@ pub struct QueryBuilder<T: LCObject> {
     #[serde(rename = "where")]
     where_: Option<String>,
     limit: Option<usize>,
+    skip: Option<usize>,
     order: Option<String>,
+    count: usize,
     #[serde(skip)]
     phantom: PhantomData<T>,
 }
@@ -102,12 +106,22 @@ impl<T: LCObject> QueryBuilder<T> {
         self
     }
 
+    pub fn skip(mut self, skip: usize) -> Self {
+        self.skip = Some(skip);
+        self
+    }
+
     pub fn order(mut self, order: impl Into<String>) -> Self {
         self.order = Some(order.into());
         self
     }
 
-    pub async fn send(self) -> Result<Vec<T>> {
+    pub fn with_count(mut self) -> Self {
+        self.count = 1;
+        self
+    }
+
+    pub async fn send(self) -> Result<QueryResult<T>> {
         parse_lc_many(Client::get(format!("/classes/{}", T::CLASS_NAME)).form(&self).with_session()).await
     }
 }
@@ -150,8 +164,10 @@ impl Client {
     pub fn query<T: LCObject>() -> QueryBuilder<T> {
         QueryBuilder {
             where_: None,
-            order: None,
             limit: None,
+            skip: None,
+            order: None,
+            count: 0,
             phantom: PhantomData::default(),
         }
     }
@@ -238,6 +254,6 @@ impl Client {
     }
 
     pub async fn messages() -> Result<Vec<Message>> {
-        Self::query::<Message>().order("-updatedAt").send().await
+        Self::query::<Message>().order("-updatedAt").send().await.map(|it| it.results)
     }
 }
