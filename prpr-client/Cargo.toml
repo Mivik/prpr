@@ -6,6 +6,9 @@ edition = "2021"
 [lib]
 crate-type = ["lib", "cdylib"]
 
+[features]
+closed = ["prpr/closed"]
+
 [dependencies]
 anyhow = "1.0"
 base64 = "0.20"
