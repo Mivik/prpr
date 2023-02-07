@@ -477,7 +477,7 @@ impl SongScene {
         let r = ui.text(tl!("tools")).size(0.7).draw();
         ui.dy(r.h + 0.03);
         let r = Rect::new(0., 0., width, 0.07);
-        if ui.button("tweak_offset", r, tl!("tweak-offset")) {
+        if ui.button("tweak_offset", r, tl!("adjust-offset")) {
             self.play_chart(GameMode::TweakOffset).unwrap();
         }
         ui.dy(r.h + 0.01);
@@ -623,7 +623,7 @@ impl SongScene {
                     let mut stream = res.bytes_stream();
                     let mut count = 0;
                     while let Some(chunk) = stream.next().await {
-                        let chunk = chunk.with_context(|| tl!("download-failed"))?;
+                        let chunk = chunk?;
                         file.write_all(&chunk).await?;
                         count += chunk.len() as u64;
                         if let Some(size) = size {

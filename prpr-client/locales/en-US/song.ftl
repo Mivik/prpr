@@ -31,7 +31,6 @@ save-failed = Save failed
 already-downloaded = Already downloaded
 downloading = Downloading
 request-failed = Request failed
-download-failed = Download failed
 download-cancelled = Download cancelled
 download-success = { $name } is downloaded
 download-failed = Failed to download { $name }
