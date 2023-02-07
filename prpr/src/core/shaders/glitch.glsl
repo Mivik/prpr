@@ -9,7 +9,7 @@ uniform float time;
 uniform float power; // %0.03%
 uniform float rate; // %0.6% 0..1
 uniform float speed; // %5.0%
-uniform float blockSize; // %30.5%
+uniform float blockCount; // %30.5%
 uniform float colorRate; // %0.01% 0..1
 
 float my_trunc(float x) {
@@ -24,7 +24,7 @@ void main() {
   float enable_shift = float(random(my_trunc(time * speed)) < rate);
 
   vec2 fixed_uv = uv;
-  fixed_uv.x += (random((my_trunc(uv.y * blockSize) / blockSize) + time) - 0.5) * power * enable_shift;
+  fixed_uv.x += (random((my_trunc(uv.y * blockCount) / blockCount) + time) - 0.5) * power * enable_shift;
 
   vec4 pixel_color = texture2D(screenTexture, fixed_uv);
   pixel_color.r = mix(
