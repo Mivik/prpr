@@ -144,13 +144,13 @@ macro_rules! tl_file {
         macro_rules! __tl_builder {
             ($d:tt) => {
                 macro_rules! $macro_name {
-                    ($d key:literal) => {
+                    ($d key:expr) => {
                         L10N_LOCAL.with(|it| it.borrow_mut().format($key, None))
                     };
-                    ($d key:literal, $d args:expr) => {
+                    ($d key:expr, $d args:expr) => {
                         L10N_LOCAL.with(|it| it.borrow_mut().format($key, Some($args)))
                     };
-                    ($d key:literal, $d ($d name:expr => $d value:expr),+) => {
+                    ($d key:expr, $d ($d name:expr => $d value:expr),+) => {
                         L10N_LOCAL.with(|it| it.borrow_mut().format($key, Some(&$crate::l10n::fluent_args![$d($d name => $d value), *])).to_string())
                     };
                 }
