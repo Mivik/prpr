@@ -464,6 +464,7 @@ impl SongScene {
                         .size(0.5)
                         .draw();
                 }
+                ui.dy(s);
                 h += s;
             }
             (width, h)
