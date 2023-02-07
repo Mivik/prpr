@@ -1,4 +1,6 @@
-use super::{draw_background, draw_illustration, show_error, NextScene, Scene};
+use std::{cell::RefCell, ops::DerefMut};
+
+use super::{draw_background, draw_illustration, NextScene, Scene};
 use crate::{
     config::Config,
     ext::{
@@ -8,7 +10,7 @@ use crate::{
     judge::{Judge, PlayResult},
     scene::show_message,
     task::Task,
-    ui::Ui,
+    ui::{Dialog, Ui},
 };
 use anyhow::Result;
 use macroquad::prelude::*;
@@ -44,7 +46,9 @@ pub struct EndingScene {
     update_state: Option<RecordUpdateState>,
     rated: bool,
 
+    upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
     upload_task: Option<Task<Result<RecordUpdateState>>>,
+    record_data: Option<String>,
 }
 
 impl EndingScene {
@@ -60,7 +64,8 @@ impl EndingScene {
         challenge_texture: SafeTexture,
         config: &Config,
         bgm: AudioClip,
-        upload_task: Option<Task<Result<RecordUpdateState>>>,
+        upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
+        record_data: Option<String>,
     ) -> Result<Self> {
         let mut audio = create_audio_manger(config)?;
         let bgm = audio.create_music(
@@ -71,9 +76,10 @@ impl EndingScene {
                 ..Default::default()
             },
         )?;
-        if upload_task.is_some() {
+        if record_data.is_some() {
             show_message("成绩上传中");
         }
+        let upload_task = record_data.clone().map(upload_fn.unwrap());
         Ok(Self {
             background,
             illustration,
@@ -103,9 +109,16 @@ impl EndingScene {
             autoplay: config.autoplay,
             speed: config.speed,
             next: 0,
+
+            upload_fn,
             upload_task,
+            record_data,
         })
     }
+}
+
+thread_local! {
+    static RE_UPLOAD: RefCell<bool> = RefCell::default();
 }
 
 impl Scene for EndingScene {
@@ -133,11 +146,29 @@ impl Scene for EndingScene {
         if tm.now() >= 0. && self.target.is_none() && self.bgm.paused() {
             self.bgm.play()?;
         }
+        if RE_UPLOAD.with(|it| std::mem::replace(it.borrow_mut().deref_mut(), false)) && self.upload_task.is_none() {
+            show_message("成绩上传中");
+            self.upload_task = self.record_data.clone().map(self.upload_fn.unwrap());
+        }
         if let Some(task) = &mut self.upload_task {
             if let Some(result) = task.take() {
                 match result {
                     Err(err) => {
-                        show_error(err.context("上传成绩失败"));
+                        println!("{err:?}");
+                        let error = format!("{:?}", err.context("上传成绩失败"));
+                        Dialog::plain("错误", error.clone())
+                            .buttons(vec!["复制错误详情".to_owned(), "重试".to_owned(), "取消上传".to_owned()])
+                            .listener(move |pos| {
+                                if pos == 0 {
+                                    // TODO android
+                                    unsafe { get_internal_gl() }.quad_context.clipboard_set(&error);
+                                    show_message("复制成功");
+                                }
+                                if pos == 1 {
+                                    RE_UPLOAD.with(|it| *it.borrow_mut() = true);
+                                }
+                            })
+                            .show();
                     }
                     Ok(state) => {
                         self.update_state = Some(state);

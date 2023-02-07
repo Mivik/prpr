@@ -743,7 +743,7 @@ impl Scene for GameScene {
             State::Ending => {
                 let t = time - self.res.track_length - WAIT_TIME;
                 if t >= AFTER_TIME + 0.3 {
-                    let mut task = None;
+                    let mut record_data = None;
                     // TODO strengthen the protection
                     #[cfg(feature = "closed")]
                     if let Some(upload_fn) = self.upload_fn {
@@ -751,7 +751,7 @@ impl Scene for GameScene {
                             if let Some(player) = &self.player {
                                 if let Some(chart) = &self.res.info.id {
                                     use base64::Engine as _;
-                                    task = Some(upload_fn(base64::engine::general_purpose::STANDARD.encode(encode_record(self, player, chart))));
+                                    record_data = Some(base64::engine::general_purpose::STANDARD.encode(encode_record(self, player, chart)));
                                 }
                             }
                         }
@@ -769,7 +769,8 @@ impl Scene for GameScene {
                             self.res.challenge_icons[self.res.config.challenge_color.clone() as usize].clone(),
                             &self.res.config,
                             self.res.res_pack.ending.clone(),
-                            task,
+                            self.upload_fn.clone(),
+                            record_data,
                         )?))),
                         GameMode::TweakOffset => Some(NextScene::PopWithResult(Box::new(None::<f32>))),
                         GameMode::Exercise => None,
