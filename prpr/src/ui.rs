@@ -536,7 +536,7 @@ impl<'a> Ui<'a> {
             let entry = state.entry(format!("chkbox#{text}")).or_default();
             let w = 0.08;
             let s = 0.03;
-            let text = self.text(text).pos(w, 0.).size(0.5).draw();
+            let text = self.text(text).pos(w, 0.).size(0.5).no_baseline().draw();
             let r = Rect::new(w / 2. - s, text.center().y - s, s * 2., s * 2.);
             self.fill_rect(r, if *value { self.accent() } else { WHITE });
             let r = Rect::new(r.x, r.y, text.right() - r.x, (text.bottom() - r.y).max(w));

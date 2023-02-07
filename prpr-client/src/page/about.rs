@@ -2,6 +2,7 @@ use super::{Page, SharedState, SIDE_PADDING};
 use anyhow::Result;
 use macroquad::prelude::Touch;
 use prpr::ui::{Scroll, Ui};
+use std::borrow::Cow;
 
 pub struct AboutPage {
     scroll: Scroll,
@@ -30,8 +31,8 @@ GitHub：https://github.com/Mivik/prpr
 }
 
 impl Page for AboutPage {
-    fn label(&self) -> &'static str {
-        "关于"
+    fn label(&self) -> Cow<'static, str> {
+        "关于".into()
     }
 
     fn update(&mut self, _focus: bool, state: &mut SharedState) -> Result<()> {

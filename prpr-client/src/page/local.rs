@@ -13,7 +13,7 @@ use prpr::{
     task::Task,
     ui::{RectButton, Scroll, Ui},
 };
-use std::{ops::DerefMut, path::Path, sync::atomic::Ordering};
+use std::{borrow::Cow, ops::DerefMut, path::Path, sync::atomic::Ordering};
 
 pub struct LocalPage {
     scroll: Scroll,
@@ -40,8 +40,8 @@ impl LocalPage {
 }
 
 impl Page for LocalPage {
-    fn label(&self) -> &'static str {
-        "本地"
+    fn label(&self) -> Cow<'static, str> {
+        "本地".into()
     }
 
     fn update(&mut self, _focus: bool, state: &mut SharedState) -> Result<()> {

@@ -14,7 +14,7 @@ use prpr::{
 };
 use regex::Regex;
 use serde_json::json;
-use std::{future::Future, io::Cursor};
+use std::{borrow::Cow, future::Future, io::Cursor};
 
 fn validate_username(username: &str) -> Option<&'static str> {
     if !(4..=20).contains(&username.len()) {
@@ -61,8 +61,8 @@ impl AccountPage {
 }
 
 impl Page for AccountPage {
-    fn label(&self) -> &'static str {
-        "账户"
+    fn label(&self) -> Cow<'static, str> {
+        "账户".into()
     }
 
     fn update(&mut self, _focus: bool, _state: &mut SharedState) -> Result<()> {

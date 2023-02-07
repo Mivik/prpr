@@ -12,6 +12,7 @@ use prpr::{
     task::Task,
     ui::{Scroll, Ui},
 };
+use std::borrow::Cow;
 
 const PAGE_NUM: usize = 28;
 
@@ -106,8 +107,8 @@ impl RemotePage {
 }
 
 impl Page for RemotePage {
-    fn label(&self) -> &'static str {
-        "在线"
+    fn label(&self) -> Cow<'static, str> {
+        "在线".into()
     }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {

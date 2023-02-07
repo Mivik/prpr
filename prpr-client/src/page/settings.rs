@@ -1,3 +1,5 @@
+prpr::tl_file!("settings");
+
 use super::{Page, SharedState};
 use crate::{dir, get_data, get_data_mut, save_data};
 use anyhow::{Context, Result};
@@ -10,6 +12,7 @@ use prpr::{
     ui::{RectButton, Ui},
 };
 use sasa::{AudioClip, AudioManager, Music, MusicParams, PlaySfxParams, Sfx};
+use std::borrow::Cow;
 
 const RESET_WAIT: f32 = 0.8;
 
@@ -46,7 +49,14 @@ impl SettingsPage {
 
         let mut cali_tm = TimeManager::new(1., true);
         cali_tm.force = 3e-2;
-        let res_pack = ResourcePack::from_path(get_data().config.res_pack_path.as_ref().map(|it| format!("{}/{it}", dir::root().unwrap()))).await?;
+        let res_pack = ResourcePack::from_path(
+            get_data()
+                .config
+                .res_pack_path
+                .as_ref()
+                .map(|it| format!("{}/{it}", dir::root().unwrap())),
+        )
+        .await?;
         let emitter = ParticleEmitter::new(&res_pack, get_data().config.note_scale, res_pack.info.hide_particles)?;
         Ok(Self {
             focus: false,
@@ -74,7 +84,7 @@ impl SettingsPage {
                 res_pack,
                 if let Some(path) = path {
                     let dst = format!("{}/respack.zip", dir::root()?);
-                    std::fs::copy(path, dst).context("保存资源包失败")?;
+                    std::fs::copy(path, dst).with_context(|| tl!("settings-respack-save-failed"))?;
                     Some("respack.zip".to_owned())
                 } else {
                     None
@@ -85,8 +95,8 @@ impl SettingsPage {
 }
 
 impl Page for SettingsPage {
-    fn label(&self) -> &'static str {
-        "设置"
+    fn label(&self) -> Cow<'static, str> {
+        tl!("label")
     }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {
@@ -120,7 +130,7 @@ impl Page for SettingsPage {
                 self.load_res_task = None;
                 match result {
                     Err(err) => {
-                        show_error(err.context("加载资源包失败"));
+                        show_error(err.context(tl!("settings-respack-load-failed")));
                     }
                     Ok((res_pack, dst)) => {
                         self.click_texture = res_pack.note_style.click.clone();
@@ -128,7 +138,7 @@ impl Page for SettingsPage {
                         self.res_pack = res_pack;
                         get_data_mut().config.res_pack_path = dst;
                         save_data()?;
-                        show_message("加载资源包成功");
+                        show_message(tl!("settings-respack-loaded"));
                     }
                 }
             }
@@ -167,49 +177,45 @@ impl Page for SettingsPage {
             ui.dx(0.02);
             ui.scope(|ui| {
                 let s = 0.005;
-                let r = ui.checkbox("自动游玩", &mut config.autoplay);
+                let r = ui.checkbox(tl!("autoplay"), &mut config.autoplay);
                 ui.dy(r.h + s);
-                let r = ui.checkbox("双押提示", &mut config.multiple_hint);
+                let r = ui.checkbox(tl!("double-tips"), &mut config.multiple_hint);
                 ui.dy(r.h + s);
-                let r = ui.checkbox("固定宽高比", &mut config.fix_aspect_ratio);
+                let r = ui.checkbox(tl!("fixed-aspect-ratio"), &mut config.fix_aspect_ratio);
                 ui.dy(r.h + s);
-                let r = ui.checkbox("自动对齐时间", &mut config.adjust_time);
+                let r = ui.checkbox(tl!("time-adjustment"), &mut config.adjust_time);
                 ui.dy(r.h + s);
-                let r = ui.checkbox("粒子效果", &mut config.particle);
+                let r = ui.checkbox(tl!("particles"), &mut config.particle);
                 ui.dy(r.h + s);
-                let r = ui.checkbox("激进优化", &mut config.aggressive);
+                let r = ui.checkbox(tl!("aggressive-opt"), &mut config.aggressive);
                 ui.dy(r.h + s);
                 let mut low = config.sample_count == 1;
-                let r = ui.checkbox("低性能模式", &mut low);
+                let r = ui.checkbox(tl!("low-perf-mode"), &mut low);
                 config.sample_count = if low { 1 } else { 2 };
                 ui.dy(r.h + s);
-                let r = ui.slider("玩家 RKS", 1.0..17.0, 0.01, &mut config.player_rks, Some(0.45));
+                let r = ui.slider(tl!("player-rks"), 1.0..17.0, 0.01, &mut config.player_rks, Some(0.45));
                 ui.dy(r.h + s);
             });
             ui.dx(0.62);
 
             ui.scope(|ui| {
-                let r = ui.slider("偏移(s)", -0.5..0.5, 0.005, &mut config.offset, None);
+                let r = ui.slider(tl!("offset"), -0.5..0.5, 0.005, &mut config.offset, None);
                 ui.dy(r.h + s);
-                let r = ui.slider("速度", 0.5..2.0, 0.005, &mut config.speed, None);
+                let r = ui.slider(tl!("speed"), 0.5..2.0, 0.005, &mut config.speed, None);
                 ui.dy(r.h + s);
-                let r = ui.slider("音符大小", 0.8..1.2, 0.005, &mut config.note_scale, None);
+                let r = ui.slider(tl!("note-size"), 0.8..1.2, 0.005, &mut config.note_scale, None);
                 self.emitter.set_scale(config.note_scale);
                 ui.dy(r.h + s);
-                let r = ui.slider("音乐音量", 0.0..2.0, 0.05, &mut config.volume_music, None);
+                let r = ui.slider(tl!("music-vol"), 0.0..2.0, 0.05, &mut config.volume_music, None);
                 ui.dy(r.h + s);
-                let r = ui.slider("音效音量", 0.0..2.0, 0.05, &mut config.volume_sfx, None);
+                let r = ui.slider(tl!("sfx-vol"), 0.0..2.0, 0.05, &mut config.volume_sfx, None);
                 ui.dy(r.h + s);
-                let r = ui.text("挑战模式颜色").size(0.4).draw();
+                let r = ui.text(tl!("chal-color")).size(0.4).draw();
                 let chosen = config.challenge_color.clone() as usize;
                 ui.dy(r.h + s * 2.);
                 let dy = ui.scope(|ui| {
                     let mut max: f32 = 0.;
-                    for (id, (name, button)) in ["白", "绿", "蓝", "红", "金", "彩"]
-                        .into_iter()
-                        .zip(self.chal_buttons.iter_mut())
-                        .enumerate()
-                    {
+                    for (id, (name, button)) in tl!("chal-colors").split(',').zip(self.chal_buttons.iter_mut()).enumerate() {
                         let r = ui.text(name).size(0.4).measure().feather(0.01);
                         button.set(ui, r);
                         ui.fill_rect(r, if chosen == id { ui.accent() } else { WHITE });
@@ -223,37 +229,38 @@ impl Page for SettingsPage {
                 ui.dy(dy + s);
 
                 let mut rks = config.challenge_rank as f32;
-                let r = ui.slider("挑战模式等级", 0.0..48.0, 1., &mut rks, Some(0.45));
+                let r = ui.slider(tl!("chal-level"), 0.0..48.0, 1., &mut rks, Some(0.45));
                 config.challenge_rank = rks.round() as u32;
                 ui.dy(r.h + s);
             });
 
             ui.scope(|ui| {
                 ui.dx(0.65);
-                let r = ui.checkbox("双击暂停", &mut config.double_click_to_pause);
+                let r = ui.checkbox(tl!("double-click-pause"), &mut config.double_click_to_pause);
                 ui.dy(r.h + s);
-                let r = ui.text("资源包").size(0.4).anchor(1., 0.).draw();
+                let r = ui.text(tl!("respack")).size(0.4).anchor(1., 0.).draw();
                 let mut r = Rect::new(0.02, r.y - 0.01, 0.3, r.h + 0.02);
                 if ui.button("choose_res_pack", r, &self.res_pack.info.name) {
                     request_file("res_pack");
                 }
                 r.x += 0.3 + 0.02;
                 r.w = 0.1;
-                if ui.button("reset_res_pack", r, "重置") {
+                if ui.button("reset_res_pack", r, tl!("reset")) {
                     self.load_res_task = Self::new_res_task(None);
                 }
                 ui.dy(r.h + s * 2.);
                 r.x -= 0.3 + 0.02;
                 r.w = 0.4;
-                let label = "音频缓冲区";
-                let mut input = config.audio_buffer_size.map(|it| it.to_string()).unwrap_or_else(|| "[默认]".to_owned());
+                let label = tl!("audio-buffer");
+                let default = tl!("default");
+                let mut input = config.audio_buffer_size.map(|it| it.to_string()).unwrap_or_else(|| default.to_string());
                 ui.input(label, &mut input, 0.3);
-                if input.trim().is_empty() || input == "[默认]" {
+                if input.trim().is_empty() || input == default {
                     config.audio_buffer_size = None;
                 } else {
                     match input.parse::<u32>() {
                         Err(_) => {
-                            show_message("输入非法");
+                            show_message(tl!("invalid-input"));
                         }
                         Ok(value) => {
                             config.audio_buffer_size = Some(value);
@@ -265,9 +272,9 @@ impl Page for SettingsPage {
                     "reset_all",
                     r,
                     if self.reset_time.is_finite() {
-                        "确定？"
+                        tl!("confirm-reset")
                     } else {
-                        "恢复默认设定"
+                        tl!("reset-all")
                     },
                 ) {
                     if self.reset_time.is_finite() {

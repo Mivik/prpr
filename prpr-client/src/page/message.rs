@@ -11,6 +11,7 @@ use prpr::{
     task::Task,
     ui::{RectButton, Scroll, Ui},
 };
+use std::borrow::Cow;
 
 pub struct MessagePage {
     list_scroll: Scroll,
@@ -37,8 +38,8 @@ impl MessagePage {
 }
 
 impl Page for MessagePage {
-    fn label(&self) -> &'static str {
-        "消息"
+    fn label(&self) -> Cow<'static, str> {
+        "消息".into()
     }
     fn has_new(&self) -> bool {
         self.has_new

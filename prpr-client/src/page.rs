@@ -35,7 +35,7 @@ use prpr::{
     task::Task,
     ui::{Scroll, Ui},
 };
-use std::{ops::DerefMut, sync::atomic::AtomicBool};
+use std::{borrow::Cow, ops::DerefMut, sync::atomic::AtomicBool};
 
 const ROW_NUM: u32 = 4;
 const CARD_HEIGHT: f32 = 0.3;
@@ -194,7 +194,7 @@ impl SharedState {
 }
 
 pub trait Page {
-    fn label(&self) -> &'static str;
+    fn label(&self) -> Cow<'static, str>;
     fn has_new(&self) -> bool {
         false
     }
