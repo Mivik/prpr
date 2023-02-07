@@ -226,7 +226,7 @@ impl Page for AccountPage {
             }
         } else {
             let cx = 0.2;
-            let mut r = Rect::new(0., 0., cx - 0.01, 0.03);
+            let mut r = Rect::new(0., 0., cx - 0.01, 0.06);
             if ui.button("logout", r, tl!("logout")) && self.task.is_none() {
                 get_data_mut().me = None;
                 let _ = save_data();
