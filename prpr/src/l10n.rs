@@ -153,6 +153,12 @@ macro_rules! tl_file {
                     ($d key:expr, $d ($d name:expr => $d value:expr),+) => {
                         L10N_LOCAL.with(|it| it.borrow_mut().format($key, Some(&$crate::l10n::fluent_args![$d($d name => $d value), *])).to_string())
                     };
+                    (err $d ($d body:tt)*) => {
+                        anyhow::Error::msg(tl!($d($d body)*))
+                    };
+                    (bail $d ($d body:tt)*) => {
+                        anyhow::Result::Err(anyhow::Error::msg(tl!($d($d body)*)))?
+                    };
                 }
             }
         }

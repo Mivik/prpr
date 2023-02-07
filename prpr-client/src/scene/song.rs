@@ -1,3 +1,5 @@
+prpr::tl_file!("song");
+
 use super::main::{UPDATE_INFO, UPDATE_ONLINE_TEXTURE, UPDATE_TEXTURE};
 use crate::{
     cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, QueryResult, RequestExt, UserManager},
@@ -6,7 +8,7 @@ use crate::{
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
     save_data,
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result};
 use futures_util::StreamExt;
 use image::DynamicImage;
 use macroquad::prelude::*;
@@ -25,6 +27,7 @@ use prpr::{
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
+    borrow::Cow,
     ops::DerefMut,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -39,7 +42,7 @@ const IMAGE_LIMIT: usize = 2 * 1024 * 1024;
 const CHART_LIMIT: usize = 10 * 1024 * 1024;
 
 static CONFIRM_UPLOAD: AtomicBool = AtomicBool::new(false);
-static UPLOAD_STATUS: Mutex<Option<String>> = Mutex::new(None);
+static UPLOAD_STATUS: Mutex<Option<Cow<'static, str>>> = Mutex::new(None);
 
 fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
     if let Some(name) = path.strip_prefix(':') {
@@ -177,7 +180,7 @@ fn create_info_task(path: String, brief: BriefChartInfo) -> Task<ChartInfo> {
         .await;
         match info {
             Err(err) => {
-                show_error(err.context("加载谱面信息失败"));
+                show_error(err.context(tl!("load-chart-info-failed")));
                 brief.into_full()
             }
             Ok(ok) => ChartInfo {
@@ -367,14 +370,14 @@ impl SongScene {
                     sy += r.h + 0.02;
                 }
                 let r = ui
-                    .text(format!(
-                        "{}\n{}\n难度：{} ({:.1})\n曲师：{}\n插图：{}",
-                        self.chart.info.intro,
-                        self.chart.info.tags.iter().map(|it| format!("#{it}")).join(" "),
-                        self.chart.info.level,
-                        self.chart.info.difficulty,
-                        self.chart.info.composer,
-                        self.chart.info.illustrator
+                    .text(tl!(
+                        "text-part",
+                        "intro" => self.chart.info.intro.as_str(),
+                        "tags" => self.chart.info.tags.iter().map(|it| format!("#{it}")).join(" "),
+                        "level" => self.chart.info.level.as_str(),
+                        "difficulty" => self.chart.info.difficulty,
+                        "composer" => self.chart.info.composer.as_str(),
+                        "illustrator" => self.chart.info.illustrator.as_str()
                     ))
                     .multiline()
                     .max_width(2. - 0.06 * 2.)
@@ -411,10 +414,10 @@ impl SongScene {
         let pad = 0.03;
         let width = self.side_width - pad;
         ui.dy(0.02);
-        let r = ui.text("排行榜").size(0.8).draw();
+        let r = ui.text(tl!("ldb")).size(0.8).draw();
         ui.dy(r.h + 0.03);
         let Some(leaderboards) = &self.leaderboards else {
-            ui.text("加载中……").size(0.5).draw();
+            ui.text(tl!("ldb-loading")).size(0.5).draw();
             return;
         };
         self.leaderboard_scroll.size((width, ui.top * 2. - r.h - 0.08));
@@ -423,7 +426,7 @@ impl SongScene {
             let mut h = 0.;
             ui.dx(0.02);
             for (id, rec) in leaderboards.iter().enumerate() {
-                ui.text(format!("#{}", id + 1))
+                ui.text(tl!("ldb-rank", "rank" => id + 1))
                     .pos(0., s / 2.)
                     .anchor(0., 0.5)
                     .no_baseline()
@@ -471,14 +474,14 @@ impl SongScene {
         let pad = 0.03;
         let width = self.side_width - pad;
         ui.dy(0.02);
-        let r = ui.text("功能").size(0.7).draw();
+        let r = ui.text(tl!("tools")).size(0.7).draw();
         ui.dy(r.h + 0.03);
         let r = Rect::new(0., 0., width, 0.07);
-        if ui.button("tweak_offset", r, "调整延迟") {
+        if ui.button("tweak_offset", r, tl!("tweak-offset")) {
             self.play_chart(GameMode::TweakOffset).unwrap();
         }
         ui.dy(r.h + 0.01);
-        if ui.button("exercise", r, "分段练习") {
+        if ui.button("exercise", r, tl!("exercise-mode")) {
             self.play_chart(GameMode::Exercise).unwrap();
         }
     }
@@ -492,7 +495,7 @@ impl SongScene {
         let hpad = 0.01;
         let dx = width / 3.;
         let mut r = Rect::new(hpad, ui.top * 2. - h + vpad, dx - hpad * 2., h - vpad * 2.);
-        if ui.button("cancel", r, "取消") {
+        if ui.button("cancel", r, tl!("edit-cancel")) {
             self.side_enter_time = -rt;
         }
         r.x += dx;
@@ -502,20 +505,20 @@ impl SongScene {
             if self.upload_task.is_some() {
                 UPLOAD_STATUS.lock().unwrap().clone().unwrap()
             } else {
-                "上传".to_owned()
+                tl!("edit-upload")
             },
         ) && self.upload_task.is_none()
             && self.save_task.is_none()
         {
             if get_data().me.is_none() {
-                show_message("请先登录！");
+                show_message(tl!("upload-login-first"));
             } else if self.chart.path.starts_with(':') {
-                show_message("不能上传内置谱面");
+                show_message(tl!("upload-builtin"));
             } else if self.get_id().is_some() {
-                show_message("不能上传下载的谱面");
+                show_message(tl!("upload-downloaded"));
             } else if !CONFIRM_UPLOAD.load(Ordering::SeqCst) {
-                Dialog::plain("上传须知", include_str!("upload_info.txt"))
-                    .buttons(vec!["再想想".to_owned(), "确认上传".to_owned()])
+                Dialog::plain(tl!("upload-rules"), tl!("upload-rules-content"))
+                    .buttons(vec![tl!("upload-cancel").to_string(), tl!("upload-confirm").to_string()])
                     .listener(|pos| {
                         if pos == 1 {
                             CONFIRM_UPLOAD.store(true, Ordering::SeqCst);
@@ -525,10 +528,19 @@ impl SongScene {
             }
         }
         r.x += dx;
-        if ui.button("save", r, if self.save_task.is_some() { "保存中…" } else { "保存" }) && self.upload_task.is_none() && self.save_task.is_none()
+        if ui.button(
+            "save",
+            r,
+            if self.save_task.is_some() {
+                tl!("edit-saving")
+            } else {
+                tl!("edit-save")
+            },
+        ) && self.upload_task.is_none()
+            && self.save_task.is_none()
         {
             if self.chart.path.starts_with(':') {
-                show_message("不能更改内置谱面");
+                show_message(tl!("edit-builtin"));
             } else {
                 self.save_edit();
             }
@@ -540,13 +552,13 @@ impl SongScene {
             ui.dx(0.02);
             ui.dy(h);
             let r = Rect::new(0., 0., self.side_width - 0.2, 0.06);
-            if ui.button("fix", r, "自动修复谱面") {
+            if ui.button("fix", r, tl!("edit-fix-chart")) {
                 if let Err(err) =
                     fs::fix_info(fs_from_path(&self.chart.path).unwrap().deref_mut(), &mut self.info_edit.as_mut().unwrap().info).block_on()
                 {
-                    show_error(err.context("修复失败"));
+                    show_error(err.context(tl!("fix-chart-success")));
                 } else {
-                    show_message("修复成功");
+                    show_message(tl!("fix-chart-failed"));
                 }
             }
             h += r.h + 0.1;
@@ -561,10 +573,10 @@ impl SongScene {
             let edit = edit.clone();
             self.save_task = Some(Task::new(async move {
                 let mut fs = fs_from_path(&path)?;
-                let patches = edit.to_patches().await.context("加载文件失败")?;
+                let patches = edit.to_patches().await.with_context(|| tl!("edit-load-file-failed"))?;
                 if let Some(zip) = fs.as_any().downcast_mut::<ZipFileSystem>() {
-                    let bytes = update_zip(&mut zip.0.lock().unwrap(), patches).context("写入配置文件失败")?;
-                    std::fs::write(format!("{}/{}", dir::charts()?, path), bytes).context("保存文件失败")?;
+                    let bytes = update_zip(&mut zip.0.lock().unwrap(), patches).with_context(|| tl!("edit-save-config-failed"))?;
+                    std::fs::write(format!("{}/{}", dir::charts()?, path), bytes).with_context(|| tl!("edit-save-failed"))?;
                 } else {
                     unreachable!();
                 }
@@ -588,10 +600,10 @@ impl SongScene {
         dir::downloaded_charts()?;
         let path = format!("download/{id}");
         if get_data().charts.iter().any(|it| it.path == path) {
-            show_message("已经下载过"); // TODO redirect instead of showing this
+            show_message(tl!("already-downloaded")); // TODO redirect instead of showing this
             return Ok(());
         }
-        show_message("正在下载");
+        show_message(tl!("downloading"));
         let url = self.chart.path.clone();
         let chart = LocalChart {
             info: self.chart.info.clone(),
@@ -606,12 +618,12 @@ impl SongScene {
                 let path = format!("{}/{}", dir::downloaded_charts()?, id);
                 async move {
                     let mut file = tokio::fs::File::create(path).await?;
-                    let res = reqwest::get(url).await.context("请求失败")?;
+                    let res = reqwest::get(url).await.with_context(|| tl!("request-failed"))?;
                     let size = res.content_length();
                     let mut stream = res.bytes_stream();
                     let mut count = 0;
                     while let Some(chunk) = stream.next().await {
-                        let chunk = chunk.context("下载失败")?;
+                        let chunk = chunk.with_context(|| tl!("download-failed"))?;
                         file.write_all(&chunk).await?;
                         count += chunk.len() as u64;
                         if let Some(size) = size {
@@ -637,7 +649,11 @@ impl SongScene {
                 mode,
                 info,
                 Config {
-                    player_name: get_data().me.as_ref().map(|it| it.name.clone()).unwrap_or_else(|| "游客".to_string()),
+                    player_name: get_data()
+                        .me
+                        .as_ref()
+                        .map(|it| it.name.clone())
+                        .unwrap_or_else(|| tl!("guest").to_string()),
                     res_pack_path: get_data()
                         .config
                         .res_pack_path
@@ -661,9 +677,9 @@ impl SongScene {
                         .await?;
                         let resp: LCFunctionResult<RecordUpdateState> = serde_json::from_str(&resp.text().await?)?;
                         if let Some(err) = resp.error {
-                            bail!("错误（代码 {}）：{err}", resp.code);
+                            tl!(bail "ldb-upload-error", "code" => resp.code, "error" => format!("{err:?}"));
                         }
-                        resp.result.ok_or_else(|| anyhow!("服务器未返回"))
+                        resp.result.ok_or_else(|| tl!(err "ldb-server-no-resp"))
                     })
                 }),
             )
@@ -681,7 +697,7 @@ impl Scene for SongScene {
     fn on_result(&mut self, _tm: &mut TimeManager, result: Box<dyn std::any::Any>) -> Result<()> {
         let result = match result.downcast::<anyhow::Error>() {
             Ok(error) => {
-                show_error(error.context("加载谱面失败"));
+                show_error(error.context(tl!("load-chart-failed")));
                 return Ok(());
             }
             Err(res) => res,
@@ -748,7 +764,7 @@ impl Scene for SongScene {
                 if (loaded || self.online) && self.center_button.touch(touch) {
                     if self.online {
                         if self.downloading.take().is_some() {
-                            show_message("已取消");
+                            show_message(tl!("download-cancelled"));
                         } else {
                             self.start_download()?;
                         }
@@ -816,12 +832,12 @@ impl Scene for SongScene {
         if let Some(task) = &mut self.save_task {
             if let Some(result) = task.take() {
                 if let Err(err) = result {
-                    show_error(err.context("保存失败"));
+                    show_error(err.context(tl!("save-failed")));
                 } else {
                     if self.info_edit.as_ref().unwrap().illustration.is_some() {
                         self.illustration_task = Some(illustration_task(self.chart.path.clone()));
                     }
-                    show_message("保存成功");
+                    show_message(tl!("save-success"));
                 }
                 self.save_task = None;
             }
@@ -829,9 +845,9 @@ impl Scene for SongScene {
         if let Some(task) = &mut self.upload_task {
             if let Some(result) = task.take() {
                 if let Err(err) = result {
-                    show_error(err.context("上传失败"));
+                    show_error(err.context(tl!("upload-failed")));
                 } else {
-                    show_message("上传成功，请等待审核！");
+                    show_message(tl!("upload-success"));
                 }
                 self.upload_task = None;
             }
@@ -840,7 +856,7 @@ impl Scene for SongScene {
             if let Some(result) = task.take() {
                 match result {
                     Err(err) => {
-                        show_error(err.context("加载排行榜失败"));
+                        show_error(err.context(tl!("ldb-load-failed")));
                     }
                     Ok(records) => {
                         for rec in &records.results {
@@ -856,7 +872,7 @@ impl Scene for SongScene {
             if let Some(result) = task.take() {
                 match result {
                     Err(err) => {
-                        show_error(err.context("加载插图失败"));
+                        show_error(err.context(tl!("load-illu-failed")));
                         self.illustration = BLACK_TEXTURE.clone();
                         *UPDATE_TEXTURE.lock().unwrap() = Some((BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone()));
                     }
@@ -874,7 +890,7 @@ impl Scene for SongScene {
                 if let Some(result) = task.take() {
                     match result {
                         Err(err) => {
-                            show_error(err.context("加载插图失败"));
+                            show_error(err.context(tl!("load-illu-failed")));
                         }
                         Ok(image) => {
                             self.illustration = image.into();
@@ -886,30 +902,40 @@ impl Scene for SongScene {
             }
         }
         if CONFIRM_UPLOAD.fetch_and(false, Ordering::SeqCst) {
-            *UPLOAD_STATUS.lock().unwrap() = Some("上传中…".to_owned());
+            *UPLOAD_STATUS.lock().unwrap() = Some(tl!("uploading"));
             CONFIRM_UPLOAD.store(false, Ordering::SeqCst);
             let info = self.info_edit.as_ref().unwrap().info.clone();
             let path = self.chart.path.clone();
             let user_id = get_data().me.as_ref().unwrap().id.clone();
             self.upload_task = Some(Task::new(async move {
-                let chart_bytes = tokio::fs::read(format!("{}/{}", dir::charts()?, path)).await.context("读取文件失败")?;
+                let chart_bytes = tokio::fs::read(format!("{}/{}", dir::charts()?, path))
+                    .await
+                    .with_context(|| tl!("upload-read-file-failed"))?;
                 if chart_bytes.len() > CHART_LIMIT {
-                    bail!("谱面文件过大");
+                    tl!(bail "upload-chart-too-large");
                 }
                 let mut fs = fs_from_path(&path)?;
                 let mut sha = Sha256::new();
-                sha.update(GameScene::load_chart_bytes(fs.deref_mut(), &info).await.context("读取谱面失败")?);
+                sha.update(
+                    GameScene::load_chart_bytes(fs.deref_mut(), &info)
+                        .await
+                        .with_context(|| tl!("upload-read-chart-failed"))?,
+                );
                 let checksum = hex::encode(sha.finalize());
 
-                let image = fs.load_file(&info.illustration).await.context("读取插图失败")?;
+                let image = fs.load_file(&info.illustration).await.with_context(|| tl!("upload-read-illu-failed"))?;
                 if image.len() > IMAGE_LIMIT {
-                    bail!("插图文件过大");
+                    tl!(bail "upload-illu-too-large")
                 }
-                *UPLOAD_STATUS.lock().unwrap() = Some("上传谱面中…".to_owned());
-                let file = Client::upload_file("chart.zip", &chart_bytes).await.context("上传谱面失败")?;
-                *UPLOAD_STATUS.lock().unwrap() = Some("上传插图中…".to_owned());
-                let illustration = Client::upload_file("illustration.jpg", &image).await.context("上传插图失败")?;
-                *UPLOAD_STATUS.lock().unwrap() = Some("保存中…".to_owned());
+                *UPLOAD_STATUS.lock().unwrap() = Some(tl!("uploading-chart"));
+                let file = Client::upload_file("chart.zip", &chart_bytes)
+                    .await
+                    .with_context(|| tl!("upload-chart-failed"))?;
+                *UPLOAD_STATUS.lock().unwrap() = Some(tl!("uploading-illu"));
+                let illustration = Client::upload_file("illustration.jpg", &image)
+                    .await
+                    .with_context(|| tl!("upload-illu-failed"))?;
+                *UPLOAD_STATUS.lock().unwrap() = Some(tl!("upload-saving"));
                 let item = LCChartItem {
                     id: None,
                     info: BriefChartInfo {
@@ -920,7 +946,7 @@ impl Scene for SongScene {
                     illustration,
                     checksum: Some(checksum),
                 };
-                Client::create(item).await?;
+                Client::create(item).await.with_context(|| tl!("upload-save-failed"))?;
                 Ok(())
             }));
         }
@@ -934,7 +960,7 @@ impl Scene for SongScene {
         for (name, res) in downloaded {
             match res {
                 Err(err) => {
-                    show_error(err.context(format!("{name} 下载失败")));
+                    show_error(err.context(tl!("download-failed", "name" => name)));
                 }
                 Ok(chart) => {
                     self.chart.info = chart.info.clone();
@@ -944,7 +970,7 @@ impl Scene for SongScene {
                     save_data()?;
                     SHOULD_UPDATE.store(true, Ordering::SeqCst);
                     self.online = false;
-                    show_message(format!("{name} 下载完成"));
+                    show_message(tl!("download-success", "name" => name));
                 }
             }
         }
