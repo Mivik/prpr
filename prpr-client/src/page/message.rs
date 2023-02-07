@@ -1,3 +1,5 @@
+prpr::tl_file!("message");
+
 use super::{Page, SharedState};
 use crate::{
     cloud::{Client, Message},
@@ -39,7 +41,7 @@ impl MessagePage {
 
 impl Page for MessagePage {
     fn label(&self) -> Cow<'static, str> {
-        "消息".into()
+        tl!("label")
     }
     fn has_new(&self) -> bool {
         self.has_new
@@ -65,7 +67,7 @@ impl Page for MessagePage {
                         self.messages = msgs.into_iter().map(|it| (it, RectButton::new())).collect();
                     }
                     Err(err) => {
-                        show_error(err.context("加载消息失败"));
+                        show_error(err.context(tl!("load-failed")));
                     }
                 }
                 self.load_task = None;
@@ -148,7 +150,7 @@ impl Page for MessagePage {
                 let c = Color::new(1., 1., 1., 0.6);
                 let r = ui.text(&msg.author).size(0.3).color(c).draw();
                 let r = ui
-                    .text(&format!("更新于 {}", msg.updated_at.with_timezone(&Local).format("%Y-%m-%d %H:%M")))
+                    .text(&tl!("updated", "time" => msg.updated_at.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string()))
                     .size(0.3)
                     .pos(r.w + 0.01, 0.)
                     .color(c)
