@@ -157,7 +157,7 @@ impl Page for MessagePage {
                     .draw();
                 dy!(r.h + 0.018);
                 let r = ui.text(&msg.content).size(0.5).max_width(width - pd * 2.).multiline().draw();
-                dy!(r.h + 0.01);
+                dy!(r.h + 0.027);
                 (width, h)
             });
         }
