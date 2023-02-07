@@ -1,3 +1,5 @@
+prpr::tl_file!("local");
+
 use super::{get_touched, load_local, trigger_grid, Page, SharedState, CARD_HEIGHT, ROW_NUM, SHOULD_UPDATE};
 use crate::{
     data::{BriefChartInfo, LocalChart},
@@ -41,7 +43,7 @@ impl LocalPage {
 
 impl Page for LocalPage {
     fn label(&self) -> Cow<'static, str> {
-        "本地".into()
+        tl!("label")
     }
 
     fn update(&mut self, _focus: bool, state: &mut SharedState) -> Result<()> {
@@ -74,13 +76,13 @@ impl Page for LocalPage {
         if let Some(result) = self.import_task.take() {
             match result {
                 Err(err) => {
-                    show_error(err.context("导入失败"));
+                    show_error(err.context(tl!("import-failed")));
                 }
                 Ok(chart) => {
                     get_data_mut().charts.push(chart);
                     save_data()?;
                     state.charts_local = load_local(&state.tex, self.order_box.to_order());
-                    show_message("导入成功");
+                    show_message(tl!("import-success"));
                 }
             }
         }
@@ -109,7 +111,7 @@ impl Page for LocalPage {
                     if chart.illustration_task.is_none() {
                         state.transit = Some((None, id, t, Rect::default(), false));
                     } else {
-                        show_message("尚未加载完成");
+                        show_message(tl!("not-loaded"));
                     }
                     return Ok(true);
                 }
