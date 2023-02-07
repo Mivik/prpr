@@ -230,6 +230,8 @@ impl Page for SettingsPage {
 
             ui.scope(|ui| {
                 ui.dx(0.65);
+                let r = ui.checkbox("双击暂停", &mut config.double_click_to_pause);
+                ui.dy(r.h + s);
                 let r = ui.text("资源包").size(0.4).anchor(1., 0.).draw();
                 let mut r = Rect::new(0.02, r.y - 0.01, 0.3, r.h + 0.02);
                 if ui.button("choose_res_pack", r, &self.res_pack.info.name) {
