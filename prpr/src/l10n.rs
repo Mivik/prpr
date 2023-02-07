@@ -29,6 +29,7 @@ macro_rules! create_bundle {
                 .unwrap(),
             )
             .unwrap();
+        bundle.set_use_isolating(false);
         bundle
     }};
 }
@@ -150,7 +151,7 @@ macro_rules! tl_file {
                         L10N_LOCAL.with(|it| it.borrow_mut().format($key, Some($args)))
                     };
                     ($d key:literal, $d ($d name:expr => $d value:expr),+) => {
-                        L10N_LOCAL.format($key, Some(&$crate::l10n::fluent_args![$d($d name => $d value), *])).to_string()
+                        L10N_LOCAL.with(|it| it.borrow_mut().format($key, Some(&$crate::l10n::fluent_args![$d($d name => $d value), *])).to_string())
                     };
                 }
             }

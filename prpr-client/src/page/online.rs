@@ -1,3 +1,5 @@
+prpr::tl_file!("online");
+
 use super::{get_touched, trigger_grid, ChartItem, Page, SharedState, CARD_HEIGHT, ROW_NUM};
 use crate::{
     cloud::{Client, Images, LCChartItem, LCFile, QueryResult},
@@ -58,7 +60,7 @@ impl OnlinePage {
             return;
         }
         state.charts_online.clear();
-        show_message("正在加载");
+        show_message(tl!("loading"));
         self.loading = true;
         let order = self.order_box.to_order();
         let page = self.page;
@@ -108,7 +110,7 @@ impl OnlinePage {
 
 impl Page for OnlinePage {
     fn label(&self) -> Cow<'static, str> {
-        "在线".into()
+        tl!("label")
     }
 
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {
@@ -127,13 +129,13 @@ impl Page for OnlinePage {
             self.loading = false;
             match charts {
                 Ok((charts, total_page)) => {
-                    show_message("加载完成");
+                    show_message(tl!("loaded"));
                     self.total_page = total_page;
                     (state.charts_online, self.illu_files) = charts.into_iter().unzip();
                 }
                 Err(err) => {
                     self.first_time = true;
-                    show_error(err.context("加载失败"));
+                    show_error(err.context(tl!("load-failed")));
                 }
             }
         }
@@ -177,7 +179,7 @@ impl Page for OnlinePage {
         ui.scope(|ui| {
             ui.dx(r.w + 0.02);
             let tr = ui
-                .text(format!("第 {}/{} 页", self.page + 1, self.total_page))
+                .text(tl!("page-indicator", "now" => self.page + 1, "total" => self.total_page))
                 .size(0.6)
                 .pos(0., r.h / 2.)
                 .anchor(0., 0.5)
@@ -187,14 +189,14 @@ impl Page for OnlinePage {
                 ui.dx(tr.w + 0.02);
                 let r = Rect::new(0., 0.01, 0.2, r.h - 0.02);
                 if self.page != 0 {
-                    if ui.button("prev_page", r, "上一页") {
+                    if ui.button("prev_page", r, tl!("prev-page")) {
                         self.page -= 1;
                         self.scroll.y_scroller.set_offset(0.);
                         self.refresh(state);
                     }
                     ui.dx(r.w + 0.01);
                 }
-                if self.page + 1 < self.total_page && ui.button("next_page", r, "下一页") {
+                if self.page + 1 < self.total_page && ui.button("next_page", r, tl!("next-page")) {
                     self.page += 1;
                     self.scroll.y_scroller.set_offset(0.);
                     self.refresh(state);
