@@ -1,5 +1,3 @@
-#![feature(macro_metavar_expr)]
-
 pub mod config;
 pub mod core;
 pub mod ext;
