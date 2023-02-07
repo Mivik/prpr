@@ -296,7 +296,7 @@ impl GameScene {
             })
         {
             let t = tm.now() as f32;
-            if t - self.pause_first_time > PAUSE_CLICK_INTERVAL {
+            if t - self.pause_first_time > PAUSE_CLICK_INTERVAL && res.config.double_click_to_pause {
                 self.pause_first_time = t;
             } else {
                 self.pause_first_time = f32::NEG_INFINITY;
