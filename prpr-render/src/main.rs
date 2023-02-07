@@ -101,7 +101,7 @@ async fn the_main() -> Result<()> {
     let mut fs = fs::fs_from_file(std::path::Path::new(&path)).context("加载谱面失败")?;
     let info = fs::load_info(fs.deref_mut()).await.context("加载谱面信息失败")?;
 
-    let chart = GameScene::load_chart(&mut fs, &info).await.context("加载谱面内容失败")?;
+    let (chart, ..) = GameScene::load_chart(fs.deref_mut(), &info).await.context("加载谱面内容失败")?;
     macro_rules! ld {
         ($path:literal) => {
             AudioClip::new(load_file($path).await?).with_context(|| format!("加载音效 `{}` 失败", $path))?
