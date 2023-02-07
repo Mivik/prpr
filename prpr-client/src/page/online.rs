@@ -16,7 +16,7 @@ use std::borrow::Cow;
 
 const PAGE_NUM: usize = 28;
 
-pub struct RemotePage {
+pub struct OnlinePage {
     focus: bool,
 
     scroll: Scroll,
@@ -33,7 +33,7 @@ pub struct RemotePage {
     loading: bool,
 }
 
-impl RemotePage {
+impl OnlinePage {
     pub fn new(icon_play: SafeTexture) -> Self {
         Self {
             focus: false,
@@ -53,11 +53,11 @@ impl RemotePage {
         }
     }
 
-    fn refresh_remote(&mut self, state: &mut SharedState) {
+    fn refresh(&mut self, state: &mut SharedState) {
         if self.loading {
             return;
         }
-        state.charts_remote.clear();
+        state.charts_online.clear();
         show_message("正在加载");
         self.loading = true;
         let order = self.order_box.to_order();
@@ -106,7 +106,7 @@ impl RemotePage {
     }
 }
 
-impl Page for RemotePage {
+impl Page for OnlinePage {
     fn label(&self) -> Cow<'static, str> {
         "在线".into()
     }
@@ -114,13 +114,13 @@ impl Page for RemotePage {
     fn update(&mut self, focus: bool, state: &mut SharedState) -> Result<()> {
         if !self.focus && focus && self.first_time {
             self.first_time = false;
-            self.refresh_remote(state);
+            self.refresh(state);
         }
         self.focus = focus;
 
         let t = state.t;
         if self.scroll.y_scroller.pulled {
-            self.refresh_remote(state);
+            self.refresh(state);
         }
         self.scroll.update(t);
         if let Some(charts) = self.task_load.take() {
@@ -129,7 +129,7 @@ impl Page for RemotePage {
                 Ok((charts, total_page)) => {
                     show_message("加载完成");
                     self.total_page = total_page;
-                    (state.charts_remote, self.illu_files) = charts.into_iter().unzip();
+                    (state.charts_online, self.illu_files) = charts.into_iter().unzip();
                 }
                 Err(err) => {
                     self.first_time = true;
@@ -144,7 +144,7 @@ impl Page for RemotePage {
         let t = state.t;
         if !self.loading && self.order_box.touch(touch) {
             self.page = 0;
-            self.refresh_remote(state);
+            self.refresh(state);
             return Ok(true);
         }
         if self.scroll.touch(touch, t) {
@@ -155,12 +155,12 @@ impl Page for RemotePage {
             let trigger = trigger_grid(touch.phase, &mut self.choose, id);
             if trigger {
                 let id = id.unwrap() as usize;
-                if id < state.charts_remote.len() {
-                    let path = format!("download/{}", state.charts_remote[id].info.id.as_ref().unwrap());
+                if id < state.charts_online.len() {
+                    let path = format!("download/{}", state.charts_online[id].info.id.as_ref().unwrap());
                     if let Some(index) = state.charts_local.iter().position(|it| it.path == path) {
                         let that = &state.charts_local[index].illustration.1;
                         if *that != state.tex {
-                            state.charts_remote[id].illustration.1 = that.clone();
+                            state.charts_online[id].illustration.1 = that.clone();
                         }
                     }
                     state.transit = Some((Some(self.illu_files[id].clone()), id as u32, t, Rect::default(), false));
@@ -190,20 +190,20 @@ impl Page for RemotePage {
                     if ui.button("prev_page", r, "上一页") {
                         self.page -= 1;
                         self.scroll.y_scroller.set_offset(0.);
-                        self.refresh_remote(state);
+                        self.refresh(state);
                     }
                     ui.dx(r.w + 0.01);
                 }
                 if self.page + 1 < self.total_page && ui.button("next_page", r, "下一页") {
                     self.page += 1;
                     self.scroll.y_scroller.set_offset(0.);
-                    self.refresh_remote(state);
+                    self.refresh(state);
                 }
             }
         });
         ui.dy(r.h);
         let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
-        SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_remote);
+        SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_online);
         if let Some((Some(_), id, _, rect, _)) = &mut state.transit {
             let width = content_size.0;
             *rect = ui.rect_to_global(Rect::new(

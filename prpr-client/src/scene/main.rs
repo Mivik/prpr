@@ -33,7 +33,7 @@ const TRANSIT_TIME: f32 = 0.4;
 
 pub static SHOULD_DELETE: AtomicBool = AtomicBool::new(false);
 pub static UPDATE_TEXTURE: Mutex<Option<(SafeTexture, SafeTexture)>> = Mutex::new(None);
-pub static UPDATE_REMOTE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
+pub static UPDATE_ONLINE_TEXTURE: Mutex<Option<SafeTexture>> = Mutex::new(None);
 pub static UPDATE_INFO: AtomicBool = AtomicBool::new(false);
 
 pub struct MainScene {
@@ -91,7 +91,7 @@ impl MainScene {
             shared_state,
             pages: [
                 Box::new(page::LocalPage::new(icon_play.clone()).await?),
-                Box::new(page::RemotePage::new(icon_play)),
+                Box::new(page::OnlinePage::new(icon_play)),
                 Box::new(page::AccountPage::new()),
                 Box::new(page::MessagePage::new()),
                 Box::new(page::SettingsPage::new().await?),
@@ -153,7 +153,7 @@ impl MainScene {
         });
     }
 
-    pub fn song_scene(&self, chart: &ChartItem, file: Option<LCFile>, remote: bool) -> Option<NextScene> {
+    pub fn song_scene(&self, chart: &ChartItem, file: Option<LCFile>, online: bool) -> Option<NextScene> {
         Some(NextScene::Overlay(Box::new(SongScene::new(
             ChartItem {
                 info: chart.info.clone(),
@@ -170,7 +170,7 @@ impl MainScene {
             self.icon_play.clone(),
             TrashBin::new(self.icon_delete.clone(), self.icon_question.clone()),
             file,
-            remote,
+            online,
         ))))
     }
 }
@@ -240,9 +240,9 @@ impl Scene for MainScene {
                 self.shared_state.charts_local[id as usize].illustration = tex;
             }
         }
-        if let Some(tex) = UPDATE_REMOTE_TEXTURE.lock().unwrap().take() {
+        if let Some(tex) = UPDATE_ONLINE_TEXTURE.lock().unwrap().take() {
             if let Some((Some(_), id, ..)) = self.shared_state.transit {
-                self.shared_state.charts_remote[id as usize].illustration.1 = tex;
+                self.shared_state.charts_online[id as usize].illustration.1 = tex;
             }
         }
         self.shared_state.t = tm.now() as _;
@@ -261,7 +261,7 @@ impl Scene for MainScene {
         clear_background(GRAY);
         ui.scope(|ui| self.ui(ui, tm.now() as _, tm.real_time() as _));
         if let Some((file, id, st, rect, back)) = &mut self.shared_state.transit {
-            let remote = file.is_some();
+            let online = file.is_some();
             let id = *id as usize;
             let t = tm.now() as f32;
             let p = ((t - *st) / TRANSIT_TIME).min(1.);
@@ -285,8 +285,8 @@ impl Scene for MainScene {
                 );
                 path.build()
             };
-            let dst = if remote {
-                &mut self.shared_state.charts_remote
+            let dst = if online {
+                &mut self.shared_state.charts_online
             } else {
                 &mut self.shared_state.charts_local
             };
@@ -296,8 +296,8 @@ impl Scene for MainScene {
             if *back && p <= 0. {
                 if SHOULD_DELETE.fetch_and(false, Ordering::SeqCst) {
                     let err: Result<_> = (|| {
-                        let id = if remote {
-                            let path = format!("download/{}", self.shared_state.charts_remote[id].info.id.as_ref().unwrap());
+                        let id = if online {
+                            let path = format!("download/{}", self.shared_state.charts_online[id].info.id.as_ref().unwrap());
                             self.shared_state
                                 .charts_local
                                 .iter()
@@ -328,13 +328,13 @@ impl Scene for MainScene {
                 self.shared_state.transit = None;
             } else if !*back && p >= 1. {
                 *back = true;
-                self.next_scene = if remote {
-                    let path = format!("download/{}", self.shared_state.charts_remote[id].info.id.as_ref().unwrap());
+                self.next_scene = if online {
+                    let path = format!("download/{}", self.shared_state.charts_online[id].info.id.as_ref().unwrap());
                     if let Some(index) = self.shared_state.charts_local.iter().position(|it| it.path == path) {
-                        self.shared_state.charts_local[index].illustration = self.shared_state.charts_remote[id].illustration.clone();
+                        self.shared_state.charts_local[index].illustration = self.shared_state.charts_online[id].illustration.clone();
                         self.song_scene(&self.shared_state.charts_local[index], None, false)
                     } else {
-                        let chart = &self.shared_state.charts_remote[id];
+                        let chart = &self.shared_state.charts_online[id];
                         let file = if chart.illustration.0 == chart.illustration.1 {
                             file.clone()
                         } else {

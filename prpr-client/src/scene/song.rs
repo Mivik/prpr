@@ -1,4 +1,4 @@
-use super::main::{UPDATE_INFO, UPDATE_REMOTE_TEXTURE, UPDATE_TEXTURE};
+use super::main::{UPDATE_INFO, UPDATE_ONLINE_TEXTURE, UPDATE_TEXTURE};
 use crate::{
     cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, QueryResult, RequestExt, UserManager},
     data::{BriefChartInfo, LocalChart},
@@ -146,7 +146,7 @@ pub struct SongScene {
 
     info_task: Option<Task<ChartInfo>>,
     illustration_task: Option<Task<Result<(DynamicImage, Option<DynamicImage>)>>>,
-    remote_illustration_task: Option<Task<Result<DynamicImage>>>,
+    online_illustration_task: Option<Task<Result<DynamicImage>>>,
     chart_info: Option<ChartInfo>,
     scene_task: LocalTask<Result<LoadingScene>>,
 
@@ -165,7 +165,7 @@ pub struct SongScene {
     leaderboard_task: Option<Task<Result<QueryResult<LCRecord>>>>,
     leaderboard_scroll: Scroll,
     leaderboards: Option<Vec<LCRecord>>,
-    remote: bool,
+    online: bool,
 }
 
 fn create_info_task(path: String, brief: BriefChartInfo) -> Task<ChartInfo> {
@@ -201,7 +201,7 @@ impl SongScene {
         icon_play: SafeTexture,
         bin: TrashBin,
         lc_file: Option<LCFile>,
-        remote: bool,
+        online: bool,
     ) -> Self {
         if let Some(user) = chart.info.uploader.as_ref() {
             UserManager::request(&user.id);
@@ -231,9 +231,9 @@ impl SongScene {
             scroll: Scroll::new(),
             edit_scroll: Scroll::new(),
 
-            info_task: if remote { None } else { Some(create_info_task(path, brief)) },
+            info_task: if online { None } else { Some(create_info_task(path, brief)) },
             illustration_task: None,
-            remote_illustration_task: lc_file.map(|file| Task::new(async move { Images::load_lc(&file).await })),
+            online_illustration_task: lc_file.map(|file| Task::new(async move { Images::load_lc(&file).await })),
 
             chart_info: None,
             scene_task: None,
@@ -253,7 +253,7 @@ impl SongScene {
             leaderboard_task: None,
             leaderboard_scroll: Scroll::new(),
             leaderboards: None,
-            remote,
+            online,
         }
     }
 
@@ -293,8 +293,8 @@ impl SongScene {
 
         let s = 0.1;
         let r = Rect::new(-s, -s, s * 2., s * 2.);
-        ui.fill_rect(r, (if self.remote { *self.icon_download } else { *self.icon_play }, r, ScaleType::Fit, color));
-        if self.remote {
+        ui.fill_rect(r, (if self.online { *self.icon_download } else { *self.icon_play }, r, ScaleType::Fit, color));
+        if self.online {
             let p = self.downloading.as_ref().map_or(0., |(_, p, _)| *p.lock().unwrap());
             let r = r.feather(0.04);
             ui.fill_rect(Rect::new(r.x, r.y + r.h * (1. - p), r.w, r.h * p), color);
@@ -306,7 +306,7 @@ impl SongScene {
             ui.dy(-ui.top + 0.03);
             let s = 0.08;
             let mut r = Rect::new(-s, 0., s, s);
-            let c = if self.remote { Color { a: color.a * 0.4, ..color } } else { color };
+            let c = if self.online { Color { a: color.a * 0.4, ..color } } else { color };
             self.bin.render(ui, r, c);
             r.x -= s + 0.02;
             ui.fill_rect(r, (*self.icon_edit, r, ScaleType::Fit, c));
@@ -575,7 +575,7 @@ impl SongScene {
     }
 
     fn update_chart_info(&mut self, mut info: BriefChartInfo) {
-        assert!(!self.remote);
+        assert!(!self.online);
         info.uploader = self.chart.info.uploader.clone();
         self.chart.info = info.clone();
         get_data_mut().charts[get_data().find_chart(&self.chart).unwrap()].info = info;
@@ -727,7 +727,7 @@ impl Scene for SongScene {
                     self.side_enter_time = rt;
                     return Ok(true);
                 }
-                if loaded && !self.remote {
+                if loaded && !self.online {
                     if self.bin.touch(touch, tm.now() as _) {
                         return Ok(true);
                     }
@@ -745,8 +745,8 @@ impl Scene for SongScene {
                         return Ok(true);
                     }
                 }
-                if (loaded || self.remote) && self.center_button.touch(touch) {
-                    if self.remote {
+                if (loaded || self.online) && self.center_button.touch(touch) {
+                    if self.online {
                         if self.downloading.take().is_some() {
                             show_message("已取消");
                         } else {
@@ -757,7 +757,7 @@ impl Scene for SongScene {
                     }
                     return Ok(true);
                 }
-                if self.back_button.touch(touch) && (!self.remote || self.downloading.is_none()) {
+                if self.back_button.touch(touch) && (!self.online || self.downloading.is_none()) {
                     self.next_scene = Some(NextScene::Pop);
                     return Ok(true);
                 }
@@ -869,8 +869,8 @@ impl Scene for SongScene {
                 self.illustration_task = None;
             }
         }
-        if self.remote {
-            if let Some(task) = &mut self.remote_illustration_task {
+        if self.online {
+            if let Some(task) = &mut self.online_illustration_task {
                 if let Some(result) = task.take() {
                     match result {
                         Err(err) => {
@@ -878,10 +878,10 @@ impl Scene for SongScene {
                         }
                         Ok(image) => {
                             self.illustration = image.into();
-                            *UPDATE_REMOTE_TEXTURE.lock().unwrap() = Some(self.illustration.clone());
+                            *UPDATE_ONLINE_TEXTURE.lock().unwrap() = Some(self.illustration.clone());
                         }
                     }
-                    self.remote_illustration_task = None;
+                    self.online_illustration_task = None;
                 }
             }
         }
@@ -943,7 +943,7 @@ impl Scene for SongScene {
                     get_data_mut().charts.push(chart);
                     save_data()?;
                     SHOULD_UPDATE.store(true, Ordering::SeqCst);
-                    self.remote = false;
+                    self.online = false;
                     show_message(format!("{name} 下载完成"));
                 }
             }
