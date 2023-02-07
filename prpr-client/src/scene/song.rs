@@ -453,7 +453,7 @@ impl SongScene {
                     .no_baseline()
                     .size(0.6)
                     .draw();
-                rt -= r.w + 0.01;
+                rt -= r.w + 0.03;
                 let lt = 0.2;
                 if let Some(name) = UserManager::get_name(&rec.player.id) {
                     ui.text(name)
