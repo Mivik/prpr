@@ -1,5 +1,6 @@
 pub use fluent::{fluent_args, FluentBundle, FluentResource};
 pub use once_cell::sync::Lazy;
+use sys_locale::get_locale;
 pub use unic_langid::{langid, LanguageIdentifier};
 
 use fluent::{FluentArgs, FluentError};
@@ -38,8 +39,8 @@ macro_rules! create_bundle {
 macro_rules! create_bundles {
     ($file:literal) => {{
         let mut bundles = Vec::new();
-        bundles.push($crate::create_bundle!("en-US", $file));
         bundles.push($crate::create_bundle!("zh-CN", $file));
+        bundles.push($crate::create_bundle!("en-US", $file));
         bundles
     }};
 }
@@ -53,10 +54,15 @@ impl L10nGlobal {
     pub fn new() -> Self {
         let mut lang_map = HashMap::new();
         let mut order = Vec::new();
+        let locale_lang = get_locale().unwrap_or_else(|| String::from("en-US"));
+        let locale_lang: LanguageIdentifier = locale_lang.parse().unwrap();
         for (id, lang) in LANG_IDENTS.iter().enumerate() {
             lang_map.insert(lang.clone(), id);
-            order.push(id);
+            if *lang == locale_lang {
+                order.push(id);
+            }
         }
+        order.push(1); // zh-CN
         Self {
             lang_map,
             order: order.into(),

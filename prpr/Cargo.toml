@@ -38,6 +38,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 symphonia = { version = "0.5", features = ["flac", "mp3", "ogg", "vorbis", "wav", "pcm"] }
+sys-locale = "0.2.3"
 tempfile = "3.3.0"
 unic-langid = { version = "0.9.1", features = ["macros"] }
 zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
