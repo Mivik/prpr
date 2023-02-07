@@ -5,7 +5,7 @@ text-part =
   { $intro }
   { $tags }
 
-  难度：{ $level } ( $difficulty )
+  难度：{ $level } ({ $difficulty })
   曲师：{ $composer }
   插图：{ $illustrator }
 

@@ -5,7 +5,7 @@ text-part =
   { $intro }
   { $tags }
 
-  Difficulty：{ $level } ( $difficulty )
+  Difficulty：{ $level } ({ $difficulty })
   Composer：{ $composer }
   Illustrator：{ $illustrator }
 
