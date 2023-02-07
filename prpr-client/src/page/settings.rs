@@ -1,7 +1,7 @@
 prpr::tl_file!("settings");
 
 use super::{Page, SharedState};
-use crate::{dir, get_data, get_data_mut, save_data};
+use crate::{dir, get_data, get_data_mut, save_data, sync_lang};
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
 use prpr::{
@@ -268,6 +268,19 @@ impl Page for SettingsPage {
                     }
                 }
                 ui.dy(r.h + s * 2.);
+                r.w = r.w * 1.3 / 2. - 0.01;
+                // TODO refine this
+                let text = tl!("switch-language");
+                if ui.button("switch_lang", r, text.as_ref()) {
+                    if text == "中文" {
+                        get_data_mut().language = Some("zh-CN".to_owned());
+                    } else {
+                        get_data_mut().language = Some("en-US".to_owned());
+                    }
+                    let _ = save_data();
+                    sync_lang();
+                }
+                r.x += r.w + 0.01;
                 if ui.button(
                     "reset_all",
                     r,
@@ -292,7 +305,7 @@ impl Page for SettingsPage {
                 }
             });
 
-            let ct = (0.9, ui.top * 1.3);
+            let ct = (0.9, ui.top * 1.5);
             let len = 0.25;
             ui.fill_rect(Rect::new(ct.0 - len, ct.1 - 0.005, len * 2., 0.01), WHITE);
             let mut cali_t = self.cali_tm.now() as f32 - config.offset;

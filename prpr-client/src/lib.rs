@@ -11,7 +11,7 @@ use prpr::{
     core::init_assets,
     time::TimeManager,
     ui::{FontArc, TextPainter, Ui},
-    Main,
+    Main, l10n::{set_locale_order, LanguageIdentifier, langid},
 };
 use scene::MainScene;
 use std::sync::{mpsc, Mutex};
@@ -19,6 +19,15 @@ use std::sync::{mpsc, Mutex};
 static MESSAGES_TX: Mutex<Option<mpsc::Sender<bool>>> = Mutex::new(None);
 static DATA_PATH: Mutex<Option<String>> = Mutex::new(None);
 pub static mut DATA: Option<Data> = None;
+
+pub fn sync_lang() {
+    let mut langs: Vec<LanguageIdentifier> = Vec::new();
+    if let Some(lang) = &get_data().language {
+        langs.push(lang.parse().unwrap());
+    }
+    langs.push(langid!("zh-CN"));
+    set_locale_order(&langs);
+}
 
 pub fn set_data(data: Data) {
     unsafe {
@@ -118,7 +127,7 @@ async fn the_main() -> Result<()> {
         .unwrap_or_default();
     data.init().await?;
     set_data(data);
-    save_data()?;
+    sync_lang();
 
     let rx = {
         let (tx, rx) = mpsc::channel();

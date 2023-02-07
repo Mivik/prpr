@@ -1,6 +1,5 @@
 pub use fluent::{fluent_args, FluentBundle, FluentResource};
 pub use once_cell::sync::Lazy;
-use sys_locale::get_locale;
 pub use unic_langid::{langid, LanguageIdentifier};
 
 use fluent::{FluentArgs, FluentError};
@@ -14,6 +13,7 @@ use std::{
         Mutex,
     },
 };
+use sys_locale::get_locale;
 
 static LANGS: [&str; 2] = ["zh-CN", "en-US"]; // this should be consistent with the macro below (create_bundles)
 pub static LANG_IDENTS: Lazy<[LanguageIdentifier; 2]> = Lazy::new(|| LANGS.map(|lang| lang.parse().unwrap()));
@@ -72,14 +72,20 @@ impl L10nGlobal {
 
 static GLOBAL: Lazy<L10nGlobal> = Lazy::new(L10nGlobal::new);
 
-pub fn locale_order(locales: &[LanguageIdentifier]) {
+pub fn set_locale_order(locales: &[LanguageIdentifier]) {
     let mut ids = Vec::new();
     let map = &GLOBAL.lang_map;
     for locale in locales {
-        ids.push(map[locale]);
+        if let Some(lang) = map.get(locale) {
+            ids.push(*lang);
+        }
     }
     *GLOBAL.order.lock().unwrap() = ids;
     GENERATION.fetch_add(1, Ordering::Relaxed);
+}
+
+pub fn locale_order() -> Vec<usize> {
+    GLOBAL.order.lock().unwrap().clone()
 }
 
 pub struct L10nBundles {

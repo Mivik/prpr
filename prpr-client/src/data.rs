@@ -71,6 +71,7 @@ pub struct Data {
     pub charts: Vec<LocalChart>,
     pub config: Config,
     pub message_check_time: Option<DateTime<Utc>>,
+    pub language: Option<String>,
 }
 
 impl Data {

@@ -1,5 +1,7 @@
 label = Settings
 
+switch-language = 中文
+
 respack-loaded = Resource pack loaded
 respack-load-failed = Failed to load resource pack
 respack-save-failed = Failed to save resource pack
