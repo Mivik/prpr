@@ -10,9 +10,9 @@ use anyhow::Result;
 use macroquad::prelude::{Rect, Touch};
 use prpr::{
     ext::SafeTexture,
-    scene::{show_error, show_message, show_message_ex},
+    scene::{show_error, show_message},
     task::Task,
-    ui::{MessageHandle, Scroll, Ui, MessageKind},
+    ui::{MessageHandle, Scroll, Ui},
 };
 use std::borrow::Cow;
 
@@ -60,7 +60,7 @@ impl OnlinePage {
             return;
         }
         state.charts_online.clear();
-        self.loading = Some(show_message(tl!("loading")));
+        self.loading = Some(show_message(tl!("loading")).handle());
         let order = self.order_box.to_order();
         let page = self.page;
         self.task_load = Task::new({
@@ -128,7 +128,7 @@ impl Page for OnlinePage {
             self.loading.take().unwrap().cancel();
             match charts {
                 Ok((charts, total_page)) => {
-                    show_message_ex(tl!("loaded"), (MessageKind::Ok, 1.));
+                    show_message(tl!("loaded")).ok().duration(1.);
                     self.total_page = total_page;
                     (state.charts_online, self.illu_files) = charts.into_iter().unzip();
                 }

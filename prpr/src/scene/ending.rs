@@ -1,6 +1,6 @@
 crate::tl_file!("ending");
 
-use super::{draw_background, draw_illustration, show_message_ex, NextScene, Scene};
+use super::{draw_background, draw_illustration, NextScene, Scene};
 use crate::{
     config::Config,
     ext::{
@@ -10,7 +10,7 @@ use crate::{
     judge::{Judge, PlayResult},
     scene::show_message,
     task::Task,
-    ui::{Dialog, MessageHandle, MessageKind, Ui},
+    ui::{Dialog, MessageHandle, Ui},
 };
 use anyhow::Result;
 use macroquad::prelude::*;
@@ -77,7 +77,7 @@ impl EndingScene {
                 ..Default::default()
             },
         )?;
-        let upload_task = upload_fn.and_then(|f| record_data.clone().map(|data| (f(data), show_message(tl!("uploading")))));
+        let upload_task = upload_fn.and_then(|f| record_data.clone().map(|data| (f(data), show_message(tl!("uploading")).handle())));
         Ok(Self {
             background,
             illustration,
@@ -148,7 +148,7 @@ impl Scene for EndingScene {
             self.upload_task = self
                 .record_data
                 .clone()
-                .map(|data| ((self.upload_fn.unwrap())(data), show_message(tl!("uploading"))));
+                .map(|data| ((self.upload_fn.unwrap())(data), show_message(tl!("uploading")).handle()));
         }
         if let Some((task, handle)) = &mut self.upload_task {
             if let Some(result) = task.take() {
@@ -167,7 +167,7 @@ impl Scene for EndingScene {
                     }
                     Ok(state) => {
                         self.update_state = Some(state);
-                        show_message_ex(tl!("uploaded"), (MessageKind::Ok, 1.));
+                        show_message(tl!("uploaded")).ok().duration(1.);
                     }
                 }
                 self.upload_task = None;

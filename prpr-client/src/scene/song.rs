@@ -19,10 +19,10 @@ use prpr::{
     ext::{poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, ZipFileSystem},
     info::ChartInfo,
-    scene::{show_error, show_message, show_message_ex, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
+    scene::{show_error, show_message, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
     task::Task,
     time::TimeManager,
-    ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, MessageKind, RectButton, Scroll, Ui},
+    ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, RectButton, Scroll, Ui},
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -604,7 +604,7 @@ impl SongScene {
             show_message(tl!("already-downloaded")); // TODO redirect instead of showing this
             return Ok(());
         }
-        let handle = show_message(tl!("downloading"));
+        let handle = show_message(tl!("downloading")).handle();
         let url = self.chart.path.clone();
         let chart = LocalChart {
             info: self.chart.info.clone(),
@@ -968,7 +968,7 @@ impl Scene for SongScene {
                         save_data()?;
                         SHOULD_UPDATE.store(true, Ordering::SeqCst);
                         self.online = false;
-                        show_message_ex(tl!("download-success"), MessageKind::Ok);
+                        show_message(tl!("download-success")).ok();
                     }
                 }
                 self.downloading = None;

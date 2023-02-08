@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+crate::tl_file!("game");
+
 use super::{draw_background, ending::RecordUpdateState, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene};
 use crate::{
     config::Config,
@@ -549,7 +551,7 @@ impl GameScene {
                     }
                 }
                 ui.dy(0.2);
-                let r = ui.text("至").size(0.8).anchor(0.5, 0.).draw();
+                let r = ui.text(tl!("to")).size(0.8).anchor(0.5, 0.).draw();
                 let mut tx = ui
                     .text(fmt_time(self.exercise_range.start))
                     .pos(r.x - 0.02, 0.)
@@ -605,7 +607,7 @@ impl GameScene {
             ui.dy(ui.top - height - 0.02);
             ui.fill_rect(Rect::new(0., 0., width, height), GRAY);
             ui.dy(0.02);
-            ui.text("调整延迟").pos(width / 2., 0.).anchor(0.5, 0.).size(0.7).draw();
+            ui.text(tl!("adjust-offset")).pos(width / 2., 0.).anchor(0.5, 0.).size(0.7).draw();
             ui.dy(0.16);
             let r = ui
                 .text(format!("{}ms", (self.info_offset * 1000.).round() as i32))
@@ -639,15 +641,15 @@ impl GameScene {
             let pad = 0.02;
             let spacing = 0.01;
             let mut r = Rect::new(pad, 0., (width - pad * 2. - spacing * 2.) / 3., 0.06);
-            if ui.button("cancel", r, "取消") {
+            if ui.button("cancel", r, tl!("offset-cancel")) {
                 self.next_scene = Some(NextScene::PopWithResult(Box::new(None::<f32>)));
             }
             r.x += r.w + spacing;
-            if ui.button("reset", r, "重置") {
+            if ui.button("reset", r, tl!("offset-reset")) {
                 self.info_offset = 0.;
             }
             r.x += r.w + spacing;
-            if ui.button("save", r, "保存") {
+            if ui.button("save", r, tl!("offset-save")) {
                 self.next_scene = Some(NextScene::PopWithResult(Box::new(Some(self.info_offset))));
             }
         });
@@ -860,25 +862,25 @@ impl Scene for GameScene {
                 "exercise_start" => {
                     if let Some(t) = parse_time(&text) {
                         if !(offset..self.res.track_length.min(self.exercise_range.end - 3.).max(offset)).contains(&t) {
-                            show_message("时间不在范围内");
+                            show_message(tl!("ex-time-out-of-range")).warn();
                         } else {
                             self.exercise_range.start = t;
-                            show_message("设置成功");
+                            show_message(tl!("ex-time-set")).ok();
                         }
                     } else {
-                        show_message("格式有误");
+                        show_message(tl!("ex-invalid-format")).warn();
                     }
                 }
                 "exercise_end" => {
                     if let Some(t) = parse_time(&text) {
                         if !((self.exercise_range.start + 3.).max(offset).min(self.res.track_length)..self.res.track_length).contains(&t) {
-                            show_message("时间不在范围内");
+                            show_message(tl!("ex-time-out-of-range")).warn();
                         } else {
                             self.exercise_range.end = t;
-                            show_message("设置成功");
+                            show_message(tl!("ex-time-set")).ok();
                         }
                     } else {
-                        show_message("格式有误");
+                        show_message(tl!("ex-invalid-format")).warn();
                     }
                 }
                 _ => return_input(id, text),

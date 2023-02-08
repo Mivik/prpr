@@ -40,40 +40,69 @@ pub fn show_error(error: Error) {
     Dialog::error(error).show();
 }
 
-pub struct MessageParams {
+pub struct MessageBuilder {
+    content: String,
     kind: MessageKind,
     duration: f32,
 }
 
-impl From<(MessageKind, f32)> for MessageParams {
-    #[inline]
-    fn from((kind, duration): ( MessageKind, f32)) -> Self {
+impl MessageBuilder {
+    pub fn new(content: String) -> Self {
         Self {
-            kind,
-            duration,
+            content,
+            kind: MessageKind::Info,
+            duration: 2.,
         }
     }
-}
 
-impl From<MessageKind> for MessageParams {
     #[inline]
-    fn from(kind: MessageKind) -> Self {
-        (kind, 2.).into()
+    pub fn kind(mut self, kind: MessageKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    #[inline]
+    pub fn duration(mut self, t: f32) -> Self {
+        self.duration = t;
+        self
+    }
+
+    #[inline]
+    pub fn ok(self) -> Self {
+        self.kind(MessageKind::Ok)
+    }
+
+    #[inline]
+    pub fn warn(self) -> Self {
+        self.kind(MessageKind::Warn)
+    }
+
+    fn show(&mut self) -> MessageHandle {
+        BILLBOARD.with(|it| {
+            let mut guard = it.borrow_mut();
+            let (msg, handle) = Message::new(std::mem::take(&mut self.content), guard.1.now() as _, self.duration, self.kind.clone());
+            guard.0.add(msg);
+            handle
+        })
+    }
+
+    #[inline]
+    pub fn handle(mut self) -> MessageHandle {
+        let handle = self.show();
+        std::mem::forget(self);
+        handle
     }
 }
 
-pub fn show_message(msg: impl Into<String>) -> MessageHandle {
-    show_message_ex(msg, MessageKind::Info)
+impl Drop for MessageBuilder {
+    fn drop(&mut self) {
+        self.show();
+    }
 }
 
-pub fn show_message_ex(msg: impl Into<String>, params: impl Into<MessageParams>) -> MessageHandle {
-    let params = params.into();
-    BILLBOARD.with(|it| {
-        let mut guard = it.borrow_mut();
-        let (msg, handle) = Message::new(msg.into(), guard.1.now() as _, params.duration, params.kind);
-        guard.0.add(msg);
-        handle
-    })
+#[inline]
+pub fn show_message(msg: impl Into<String>) -> MessageBuilder {
+    MessageBuilder::new(msg.into())
 }
 
 pub static INPUT_TEXT: Mutex<(Option<String>, Option<String>)> = Mutex::new((None, None));

@@ -11,7 +11,7 @@ use std::{
 pub const OUT_TIME: f32 = 0.8;
 pub const PADDING: f32 = 0.02;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 #[repr(u8)]
 pub enum MessageKind {
     #[default]
