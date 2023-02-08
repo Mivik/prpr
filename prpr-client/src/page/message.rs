@@ -84,6 +84,7 @@ impl Page for MessagePage {
         for (id, (_, btn)) in self.messages.iter_mut().enumerate() {
             if btn.touch(touch) {
                 self.focus = if self.focus == Some(id) { None } else { Some(id) };
+                self.content_scroll.y_scroller.set_offset(0.);
                 if self.has_new {
                     get_data_mut().message_check_time = Some(Utc::now());
                     save_data()?;
