@@ -16,9 +16,9 @@ use macroquad::{prelude::*, texture::RenderTarget};
 use prpr::{
     core::Tweenable,
     ext::{screen_aspect, SafeTexture, ScaleType},
-    scene::{show_error, show_message, NextScene, Scene},
+    scene::{show_error, show_message, NextScene, Scene, show_message_ex},
     time::TimeManager,
-    ui::{RectButton, Scroll, Ui},
+    ui::{RectButton, Scroll, Ui, MessageKind},
 };
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -324,7 +324,7 @@ impl Scene for MainScene {
                     if let Err(err) = err {
                         show_error(err.context(tl!("delete-failed")));
                     } else {
-                        show_message(tl!("delete-success"));
+                        show_message_ex(tl!("delete-success"), MessageKind::Ok);
                     }
                 }
                 self.shared_state.transit = None;

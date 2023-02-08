@@ -32,8 +32,8 @@ already-downloaded = 已经下载过
 downloading = 正在下载
 request-failed = 请求失败
 download-cancelled = 已取消
-download-success = { $name } 下载完成
-download-failed = { $name } 下载失败
+download-success = 下载完成
+download-failed = 下载失败
 
 edit-cancel = 取消
 edit-upload = 上传

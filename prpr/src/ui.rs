@@ -1,5 +1,5 @@
 mod billboard;
-pub use billboard::BillBoard;
+pub use billboard::{BillBoard, MessageKind, MessageHandle, Message};
 
 mod chart_info;
 pub use chart_info::*;

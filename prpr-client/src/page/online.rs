@@ -10,9 +10,9 @@ use anyhow::Result;
 use macroquad::prelude::{Rect, Touch};
 use prpr::{
     ext::SafeTexture,
-    scene::{show_error, show_message},
+    scene::{show_error, show_message, show_message_ex},
     task::Task,
-    ui::{Scroll, Ui},
+    ui::{MessageHandle, Scroll, Ui, MessageKind},
 };
 use std::borrow::Cow;
 
@@ -32,7 +32,7 @@ pub struct OnlinePage {
     task_load: Task<Result<(Vec<(ChartItem, LCFile)>, usize)>>,
     illu_files: Vec<LCFile>,
     first_time: bool,
-    loading: bool,
+    loading: Option<MessageHandle>,
 }
 
 impl OnlinePage {
@@ -51,17 +51,16 @@ impl OnlinePage {
             task_load: Task::pending(),
             illu_files: Vec::new(),
             first_time: true,
-            loading: false,
+            loading: None,
         }
     }
 
     fn refresh(&mut self, state: &mut SharedState) {
-        if self.loading {
+        if self.loading.is_some() {
             return;
         }
         state.charts_online.clear();
-        show_message(tl!("loading"));
-        self.loading = true;
+        self.loading = Some(show_message(tl!("loading")));
         let order = self.order_box.to_order();
         let page = self.page;
         self.task_load = Task::new({
@@ -126,10 +125,10 @@ impl Page for OnlinePage {
         }
         self.scroll.update(t);
         if let Some(charts) = self.task_load.take() {
-            self.loading = false;
+            self.loading.take().unwrap().cancel();
             match charts {
                 Ok((charts, total_page)) => {
-                    show_message(tl!("loaded"));
+                    show_message_ex(tl!("loaded"), MessageKind::Ok);
                     self.total_page = total_page;
                     (state.charts_online, self.illu_files) = charts.into_iter().unzip();
                 }
@@ -144,7 +143,7 @@ impl Page for OnlinePage {
 
     fn touch(&mut self, touch: &Touch, state: &mut SharedState) -> Result<bool> {
         let t = state.t;
-        if !self.loading && self.order_box.touch(touch) {
+        if self.loading.is_none() && self.order_box.touch(touch) {
             self.page = 0;
             self.refresh(state);
             return Ok(true);
@@ -185,7 +184,7 @@ impl Page for OnlinePage {
                 .anchor(0., 0.5)
                 .no_baseline()
                 .draw();
-            if !self.loading {
+            if self.loading.is_none() {
                 ui.dx(tr.w + 0.02);
                 let r = Rect::new(0., 0.01, 0.2, r.h - 0.02);
                 if self.page != 0 {

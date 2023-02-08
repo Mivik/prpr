@@ -19,10 +19,10 @@ use prpr::{
     ext::{poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, ZipFileSystem},
     info::ChartInfo,
-    scene::{show_error, show_message, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
+    scene::{show_error, show_message, show_message_ex, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
     task::Task,
     time::TimeManager,
-    ui::{render_chart_info, ChartInfoEdit, Dialog, RectButton, Scroll, Ui},
+    ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, MessageKind, RectButton, Scroll, Ui},
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -164,7 +164,7 @@ pub struct SongScene {
     side_content: SideContent,
     side_enter_time: f32,
 
-    downloading: Option<(String, Arc<Mutex<f32>>, Task<Result<LocalChart>>)>,
+    downloading: Option<(String, Arc<Mutex<f32>>, MessageHandle, Task<Result<LocalChart>>)>,
     leaderboard_task: Option<Task<Result<QueryResult<LCRecord>>>>,
     leaderboard_scroll: Scroll,
     leaderboards: Option<Vec<LCRecord>>,
@@ -298,7 +298,7 @@ impl SongScene {
         let r = Rect::new(-s, -s, s * 2., s * 2.);
         ui.fill_rect(r, (if self.online { *self.icon_download } else { *self.icon_play }, r, ScaleType::Fit, color));
         if self.online {
-            let p = self.downloading.as_ref().map_or(0., |(_, p, _)| *p.lock().unwrap());
+            let p = self.downloading.as_ref().map_or(0., |(_, p, ..)| *p.lock().unwrap());
             let r = r.feather(0.04);
             ui.fill_rect(Rect::new(r.x, r.y + r.h * (1. - p), r.w, r.h * p), color);
         }
@@ -604,7 +604,7 @@ impl SongScene {
             show_message(tl!("already-downloaded")); // TODO redirect instead of showing this
             return Ok(());
         }
-        show_message(tl!("downloading"));
+        let handle = show_message(tl!("downloading"));
         let url = self.chart.path.clone();
         let chart = LocalChart {
             info: self.chart.info.clone(),
@@ -615,6 +615,7 @@ impl SongScene {
         self.downloading = Some((
             chart.info.name.clone(),
             progress,
+            handle,
             Task::new({
                 let path = format!("{}/{}", dir::downloaded_charts()?, id);
                 async move {
@@ -764,7 +765,8 @@ impl Scene for SongScene {
                 }
                 if (loaded || self.online) && self.center_button.touch(touch) {
                     if self.online {
-                        if self.downloading.take().is_some() {
+                        if let Some((.., handle, _)) = self.downloading.take() {
+                            handle.cancel();
                             show_message(tl!("download-cancelled"));
                         } else {
                             self.start_download()?;
@@ -951,27 +953,24 @@ impl Scene for SongScene {
                 Ok(())
             }));
         }
-        let mut downloaded = Vec::new();
-        if let Some((name, _, task)) = &mut self.downloading {
-            if task.ok() {
-                downloaded.push((name.clone(), task.take().unwrap()));
-                self.downloading = None;
-            }
-        }
-        for (name, res) in downloaded {
-            match res {
-                Err(err) => {
-                    show_error(err.context(tl!("download-failed", "name" => name)));
-                }
-                Ok(chart) => {
-                    self.chart.info = chart.info.clone();
-                    self.chart.path = chart.path.clone();
-                    self.info_task = Some(create_info_task(chart.path.clone(), chart.info.clone()));
-                    get_data_mut().charts.push(chart);
-                    save_data()?;
-                    SHOULD_UPDATE.store(true, Ordering::SeqCst);
-                    self.online = false;
-                    show_message(tl!("download-success", "name" => name));
+        if self.downloading.as_ref().map_or(false, |it| it.3.ok()) {
+            let (.., handle, mut task) = self.downloading.take().unwrap();
+            if let Some(res) = task.take() {
+                handle.cancel();
+                match res {
+                    Err(err) => {
+                        show_error(err.context(tl!("download-failed")));
+                    }
+                    Ok(chart) => {
+                        self.chart.info = chart.info.clone();
+                        self.chart.path = chart.path.clone();
+                        self.info_task = Some(create_info_task(chart.path.clone(), chart.info.clone()));
+                        get_data_mut().charts.push(chart);
+                        save_data()?;
+                        SHOULD_UPDATE.store(true, Ordering::SeqCst);
+                        self.online = false;
+                        show_message_ex(tl!("download-success"), MessageKind::Ok);
+                    }
                 }
             }
         }

@@ -8,10 +8,10 @@ mod loading;
 pub use loading::LoadingScene;
 
 use crate::{
-    ext::{draw_image, screen_aspect, ScaleType},
+    ext::{draw_image, screen_aspect, SafeTexture, ScaleType},
     judge::Judge,
     time::TimeManager,
-    ui::{BillBoard, Dialog, Ui},
+    ui::{BillBoard, Dialog, Message, MessageHandle, MessageKind, Ui},
 };
 use anyhow::{Error, Result};
 use cfg_if::cfg_if;
@@ -40,12 +40,40 @@ pub fn show_error(error: Error) {
     Dialog::error(error).show();
 }
 
-pub fn show_message(msg: impl Into<String>) {
+pub struct MessageParams {
+    kind: MessageKind,
+    duration: f32,
+}
+
+impl From<(MessageKind, f32)> for MessageParams {
+    #[inline]
+    fn from((kind, duration): ( MessageKind, f32)) -> Self {
+        Self {
+            kind,
+            duration,
+        }
+    }
+}
+
+impl From<MessageKind> for MessageParams {
+    #[inline]
+    fn from(kind: MessageKind) -> Self {
+        (kind, 2.).into()
+    }
+}
+
+pub fn show_message(msg: impl Into<String>) -> MessageHandle {
+    show_message_ex(msg, MessageKind::Info)
+}
+
+pub fn show_message_ex(msg: impl Into<String>, params: impl Into<MessageParams>) -> MessageHandle {
+    let params = params.into();
     BILLBOARD.with(|it| {
         let mut guard = it.borrow_mut();
-        let t = guard.1.now() as _;
-        guard.0.add(msg, t);
-    });
+        let (msg, handle) = Message::new(msg.into(), guard.1.now() as _, params.duration, params.kind);
+        guard.0.add(msg);
+        handle
+    })
 }
 
 pub static INPUT_TEXT: Mutex<(Option<String>, Option<String>)> = Mutex::new((None, None));
@@ -269,10 +297,17 @@ pub struct Main {
 }
 
 impl Main {
-    pub fn new(mut scene: Box<dyn Scene>, mut tm: TimeManager, mut target_chooser: impl RenderTargetChooser + 'static) -> Result<Self> {
+    pub async fn new(mut scene: Box<dyn Scene>, mut tm: TimeManager, mut target_chooser: impl RenderTargetChooser + 'static) -> Result<Self> {
         simulate_mouse_with_touch(false);
         scene.enter(&mut tm, target_chooser.choose())?;
         let last_update_time = tm.now();
+        macro_rules! load_tex {
+            ($path:literal) => {
+                SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
+            };
+        }
+        let icons = [load_tex!("info.png"), load_tex!("warn.png"), load_tex!("ok.png")];
+        BILLBOARD.with(|it| it.borrow_mut().0.set_icons(icons));
         Ok(Self {
             scenes: vec![scene],
             times: Vec::new(),

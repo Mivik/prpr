@@ -138,7 +138,7 @@ async fn the_main() -> Result<()> {
     let font = FontArc::try_from_vec(load_file("font.ttf").await?)?;
     let mut painter = TextPainter::new(font);
 
-    let mut main = Main::new(Box::new(MainScene::new().await?), TimeManager::default(), None)?;
+    let mut main = Main::new(Box::new(MainScene::new().await?), TimeManager::default(), None).await?;
 
     let tm = TimeManager::default();
     let mut fps_time = -1;
