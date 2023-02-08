@@ -375,7 +375,7 @@ impl SongScene {
                         "intro" => self.chart.info.intro.as_str(),
                         "tags" => self.chart.info.tags.iter().map(|it| format!("#{it}")).join(" "),
                         "level" => self.chart.info.level.as_str(),
-                        "difficulty" => self.chart.info.difficulty,
+                        "difficulty" => format!("{:.1}", self.chart.info.difficulty),
                         "composer" => self.chart.info.composer.as_str(),
                         "illustrator" => self.chart.info.illustrator.as_str()
                     ))

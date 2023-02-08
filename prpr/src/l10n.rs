@@ -1,4 +1,5 @@
 pub use fluent::{fluent_args, FluentBundle, FluentResource};
+use miniquad::warn;
 pub use once_cell::sync::Lazy;
 pub use unic_langid::{langid, LanguageIdentifier};
 
@@ -146,7 +147,11 @@ impl L10nLocal {
 
     pub fn format<'s>(&mut self, key: &'static str, args: Option<&'s FluentArgs<'s>>) -> Cow<'s, str> {
         let mut errors = Vec::new();
-        self.format_with_errors(key, args, &mut errors)
+        let res = self.format_with_errors(key, args, &mut errors);
+        for error in errors {
+            warn!("Message error {}: {:?}", key, error);
+        }
+        res
     }
 }
 
