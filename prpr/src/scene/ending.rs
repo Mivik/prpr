@@ -167,7 +167,7 @@ impl Scene for EndingScene {
                     }
                     Ok(state) => {
                         self.update_state = Some(state);
-                        show_message(tl!("uploaded")).ok().duration(1.);
+                        show_message(tl!("uploaded")).ok();
                     }
                 }
                 self.upload_task = None;
