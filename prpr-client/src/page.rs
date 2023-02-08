@@ -181,7 +181,7 @@ impl SharedState {
                     }
                 }
                 ui.fill_path(&path, (*chart.illustration.0, Rect::new(0., 0., cw, ch)));
-                ui.fill_path(&path, (Color::new(0., 0., 0., 0.3), (0., 0.), Color::new(0., 0., 0., 0.8), (0., ch)));
+                ui.fill_path(&path, (Color::new(0., 0., 0., 0.4), (0., 0.), Color::new(0., 0., 0., 0.8), (0., ch)));
                 ui.text(&chart.info.name)
                     .pos(p + 0.01, ch - p - 0.02)
                     .max_width(cw - p * 2.)

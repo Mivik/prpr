@@ -138,7 +138,7 @@ impl Page for SettingsPage {
                         self.res_pack = res_pack;
                         get_data_mut().config.res_pack_path = dst;
                         save_data()?;
-                        show_message(tl!("respack-loaded"));
+                        show_message(tl!("respack-loaded")).ok();
                     }
                 }
             }
@@ -294,10 +294,10 @@ impl Page for SettingsPage {
                         self.reset_time = f32::NEG_INFINITY;
                         *config = prpr::config::Config::default();
                         if let Err(err) = save_data() {
-                            show_error(err.context("保存失败"));
+                            show_error(err.context(tl!("save-failed")));
                         } else {
                             self.load_res_task = Self::new_res_task(None);
-                            show_message("设定恢复成功");
+                            show_message(tl!("reset-all-done")).ok();
                         }
                     } else {
                         self.reset_time = t;

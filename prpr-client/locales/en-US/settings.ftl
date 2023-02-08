@@ -32,3 +32,5 @@ default = [Default]
 invalid-input = Invalid input
 reset-all = Restore default settings
 confirm-reset = Sure?
+reset-all-done = Settings are restored
+save-failed = Failed to save config
