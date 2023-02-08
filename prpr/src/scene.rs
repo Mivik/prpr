@@ -1,3 +1,5 @@
+crate::tl_file!("scene" ttl);
+
 mod ending;
 pub use ending::{EndingScene, RecordUpdateState};
 
@@ -77,6 +79,11 @@ impl MessageBuilder {
         self.kind(MessageKind::Warn)
     }
 
+    #[inline]
+    pub fn error(self) -> Self {
+        self.kind(MessageKind::Error)
+    }
+
     fn show(&mut self) -> MessageHandle {
         BILLBOARD.with(|it| {
             let mut guard = it.borrow_mut();
@@ -128,8 +135,8 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
 
                 let alert: ObjcId = msg_send![
                     class!(UIAlertController),
-                    alertControllerWithTitle: str_to_ns("输入")
-                    message: str_to_ns("请输入文字")
+                    alertControllerWithTitle: str_to_ns(ttl!("input"))
+                    message: str_to_ns(ttl!("input-msg"))
                     preferredStyle: 1
                 ];
 
@@ -151,7 +158,7 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
 
                 let text = text.to_owned();
                 let _: () = msg_send![alert, addTextFieldWithConfigurationHandler: ConcreteBlock::new(move |field: ObjcId| {
-                    let _: () = msg_send![field, setPlaceholder: str_to_ns("文字")];
+                    let _: () = msg_send![field, setPlaceholder: str_to_ns(tl!("input-hint"))];
                     let _: () = msg_send![field, setText: str_to_ns(&text)];
                 }).copy()];
 
@@ -164,7 +171,7 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
             }
         } else {
             INPUT_TEXT.lock().unwrap().1 = Some(unsafe { get_internal_gl() }.quad_context.clipboard_get().unwrap_or_default());
-            show_message("从剪贴板加载成功");
+            show_message(ttl!("pasted")).ok();
         }
     }
 }
@@ -201,17 +208,17 @@ pub fn request_file(id: impl Into<String>) {
                             let url: ObjcId = msg_send![documents, firstObject];
                             let successful: bool = msg_send![url, startAccessingSecurityScopedResource];
                             if !successful {
-                                show_message("读取文件失败");
+                                show_message(ttl!("read-file-failed")).error();
                                 return;
                             }
                             let mut error: ObjcId = std::ptr::null_mut();
                             let data: ObjcId = msg_send![class!(NSData), dataWithContentsOfURL: url options: 2 error: &mut error as *mut ObjcId];
                             let _: () = msg_send![url, stopAccessingSecurityScopedResource];
                             if data.is_null() {
-                                show_message("读取文件失败");
+                                show_message(ttl!("read-file-failed")).error();
                                 if !error.is_null() {
                                     let msg: *const NSString = msg_send![error, localizedDescription];
-                                    show_error(Error::msg((*msg).as_str()).context("读取文件失败"));
+                                    show_error(Error::msg((*msg).as_str()).with_context(|| ttl!("read-file-failed")));
                                 }
                             } else {
                                 extern "C" {
@@ -335,7 +342,7 @@ impl Main {
                 SafeTexture::from(Texture2D::from_image(&load_image($path).await?))
             };
         }
-        let icons = [load_tex!("info.png"), load_tex!("warn.png"), load_tex!("ok.png")];
+        let icons = [load_tex!("info.png"), load_tex!("warn.png"), load_tex!("ok.png"), load_tex!("error.png")];
         BILLBOARD.with(|it| it.borrow_mut().0.set_icons(icons));
         Ok(Self {
             scenes: vec![scene],

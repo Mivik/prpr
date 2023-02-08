@@ -18,6 +18,7 @@ pub enum MessageKind {
     Info,
     Warn,
     Ok,
+    Error,
 }
 
 impl MessageKind {
@@ -26,6 +27,7 @@ impl MessageKind {
             Self::Info => Color::new(0.16, 0.71, 0.96, 1.),
             Self::Warn => Color::new(1., 0.66, 0.15, 1.),
             Self::Ok => Color::new(0.4, 0.73, 0.42, 1.),
+            Self::Error => Color::new(0.96, 0.26, 0.21, 1.),
         }
     }
 }
@@ -74,7 +76,7 @@ impl MessageHandle {
 
 pub struct BillBoard {
     messages: Vec<Message>,
-    icons: Option<[SafeTexture; 3]>,
+    icons: Option<[SafeTexture; 4]>,
 }
 
 impl Default for BillBoard {
@@ -91,7 +93,7 @@ impl BillBoard {
         }
     }
 
-    pub fn set_icons(&mut self, icons: [SafeTexture; 3]) {
+    pub fn set_icons(&mut self, icons: [SafeTexture; 4]) {
         self.icons = Some(icons);
     }
 

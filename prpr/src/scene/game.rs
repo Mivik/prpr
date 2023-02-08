@@ -862,25 +862,25 @@ impl Scene for GameScene {
                 "exercise_start" => {
                     if let Some(t) = parse_time(&text) {
                         if !(offset..self.res.track_length.min(self.exercise_range.end - 3.).max(offset)).contains(&t) {
-                            show_message(tl!("ex-time-out-of-range")).warn();
+                            show_message(tl!("ex-time-out-of-range")).error();
                         } else {
                             self.exercise_range.start = t;
                             show_message(tl!("ex-time-set")).ok();
                         }
                     } else {
-                        show_message(tl!("ex-invalid-format")).warn();
+                        show_message(tl!("ex-invalid-format")).error();
                     }
                 }
                 "exercise_end" => {
                     if let Some(t) = parse_time(&text) {
                         if !((self.exercise_range.start + 3.).max(offset).min(self.res.track_length)..self.res.track_length).contains(&t) {
-                            show_message(tl!("ex-time-out-of-range")).warn();
+                            show_message(tl!("ex-time-out-of-range")).error();
                         } else {
                             self.exercise_range.end = t;
                             show_message(tl!("ex-time-set")).ok();
                         }
                     } else {
-                        show_message(tl!("ex-invalid-format")).warn();
+                        show_message(tl!("ex-invalid-format")).error();
                     }
                 }
                 _ => return_input(id, text),
