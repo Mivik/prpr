@@ -79,7 +79,7 @@ impl Page for AccountPage {
                             get_data_mut().me = Some(user);
                             save_data()?;
                         }
-                        show_message(tl!("action-success", "action" => action));
+                        show_message(tl!("action-success", "action" => action)).ok().duration(1.);
                         if action == "register" {
                             show_message(tl!("email-sent"));
                         }

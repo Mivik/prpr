@@ -1,3 +1,5 @@
+crate::tl_file!("chart_info");
+
 use super::Ui;
 use crate::{
     ext::RectExt,
@@ -5,7 +7,7 @@ use crate::{
     scene::{request_input, return_input, show_message, take_input},
 };
 use anyhow::Result;
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 #[derive(Clone)]
 pub struct ChartInfoEdit {
@@ -57,35 +59,35 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
                 ui.dy(dy);
             }};
         }
-        let r = ui.text("编辑谱面").size(0.7).draw();
+        let r = ui.text(tl!("edit-chart")).size(0.7).draw();
         dy!(r.h + 0.04);
-        let rt = ui.text("显示难度").size(0.4).measure().w;
+        let rt = 0.2;
         ui.dx(rt);
         let len = width - 0.2;
         let info = &mut edit.info;
-        let r = ui.input("谱面名", &mut info.name, len);
+        let r = ui.input(tl!("chart-name"), &mut info.name, len);
         dy!(r.h + s);
-        let r = ui.input("作者", &mut info.charter, len);
+        let r = ui.input(tl!("author"), &mut info.charter, len);
         dy!(r.h + s);
-        let r = ui.input("曲师", &mut info.composer, len);
+        let r = ui.input(tl!("composer"), &mut info.composer, len);
         dy!(r.h + s);
-        let r = ui.input("画师", &mut info.illustrator, len);
+        let r = ui.input(tl!("illustrator"), &mut info.illustrator, len);
         dy!(r.h + s + 0.02);
 
-        let r = ui.input("显示难度", &mut info.level, len);
+        let r = ui.input(tl!("level-displayed"), &mut info.level, len);
         dy!(r.h + s);
 
         ui.dx(-rt);
-        let r = ui.slider("难度", 0.0..20.0, 0.1, &mut info.difficulty, Some(width - 0.2));
+        let r = ui.slider(tl!("diff"), 0.0..20.0, 0.1, &mut info.difficulty, Some(width - 0.2));
         dy!(r.h + s + 0.01);
         ui.dx(rt);
 
         let mut string = format!("{:.2}", info.preview_time);
-        let r = ui.input("预览时间", &mut string, len);
+        let r = ui.input(tl!("preview-time"), &mut string, len);
         dy!(r.h + s);
         match string.parse::<f32>() {
             Err(_) => {
-                show_message("输入非法");
+                show_message(tl!("illegal-input")).error();
             }
             Ok(value) => {
                 info.preview_time = value;
@@ -93,11 +95,11 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
         }
 
         let mut string = format!("{:.3}", info.offset);
-        let r = ui.input("偏移(s)", &mut string, len);
+        let r = ui.input(tl!("offset"), &mut string, len);
         dy!(r.h + s);
         match string.parse::<f32>() {
             Err(_) => {
-                show_message("输入非法");
+                show_message(tl!("illegal-input")).error();
             }
             Ok(value) => {
                 info.offset = value;
@@ -105,7 +107,7 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
         }
 
         let mut string = format!("{:.5}", info.aspect_ratio);
-        let r = ui.input("宽高比", &mut string, len);
+        let r = ui.input(tl!("aspect-ratio"), &mut string, len);
         dy!(r.h + s);
         match || -> Result<f32> {
             if let Some((w, h)) = string.split_once(':') {
@@ -115,25 +117,19 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
             }
         }() {
             Err(_) => {
-                show_message("输入非法");
+                show_message(tl!("illegal-input")).error();
             }
             Ok(value) => {
                 info.aspect_ratio = value;
             }
         }
         dy!(ui.scope(|ui| {
-            ui.text("注：").anchor(1., 0.).size(0.35).draw();
-            ui.text("宽高比可以直接填小数，也可以是 w:h 的形式（英文半角冒号）")
-                .size(0.35)
-                .max_width(len)
-                .multiline()
-                .draw()
-                .h
-                + 0.03
+            ui.text(tl!("ps")).anchor(1., 0.).size(0.35).draw();
+            ui.text(tl!("aspect-hint")).size(0.35).max_width(len).multiline().draw().h + 0.03
         }));
 
         ui.dx(-rt);
-        let r = ui.slider("背景昏暗", 0.0..1.0, 0.05, &mut info.background_dim, Some(width - 0.2));
+        let r = ui.slider(tl!("dim"), 0.0..1.0, 0.05, &mut info.background_dim, Some(width - 0.2));
         dy!(r.h + s + 0.01);
         ui.dx(rt);
 
@@ -141,7 +137,7 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
         {
             use crate::scene::{request_file, return_file, take_file};
             use macroquad::prelude::Rect;
-            let mut choose_file = |id: &str, label: &str, value: &str| {
+            let mut choose_file = |id: &str, label: Cow<'static, str>, value: &str| {
                 let r = ui.text(label).size(0.4).anchor(1., 0.).draw();
                 let r = Rect::new(0.02, r.y - 0.01, len, r.h + 0.02);
                 if ui.button(id, r, value) {
@@ -149,9 +145,9 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
                 }
                 dy!(r.h + s);
             };
-            choose_file("file_chart", "谱面文件", &info.chart);
-            choose_file("file_music", "音乐文件", &info.music);
-            choose_file("file_illustration", "插图文件", &info.illustration);
+            choose_file("file_chart", tl!("chart-file"), &info.chart);
+            choose_file("file_music", tl!("music-file"), &info.music);
+            choose_file("file_illustration", tl!("illu-file"), &info.illustration);
             if let Some((id, file)) = take_file() {
                 match id.as_str() {
                     "file_chart" => {
@@ -169,14 +165,15 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
         }
 
         let mut string = info.tip.clone().unwrap_or_default();
-        let r = ui.input("Tip", &mut string, len);
+        let r = ui.input(tl!("tip"), &mut string, len);
+
         dy!(r.h + s);
         info.tip = if string.is_empty() { None } else { Some(string) };
 
-        let r = ui.input("简介", &mut info.intro, len);
+        let r = ui.input(tl!("intro"), &mut info.intro, len);
         dy!(r.h + s + 0.02);
 
-        let r = ui.text("标签").anchor(1., 0.).size(0.4).draw();
+        let r = ui.text(tl!("tags")).anchor(1., 0.).size(0.4).draw();
         ui.dx(0.02);
         let max = width - 0.1;
         let mut cx = 0.;
@@ -208,7 +205,7 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
         if let Some((id, text)) = take_input() {
             if id == "new_tag" {
                 if info.tags.iter().any(|it| it == &text) {
-                    show_message("Tag 已存在");
+                    show_message(tl!("tag-exists")).warn();
                 } else {
                     info.tags.push(text);
                 }

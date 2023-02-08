@@ -758,7 +758,7 @@ impl Scene for SongScene {
                     if self.edit_button.touch(touch) {
                         self.info_edit = Some(ChartInfoEdit::new(self.chart_info.clone().unwrap()));
                         self.side_content = SideContent::Edit;
-                        self.side_width = 0.7;
+                        self.side_width = 0.8;
                         self.side_enter_time = rt;
                         return Ok(true);
                     }

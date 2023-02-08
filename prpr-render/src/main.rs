@@ -134,7 +134,7 @@ async fn the_main() -> Result<()> {
         }
     });
     let tex = Texture2D::from_miniquad_texture(texture);
-    let mut main = Main::new(Box::new(MainScene::new(target, info, config.clone(), fs.clone_box())), TimeManager::default(), None)?;
+    let mut main = Main::new(Box::new(MainScene::new(target, info, config.clone(), fs.clone_box())), TimeManager::default(), None).await?;
     let width = texture.width as f32 / 2.;
     loop {
         if main.scenes.len() == 1 {
@@ -287,7 +287,8 @@ async fn the_main() -> Result<()> {
                 }
             }
         },
-    )?;
+    )
+    .await?;
     main.show_billboard = false;
 
     const O: f64 = LoadingScene::TOTAL_TIME as f64 + GameScene::BEFORE_TIME as f64;

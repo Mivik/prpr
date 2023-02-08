@@ -1,3 +1,5 @@
+crate::tl_file!("dialog");
+
 use crate::scene::show_message;
 use anyhow::Error;
 
@@ -22,9 +24,9 @@ pub struct Dialog {
 impl Default for Dialog {
     fn default() -> Self {
         Self {
-            title: "提示".to_owned(),
+            title: tl!("notice").to_string(),
             message: String::new(),
-            buttons: vec!["确定".to_owned()],
+            buttons: vec![tl!("ok").to_string()],
             listener: None,
 
             scroll: Scroll::new(),
@@ -53,14 +55,14 @@ impl Dialog {
     pub fn error(error: Error) -> Self {
         let error = format!("{error:?}");
         Self {
-            title: "错误".to_owned(),
+            title: tl!("error").to_string(),
             message: error.clone(),
-            buttons: vec!["复制错误详情".to_owned(), "确定".to_owned()],
+            buttons: vec![tl!("error-copy").to_string(), tl!("ok").to_string()],
             listener: Some(Box::new(move |pos| {
                 if pos == 0 {
                     // TODO android
                     unsafe { get_internal_gl() }.quad_context.clipboard_set(&error);
-                    show_message("复制成功");
+                    show_message(tl!("error-copied")).ok();
                 }
             })),
 
