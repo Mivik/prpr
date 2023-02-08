@@ -765,7 +765,7 @@ impl Scene for SongScene {
                 }
                 if (loaded || self.online) && self.center_button.touch(touch) {
                     if self.online {
-                        if let Some((.., handle, _)) = self.downloading.take() {
+                        if let Some((.., mut handle, _)) = self.downloading.take() {
                             handle.cancel();
                             show_message(tl!("download-cancelled"));
                         } else {
@@ -953,8 +953,7 @@ impl Scene for SongScene {
                 Ok(())
             }));
         }
-        if self.downloading.as_ref().map_or(false, |it| it.3.ok()) {
-            let (.., handle, mut task) = self.downloading.take().unwrap();
+        if let Some((.., handle, task)) = &mut self.downloading {
             if let Some(res) = task.take() {
                 handle.cancel();
                 match res {
@@ -972,6 +971,7 @@ impl Scene for SongScene {
                         show_message_ex(tl!("download-success"), MessageKind::Ok);
                     }
                 }
+                self.downloading = None;
             }
         }
         Ok(())

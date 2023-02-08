@@ -58,15 +58,17 @@ impl Message {
                 kind,
                 handle,
             },
-            MessageHandle(ManuallyDrop::new(rc)),
+            MessageHandle(Some(ManuallyDrop::new(rc))),
         )
     }
 }
 
-pub struct MessageHandle(ManuallyDrop<Rc<()>>);
+pub struct MessageHandle(Option<ManuallyDrop<Rc<()>>>);
 impl MessageHandle {
-    pub fn cancel(self) {
-        ManuallyDrop::into_inner(self.0);
+    pub fn cancel(&mut self) {
+        if let Some(rc) = self.0.take() {
+            ManuallyDrop::into_inner(rc);
+        }
     }
 }
 

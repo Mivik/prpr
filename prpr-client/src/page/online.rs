@@ -128,7 +128,7 @@ impl Page for OnlinePage {
             self.loading.take().unwrap().cancel();
             match charts {
                 Ok((charts, total_page)) => {
-                    show_message_ex(tl!("loaded"), MessageKind::Ok);
+                    show_message_ex(tl!("loaded"), (MessageKind::Ok, 1.));
                     self.total_page = total_page;
                     (state.charts_online, self.illu_files) = charts.into_iter().unzip();
                 }

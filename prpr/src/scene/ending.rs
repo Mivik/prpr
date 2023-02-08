@@ -1,6 +1,6 @@
-use std::{cell::RefCell, ops::DerefMut};
+crate::tl_file!("ending");
 
-use super::{draw_background, draw_illustration, NextScene, Scene};
+use super::{draw_background, draw_illustration, show_message_ex, NextScene, Scene};
 use crate::{
     config::Config,
     ext::{
@@ -10,12 +10,13 @@ use crate::{
     judge::{Judge, PlayResult},
     scene::show_message,
     task::Task,
-    ui::{Dialog, Ui},
+    ui::{Dialog, MessageHandle, MessageKind, Ui},
 };
 use anyhow::Result;
 use macroquad::prelude::*;
 use sasa::{AudioClip, AudioManager, Music, MusicParams};
 use serde::Deserialize;
+use std::{cell::RefCell, ops::DerefMut};
 
 #[derive(Deserialize)]
 pub struct RecordUpdateState {
@@ -47,7 +48,7 @@ pub struct EndingScene {
     rated: bool,
 
     upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
-    upload_task: Option<Task<Result<RecordUpdateState>>>,
+    upload_task: Option<(Task<Result<RecordUpdateState>>, MessageHandle)>,
     record_data: Option<String>,
 }
 
@@ -76,10 +77,7 @@ impl EndingScene {
                 ..Default::default()
             },
         )?;
-        if record_data.is_some() {
-            show_message("成绩上传中");
-        }
-        let upload_task = record_data.clone().map(upload_fn.unwrap());
+        let upload_task = upload_fn.and_then(|f| record_data.clone().map(|data| (f(data), show_message(tl!("uploading")))));
         Ok(Self {
             background,
             illustration,
@@ -147,23 +145,20 @@ impl Scene for EndingScene {
             self.bgm.play()?;
         }
         if RE_UPLOAD.with(|it| std::mem::replace(it.borrow_mut().deref_mut(), false)) && self.upload_task.is_none() {
-            show_message("成绩上传中");
-            self.upload_task = self.record_data.clone().map(self.upload_fn.unwrap());
+            self.upload_task = self
+                .record_data
+                .clone()
+                .map(|data| ((self.upload_fn.unwrap())(data), show_message(tl!("uploading"))));
         }
-        if let Some(task) = &mut self.upload_task {
+        if let Some((task, handle)) = &mut self.upload_task {
             if let Some(result) = task.take() {
+                handle.cancel();
                 match result {
                     Err(err) => {
-                        println!("{err:?}");
-                        let error = format!("{:?}", err.context("上传成绩失败"));
-                        Dialog::plain("错误", error.clone())
-                            .buttons(vec!["复制错误详情".to_owned(), "重试".to_owned(), "取消上传".to_owned()])
+                        let error = format!("{:?}", err.context(tl!("upload-failed")));
+                        Dialog::plain(tl!("upload-failed"), error)
+                            .buttons(vec![tl!("upload-cancel").to_string(), tl!("retry").to_string()])
                             .listener(move |pos| {
-                                if pos == 0 {
-                                    // TODO android
-                                    unsafe { get_internal_gl() }.quad_context.clipboard_set(&error);
-                                    show_message("复制成功");
-                                }
                                 if pos == 1 {
                                     RE_UPLOAD.with(|it| *it.borrow_mut() = true);
                                 }
@@ -172,7 +167,7 @@ impl Scene for EndingScene {
                     }
                     Ok(state) => {
                         self.update_state = Some(state);
-                        show_message("成绩上传成功");
+                        show_message_ex(tl!("uploaded"), (MessageKind::Ok, 1.));
                     }
                 }
                 self.upload_task = None;
@@ -350,7 +345,7 @@ impl Scene for EndingScene {
         gl.pop_model_matrix();
         if p <= 0. && touched(r) {
             if self.upload_task.is_some() {
-                show_message("尚在上传成绩");
+                show_message(tl!("still-uploading"));
             }
             self.next = 1;
         }
@@ -364,7 +359,7 @@ impl Scene for EndingScene {
         gl.pop_model_matrix();
         if p <= 0. && touched(r) {
             if self.upload_task.is_some() {
-                show_message("尚在上传成绩");
+                show_message(tl!("still-uploading"));
             }
             self.next = 2;
         }
