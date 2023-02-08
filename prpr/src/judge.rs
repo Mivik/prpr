@@ -240,8 +240,8 @@ use inner::*;
 pub struct Judge {
     // notes of each line in order
     // LinkedList::drain_filter is unstable...
-    notes: Vec<(Vec<u32>, usize)>,
-    trackers: HashMap<u64, VelocityTracker>,
+    pub notes: Vec<(Vec<u32>, usize)>,
+    pub trackers: HashMap<u64, VelocityTracker>,
     pub last_time: f32,
 
     pub(crate) inner: JudgeInner,
