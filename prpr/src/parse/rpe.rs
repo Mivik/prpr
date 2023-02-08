@@ -420,7 +420,6 @@ async fn parse_judge_line(r: &mut BpmList, rpe: RPEJudgeLine, max_time: f32, fs:
             size: parse_ctrl_events(&rpe.size_control, "size"),
             pos: parse_ctrl_events(&rpe.pos_control, "pos"),
             y: parse_ctrl_events(&rpe.y_control, "y"),
-            ..Default::default()
         }),
         height,
         incline: if let Some(events) = rpe.extended.as_ref().and_then(|e| e.incline_events.as_ref()) {

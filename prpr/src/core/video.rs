@@ -142,29 +142,27 @@ impl Video {
         self.dim.set_time(t);
         let that_frame = ((t - self.start_time) as f64 / self.frame_delta) as usize;
         if self.next_frame <= that_frame {
-            if VIDEO_BUFFERS
-                .with(|it| -> Result<()> {
-                    let mut buf = it.borrow_mut();
-                    let (w, h) = self.size;
-                    let (w, h) = (w as usize, h as usize);
-                    buf[0].resize(w * h, 0);
-                    buf[1].resize(w * h / 4, 0);
-                    buf[2].resize(w * h / 4, 0);
-                    let out = self.child_output.as_mut().unwrap();
-                    while self.next_frame <= that_frame {
-                        out.read_exact(&mut buf[0])?;
-                        out.read_exact(&mut buf[1])?;
-                        out.read_exact(&mut buf[2])?;
-                        self.next_frame += 1;
-                    }
-                    let ctx = unsafe { get_internal_gl() }.quad_context;
-                    self.tex_y.raw_miniquad_texture_handle().update(ctx, &buf[0]);
-                    self.tex_u.raw_miniquad_texture_handle().update(ctx, &buf[1]);
-                    self.tex_v.raw_miniquad_texture_handle().update(ctx, &buf[2]);
-                    Ok(())
-                })
-                .is_err()
-            {
+            let result = VIDEO_BUFFERS.with(|it| -> Result<()> {
+                let mut buf = it.borrow_mut();
+                let (w, h) = self.size;
+                let (w, h) = (w as usize, h as usize);
+                buf[0].resize(w * h, 0);
+                buf[1].resize(w * h / 4, 0);
+                buf[2].resize(w * h / 4, 0);
+                let out = self.child_output.as_mut().unwrap();
+                while self.next_frame <= that_frame {
+                    out.read_exact(&mut buf[0])?;
+                    out.read_exact(&mut buf[1])?;
+                    out.read_exact(&mut buf[2])?;
+                    self.next_frame += 1;
+                }
+                let ctx = unsafe { get_internal_gl() }.quad_context;
+                self.tex_y.raw_miniquad_texture_handle().update(ctx, &buf[0]);
+                self.tex_u.raw_miniquad_texture_handle().update(ctx, &buf[1]);
+                self.tex_v.raw_miniquad_texture_handle().update(ctx, &buf[2]);
+                Ok(())
+            });
+            if result.is_err() {
                 self.ended = true;
             }
         }

@@ -137,7 +137,7 @@ impl GameScene {
     }
 
     pub async fn load_chart(fs: &mut dyn FileSystem, info: &ChartInfo) -> Result<(Chart, String, ChartFormat)> {
-        let extra = fs.load_file("extra.json").await.ok().map(|it| String::from_utf8(it)).transpose()?;
+        let extra = fs.load_file("extra.json").await.ok().map(String::from_utf8).transpose()?;
         let extra = if let Some(extra) = extra {
             let ffmpeg: PathBuf = FFMPEG_PATH.lock().unwrap().to_owned().unwrap_or_else(|| "ffmpeg".into());
             let ffmpeg = if match Command::new(&ffmpeg).stdout(Stdio::null()).stderr(Stdio::null()).spawn() {
@@ -769,7 +769,7 @@ impl Scene for GameScene {
                             self.res.challenge_icons[self.res.config.challenge_color.clone() as usize].clone(),
                             &self.res.config,
                             self.res.res_pack.ending.clone(),
-                            self.upload_fn.clone(),
+                            self.upload_fn,
                             record_data,
                         )?))),
                         GameMode::TweakOffset => Some(NextScene::PopWithResult(Box::new(None::<f32>))),
@@ -856,7 +856,6 @@ impl Scene for GameScene {
                 Some(res)
             };
             let offset = self.offset().min(0.);
-            #[allow(clippy::manual_clamp)]
             match id.as_str() {
                 "exercise_start" => {
                     if let Some(t) = parse_time(&text) {

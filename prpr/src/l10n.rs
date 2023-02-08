@@ -50,6 +50,12 @@ pub struct L10nGlobal {
     pub order: Mutex<Vec<usize>>,
 }
 
+impl Default for L10nGlobal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl L10nGlobal {
     pub fn new() -> Self {
         let mut lang_map = HashMap::new();
@@ -126,9 +132,12 @@ impl L10nLocal {
         }
         let (id, pattern) = self.cache.get_or_insert(key, || {
             let guard = GLOBAL.order.lock().unwrap();
-            for id in guard.iter() {
-                let Some(message) = self.bundles.inner[*id].get_message(key) else { continue; };
-                return (*id, message.value().unwrap());
+            if let Some((id, message)) = guard
+                .iter()
+                .filter_map(|id| self.bundles.inner[*id].get_message(key).map(|msg| (*id, msg)))
+                .next()
+            {
+                return (id, message.value().unwrap());
             }
             panic!("no translation found for {key}");
         });
