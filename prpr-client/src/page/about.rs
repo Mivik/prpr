@@ -8,15 +8,11 @@ use std::borrow::Cow;
 
 pub struct AboutPage {
     scroll: Scroll,
-    text: String,
 }
 
 impl AboutPage {
     pub fn new() -> Self {
-        Self {
-            scroll: Scroll::new(),
-            text: tl!("about", "version" => env!("CARGO_PKG_VERSION"))
-        }
+        Self { scroll: Scroll::new() }
     }
 }
 
@@ -41,7 +37,7 @@ impl Page for AboutPage {
         self.scroll.size(state.content_size);
         self.scroll.render(ui, |ui| {
             let r = ui
-                .text(&self.text)
+                .text(tl!("about", "version" => env!("CARGO_PKG_VERSION")))
                 .multiline()
                 .max_width((1. - SIDE_PADDING) * 2. - 0.02)
                 .size(0.5)
