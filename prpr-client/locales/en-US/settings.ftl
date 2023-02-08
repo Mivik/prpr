@@ -1,6 +1,7 @@
 label = Settings
 
 switch-language = 中文
+theme-prompt = Theme: { $name }
 
 respack-loaded = Resource pack loaded
 respack-load-failed = Failed to load resource pack

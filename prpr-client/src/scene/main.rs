@@ -3,6 +3,7 @@ prpr::tl_file!("main_scene");
 use super::{song::TrashBin, SongScene};
 use crate::{
     cloud::{LCFile, UserManager},
+    data::THEMES,
     dir, get_data, get_data_mut,
     page::{self, ChartItem, Page, SharedState},
     save_data,
@@ -198,6 +199,7 @@ impl Scene for MainScene {
         if let Some((.., st, _, true)) = &mut self.shared_state.transit {
             *st = tm.now() as _;
         } else {
+            tm.seek_to(rand::gen_range(1., 10.));
             show_message(tl!("welcome"));
         }
         if UPDATE_INFO.fetch_and(false, Ordering::SeqCst) {
@@ -260,7 +262,13 @@ impl Scene for MainScene {
             render_target: self.target,
             ..Default::default()
         });
-        clear_background(GRAY);
+        let t = tm.now() as f32 / 2.;
+        let rad = 1. + t.sin() * 0.2;
+        let dir = (t * 0.3).sin_cos();
+        let dir = (dir.0 * rad, dir.1 * rad);
+        let theme = THEMES[get_data().theme];
+        ui.fill_rect(ui.screen_rect(), (Color::from_hex(theme.1), dir, Color::from_hex(theme.2), (-dir.0, -dir.1)));
+        ui.fill_rect(ui.screen_rect(), Color::new(0., 0., 0., 0.3));
         ui.scope(|ui| self.ui(ui, tm.now() as _, tm.real_time() as _));
         if let Some((file, id, st, rect, back)) = &mut self.shared_state.transit {
             let online = file.is_some();

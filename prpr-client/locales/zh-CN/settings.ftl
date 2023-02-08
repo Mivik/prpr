@@ -1,6 +1,7 @@
 label = 设置
 
 switch-language = English
+theme-prompt = 主题：{ $name }
 
 respack-loaded = 资源包加载成功
 respack-load-failed = 加载资源包失败

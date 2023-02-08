@@ -1,5 +1,5 @@
 mod billboard;
-pub use billboard::{BillBoard, MessageKind, MessageHandle, Message};
+pub use billboard::{BillBoard, Message, MessageHandle, MessageKind};
 
 mod chart_info;
 pub use chart_info::*;
@@ -10,13 +10,16 @@ pub use dialog::Dialog;
 mod scroll;
 pub use scroll::Scroll;
 
+mod shading;
+pub use shading::*;
+
 mod text;
 pub use text::{DrawText, TextPainter};
 
 pub use glyph_brush::ab_glyph::FontArc;
 
 use crate::{
-    core::{Matrix, Point, Tweenable, Vector},
+    core::{Matrix, Point, Vector},
     ext::{get_viewport, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType},
     judge::Judge,
     scene::{request_input, return_input, take_input},
@@ -69,105 +72,23 @@ impl From<u8> for Gravity {
     }
 }
 
-struct ShadedConstructor(Matrix, pub Shading);
-
-impl FillVertexConstructor<Vertex> for ShadedConstructor {
+struct ShadedConstructor<T: Shading>(Matrix, pub T);
+impl<T: Shading> FillVertexConstructor<Vertex> for ShadedConstructor<T> {
     fn new_vertex(&mut self, vertex: FillVertex) -> Vertex {
         let pos = vertex.position();
-        self.1.new_vertex(&self.0, pos.x, pos.y)
+        self.1.new_vertex(&self.0, &Point::new(pos.x, pos.y))
     }
 }
 
-pub struct Shading {
-    origin: (f32, f32),
-    color: Color,
-    vector: (f32, f32),
-    color_end: Color,
-    texture: Option<(Texture2D, Rect, Rect)>,
-}
-
-impl Shading {
-    pub fn new_vertex(&self, matrix: &Matrix, x: f32, y: f32) -> Vertex {
-        let p = matrix.transform_point(&Point::new(x, y));
-        let color = {
-            let (dx, dy) = (x - self.origin.0, y - self.origin.1);
-            Color::tween(&self.color, &self.color_end, dx * self.vector.0 + dy * self.vector.1)
-        };
-        if let Some((_, tr, dr)) = self.texture {
-            let ux = (x - dr.x) / dr.w;
-            let uy = (y - dr.y) / dr.h;
-            let ux = ux.clamp(0., 1.);
-            let uy = uy.clamp(0., 1.);
-            Vertex::new(p.x, p.y, 0., tr.x + tr.w * ux, tr.y + tr.h * uy, color)
-        } else {
-            Vertex::new(p.x, p.y, 0., 0., 0., color)
-        }
-    }
-
-    pub fn texture(&self) -> Option<Texture2D> {
-        self.texture.map(|it| it.0)
-    }
-}
-
-impl From<Color> for Shading {
-    fn from(color: Color) -> Self {
-        Self {
-            origin: (0., 0.),
-            color,
-            vector: (1., 0.),
-            color_end: color,
-            texture: None,
-        }
-    }
-}
-
-impl From<(Color, (f32, f32), Color, (f32, f32))> for Shading {
-    fn from((color, origin, color_end, end): (Color, (f32, f32), Color, (f32, f32))) -> Self {
-        let vector = (end.0 - origin.0, end.1 - origin.1);
-        let norm = vector.0.hypot(vector.1);
-        let vector = (vector.0 / norm, vector.1 / norm);
-        let color_end = Color::tween(&color, &color_end, 1. / norm);
-        Self {
-            origin,
-            color,
-            vector,
-            color_end,
-            texture: None,
-        }
-    }
-}
-
-impl From<(Texture2D, Rect)> for Shading {
-    fn from((tex, rect): (Texture2D, Rect)) -> Self {
-        (tex, rect, ScaleType::default(), WHITE).into()
-    }
-}
-
-impl From<(Texture2D, Rect, ScaleType)> for Shading {
-    fn from((tex, rect, scale_type): (Texture2D, Rect, ScaleType)) -> Self {
-        (tex, rect, scale_type, WHITE).into()
-    }
-}
-
-impl From<(Texture2D, Rect, ScaleType, Color)> for Shading {
-    fn from((tex, rect, scale_type, color): (Texture2D, Rect, ScaleType, Color)) -> Self {
-        let source = source_of_image(&tex, rect, scale_type).unwrap_or_else(|| Rect::new(0., 0., 1., 1.));
-        Self {
-            texture: Some((tex, source, rect)),
-            ..color.into()
-        }
-    }
-}
-
-pub struct VertexBuilder {
+pub struct VertexBuilder<T: Shading> {
     matrix: Matrix,
     vertices: Vec<Vertex>,
     indices: Vec<u16>,
-    shading: Shading,
+    shading: T,
 }
 
-impl VertexBuilder {
-    fn new(matrix: Matrix, shading: Shading) -> Self {
+impl<T: Shading> VertexBuilder<T> {
+    fn new(matrix: Matrix, shading: T) -> Self {
         Self {
             matrix,
             vertices: Vec::new(),
@@ -177,7 +98,7 @@ impl VertexBuilder {
     }
 
     pub fn add(&mut self, x: f32, y: f32) {
-        self.vertices.push(self.shading.new_vertex(&self.matrix, x, y))
+        self.vertices.push(self.shading.new_vertex(&self.matrix, &Point::new(x, y)))
     }
 
     pub fn triangle(&mut self, x: u16, y: u16, z: u16) {
@@ -323,11 +244,11 @@ impl<'a> Ui<'a> {
         self.touches = Some(touches);
     }
 
-    pub fn builder(&self, shading: impl Into<Shading>) -> VertexBuilder {
-        VertexBuilder::new(self.get_matrix(), shading.into())
+    pub fn builder<T: IntoShading>(&self, shading: T) -> VertexBuilder<T::Target> {
+        VertexBuilder::new(self.get_matrix(), shading.into_shading())
     }
 
-    pub fn fill_rect(&mut self, rect: Rect, shading: impl Into<Shading>) {
+    pub fn fill_rect(&mut self, rect: Rect, shading: impl IntoShading) {
         let mut b = self.builder(shading);
         b.add(rect.x, rect.y);
         b.add(rect.x + rect.w, rect.y);
@@ -343,9 +264,9 @@ impl<'a> Ui<'a> {
         self.fill_options.tolerance = tol;
     }
 
-    pub fn fill_path(&mut self, path: impl IntoIterator<Item = PathEvent>, shading: impl Into<Shading>) {
+    pub fn fill_path(&mut self, path: impl IntoIterator<Item = PathEvent>, shading: impl IntoShading) {
         self.set_tolerance();
-        let shaded = ShadedConstructor(self.get_matrix(), shading.into());
+        let shaded = ShadedConstructor(self.get_matrix(), shading.into_shading());
         let tex = shaded.1.texture();
         self.fill_tess
             .tessellate(path, &self.fill_options, &mut BuffersBuilder::new(&mut self.vertex_buffers, shaded))
@@ -353,9 +274,9 @@ impl<'a> Ui<'a> {
         self.emit_lyon(tex);
     }
 
-    pub fn fill_circle(&mut self, x: f32, y: f32, radius: f32, shading: impl Into<Shading>) {
+    pub fn fill_circle(&mut self, x: f32, y: f32, radius: f32, shading: impl IntoShading) {
         self.set_tolerance();
-        let shaded = ShadedConstructor(self.get_matrix(), shading.into());
+        let shaded = ShadedConstructor(self.get_matrix(), shading.into_shading());
         let tex = shaded.1.texture();
         self.fill_tess
             .tessellate_circle(lm::point(x, y), radius, &self.fill_options, &mut BuffersBuilder::new(&mut self.vertex_buffers, shaded))

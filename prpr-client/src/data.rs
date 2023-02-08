@@ -9,6 +9,17 @@ use prpr::{config::Config, info::ChartInfo};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, ops::DerefMut, path::Path};
 
+pub const THEMES: [(&str, u32, u32); 8] = [
+    ("Default", 0xffa2a2a2, 0xffa2a2a2),
+    ("Aurora", 0xff303f9f, 0xff1976d2),
+    ("Flamingo", 0xffd500f9, 0xffffa000),
+    ("Forest", 0xff2e7d32, 0xff4db6ac),
+    ("Lively", 0xffbf360c, 0xfff57c00),
+    ("Magical", 0xff7b1fa2, 0xfffc3dff),
+    ("Ocean", 0xff303f9f, 0xff1976d2),
+    ("Spring", 0xfffff9c4, 0xff64ffda),
+];
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BriefChartInfo {
@@ -72,6 +83,7 @@ pub struct Data {
     pub config: Config,
     pub message_check_time: Option<DateTime<Utc>>,
     pub language: Option<String>,
+    pub theme: usize,
 }
 
 impl Data {

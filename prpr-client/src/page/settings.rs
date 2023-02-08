@@ -1,7 +1,7 @@
 prpr::tl_file!("settings");
 
 use super::{Page, SharedState};
-use crate::{dir, get_data, get_data_mut, save_data, sync_lang};
+use crate::{dir, get_data, get_data_mut, save_data, sync_lang, data::THEMES};
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
 use prpr::{
@@ -268,6 +268,10 @@ impl Page for SettingsPage {
                     }
                 }
                 ui.dy(r.h + s * 2.);
+                if ui.button("switch_theme", r, tl!("theme-prompt", "name" => THEMES[get_data().theme].0)) {
+                    get_data_mut().theme = (get_data().theme + 1) % THEMES.len();
+                }
+                ui.dy(r.h + s * 2.);
                 r.w = r.w * 1.3 / 2. - 0.01;
                 // TODO refine this
                 let text = tl!("switch-language");
@@ -277,7 +281,6 @@ impl Page for SettingsPage {
                     } else {
                         get_data_mut().language = Some("en-US".to_owned());
                     }
-                    let _ = save_data();
                     sync_lang();
                 }
                 r.x += r.w + 0.01;
@@ -318,7 +321,7 @@ impl Page for SettingsPage {
             if cali_t <= 1. {
                 let w = NOTE_WIDTH_RATIO_BASE * config.note_scale * 2.;
                 let h = w * self.click_texture.height() / self.click_texture.width();
-                let r = Rect::new(ct.0 - w / 2., ct.1 + (cali_t - 1.) * 0.4, w, h);
+                let r = Rect::new(ct.0 - w / 2., ct.1 + (cali_t - 1.) * 0.3, w, h);
                 ui.fill_rect(r, (*self.click_texture, r));
                 self.cali_last = true;
             } else {
