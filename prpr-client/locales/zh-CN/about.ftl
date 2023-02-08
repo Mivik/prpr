@@ -11,4 +11,4 @@ about =
   prpr 是开源软件，遵循 GNU General Public License v3.0 协议。
   测试群：660488396
   GitHub：https://github.com/Mivik/prpr
-  欢迎在爱发电上支持 prpr 的开发：https://afdian.net/a/mivik"
+  欢迎在爱发电上支持 prpr 的开发：https://afdian.net/a/mivik
