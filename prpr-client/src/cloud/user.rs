@@ -54,6 +54,7 @@ impl UserManager {
                 match result {
                     Err(err) => {
                         warn!("Failed to fetch user info: {:?}", err);
+                        guard.remove(user_id);
                     }
                     Ok(image) => {
                         RESULTS.lock().unwrap().get_mut(user_id).unwrap().1 = Some(image.into());
