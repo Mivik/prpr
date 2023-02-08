@@ -84,7 +84,7 @@ impl SettingsPage {
                 res_pack,
                 if let Some(path) = path {
                     let dst = format!("{}/respack.zip", dir::root()?);
-                    std::fs::copy(path, dst).with_context(|| tl!("settings-respack-save-failed"))?;
+                    std::fs::copy(path, dst).with_context(|| tl!("respack-save-failed"))?;
                     Some("respack.zip".to_owned())
                 } else {
                     None
@@ -130,7 +130,7 @@ impl Page for SettingsPage {
                 self.load_res_task = None;
                 match result {
                     Err(err) => {
-                        show_error(err.context(tl!("settings-respack-load-failed")));
+                        show_error(err.context(tl!("respack-load-failed")));
                     }
                     Ok((res_pack, dst)) => {
                         self.click_texture = res_pack.note_style.click.clone();
@@ -138,7 +138,7 @@ impl Page for SettingsPage {
                         self.res_pack = res_pack;
                         get_data_mut().config.res_pack_path = dst;
                         save_data()?;
-                        show_message(tl!("settings-respack-loaded"));
+                        show_message(tl!("respack-loaded"));
                     }
                 }
             }

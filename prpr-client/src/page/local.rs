@@ -124,7 +124,7 @@ impl Page for LocalPage {
         let r = self.order_box.render(ui);
         ui.dy(r.h);
         let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
-        SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_local);
+        SharedState::render_charts(ui, content_size, &mut self.scroll, &mut state.charts_local);
         if let Some((None, id, _, rect, _)) = &mut state.transit {
             let width = content_size.0;
             *rect = ui.rect_to_global(Rect::new(

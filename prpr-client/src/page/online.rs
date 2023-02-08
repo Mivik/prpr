@@ -204,7 +204,7 @@ impl Page for OnlinePage {
         });
         ui.dy(r.h);
         let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
-        SharedState::render_scroll(ui, content_size, &mut self.scroll, &mut state.charts_online);
+        SharedState::render_charts(ui, content_size, &mut self.scroll, &mut state.charts_online);
         if let Some((Some(_), id, _, rect, _)) = &mut state.transit {
             let width = content_size.0;
             *rect = ui.rect_to_global(Rect::new(

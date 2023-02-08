@@ -150,7 +150,7 @@ impl SharedState {
         })
     }
 
-    fn render_scroll(ui: &mut Ui, content_size: (f32, f32), scroll: &mut Scroll, charts: &mut Vec<ChartItem>) {
+    fn render_charts(ui: &mut Ui, content_size: (f32, f32), scroll: &mut Scroll, charts: &mut Vec<ChartItem>) {
         scroll.size(content_size);
         let sy = scroll.y_scroller.offset();
         scroll.render(ui, |ui| {
@@ -181,7 +181,7 @@ impl SharedState {
                     }
                 }
                 ui.fill_path(&path, (*chart.illustration.0, Rect::new(0., 0., cw, ch)));
-                ui.fill_path(&path, Color::new(0., 0., 0., 0.55));
+                ui.fill_path(&path, (Color::new(0., 0., 0., 0.3), (0., 0.), Color::new(0., 0., 0., 0.8), (0., ch)));
                 ui.text(&chart.info.name)
                     .pos(p + 0.01, ch - p - 0.02)
                     .max_width(cw - p * 2.)
