@@ -399,7 +399,7 @@ impl SongScene {
                 ui.dx(lf);
                 ui.dy(-ui.top);
                 let r = Rect::new(-0.2, 0., 0.2 + self.side_width, ui.top * 2.);
-                ui.fill_rect(r, (Color::default(), (r.x, r.y), Color::new(0., 0., 0., 0.6), (r.right(), r.y)));
+                ui.fill_rect(r, (Color::default(), (r.x, r.y), Color::new(0., 0., 0., p * 0.6), (r.right(), r.y)));
 
                 match self.side_content {
                     SideContent::Edit => self.side_chart_info(ui, rt),
