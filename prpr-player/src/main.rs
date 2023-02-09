@@ -104,7 +104,8 @@ async fn main() -> Result<()> {
         )),
         ctm,
         None,
-    )?;
+    )
+    .await?;
     'app: loop {
         let frame_start = tm.real_time();
         main.update()?;

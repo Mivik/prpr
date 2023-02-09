@@ -1,7 +1,4 @@
-use super::{
-    chart::ChartSettings, object::CtrlObject, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig,
-    Resource, Vector,
-};
+use super::{chart::ChartSettings, object::CtrlObject, Anim, AnimFloat, BpmList, Matrix, Note, Object, Point, RenderConfig, Resource, Vector};
 use crate::{
     ext::{draw_text_aligned, get_viewport, NotNanExt, SafeTexture},
     judge::JudgeStatus,
@@ -44,7 +41,7 @@ pub struct JudgeLineCache {
 
 impl JudgeLineCache {
     pub fn new(notes: &mut Vec<Note>) -> Self {
-        notes.sort_by_key(|it| (it.plain(), !it.above, it.speed.not_nan(), (it.height + it.object.translation.1.now()).not_nan()));
+        notes.sort_by_key(|it| (it.plain(), !it.above, it.speed.not_nan(), ((it.height + it.object.translation.1.now()) * it.speed).not_nan()));
         let mut res = Self {
             update_order: Vec::new(),
             not_plain_count: 0,
@@ -160,10 +157,15 @@ impl JudgeLine {
         }
     }
 
-    pub fn render(&self, ui: &mut Ui, res: &mut Resource, lines: &[JudgeLine], bpm_list: &mut BpmList, settings: &ChartSettings) {
+    pub fn render(&self, ui: &mut Ui, res: &mut Resource, lines: &[JudgeLine], bpm_list: &mut BpmList, settings: &ChartSettings, id: usize) {
         let alpha = self.object.alpha.now_opt().unwrap_or(1.0) * res.alpha;
         let color = self.color.now_opt();
         res.with_model(self.now_transform(res, lines), |res| {
+            if res.config.debug {
+                res.apply_model(|_| {
+                    ui.text(id.to_string()).pos(0., -0.01).anchor(0.5, 1.).size(0.8).draw();
+                });
+            }
             res.with_model(self.object.now_scale(), |res| {
                 res.apply_model(|res| match &self.kind {
                     JudgeLineKind::Normal => {
@@ -298,11 +300,12 @@ impl JudgeLine {
             }
             for index in &self.cache.above_indices {
                 let speed = self.notes[*index].speed;
+                let limit = height_above / speed;
                 for note in self.notes[*index..].iter() {
                     if !note.above || speed != note.speed {
                         break;
                     }
-                    if agg && note.height - config.line_height + note.object.translation.1.now() > height_above {
+                    if agg && note.height - config.line_height + note.object.translation.1.now() > limit {
                         break;
                     }
                     note.render(res, &mut config, bpm_list);
@@ -314,11 +317,12 @@ impl JudgeLine {
                 }
                 for index in &self.cache.below_indices {
                     let speed = self.notes[*index].speed;
+                    let limit = height_below / speed;
                     for note in self.notes[*index..].iter() {
                         if speed != note.speed {
                             break;
                         }
-                        if agg && note.height - config.line_height + note.object.translation.1.now() > height_below {
+                        if agg && note.height - config.line_height + note.object.translation.1.now() > limit {
                             break;
                         }
                         note.render(res, &mut config, bpm_list);

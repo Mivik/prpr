@@ -103,7 +103,7 @@ impl Chart {
         res.apply_model_of(&Matrix::identity().append_nonuniform_scaling(&Vector::new(1.0, -1.0)), |res| {
             let mut guard = self.bpm_list.borrow_mut();
             for id in &self.order {
-                self.lines[*id].render(ui, res, &self.lines, &mut guard, &self.settings);
+                self.lines[*id].render(ui, res, &self.lines, &mut guard, &self.settings, *id);
             }
             drop(guard);
             res.note_buffer.borrow_mut().draw_all();
