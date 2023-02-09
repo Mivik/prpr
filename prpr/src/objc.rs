@@ -12,8 +12,8 @@ use once_cell::sync::Lazy;
 
 pub type ObjcId = *mut Object;
 
-pub fn str_to_ns(s: &str) -> Id<NSString> {
-    NSString::from_str(s)
+pub fn str_to_ns(s: impl AsRef<str>) -> Id<NSString> {
+    NSString::from_str(s.as_ref())
 }
 
 pub fn available(version: &str) -> bool {

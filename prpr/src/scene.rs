@@ -158,7 +158,7 @@ pub fn request_input(id: impl Into<String>, #[allow(unused_variables)] text: &st
 
                 let text = text.to_owned();
                 let _: () = msg_send![alert, addTextFieldWithConfigurationHandler: ConcreteBlock::new(move |field: ObjcId| {
-                    let _: () = msg_send![field, setPlaceholder: str_to_ns(tl!("input-hint"))];
+                    let _: () = msg_send![field, setPlaceholder: str_to_ns(ttl!("input-hint"))];
                     let _: () = msg_send![field, setText: str_to_ns(&text)];
                 }).copy()];
 
@@ -218,7 +218,7 @@ pub fn request_file(id: impl Into<String>) {
                                 show_message(ttl!("read-file-failed")).error();
                                 if !error.is_null() {
                                     let msg: *const NSString = msg_send![error, localizedDescription];
-                                    show_error(Error::msg((*msg).as_str()).with_context(|| ttl!("read-file-failed")));
+                                    show_error(Error::msg((*msg).as_str()).context(ttl!("read-file-failed")));
                                 }
                             } else {
                                 extern "C" {
