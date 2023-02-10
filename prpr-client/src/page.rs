@@ -16,12 +16,7 @@ pub use online::OnlinePage;
 mod settings;
 pub use settings::SettingsPage;
 
-use crate::{
-    cloud::{Images, LCFile},
-    data::BriefChartInfo,
-    dir, get_data,
-    scene::ChartOrder,
-};
+use crate::{data::BriefChartInfo, dir, get_data, phizone::PZFile, scene::ChartOrder};
 use anyhow::Result;
 use image::DynamicImage;
 use lyon::{
@@ -131,7 +126,7 @@ pub struct SharedState {
     pub charts_local: Vec<ChartItem>,
     pub charts_online: Vec<ChartItem>,
 
-    pub transit: Option<(Option<LCFile>, u32, f32, Rect, bool)>, // online, id, start_time, rect, delete
+    pub transit: Option<(Option<PZFile>, u32, f32, Rect, bool)>, // online, id, start_time, rect, delete
 }
 
 impl SharedState {

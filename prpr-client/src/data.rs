@@ -1,7 +1,6 @@
 use crate::{
-    cloud::{Pointer, User},
     dir,
-    page::ChartItem,
+    page::ChartItem, phizone::{PZPointer, PZUser},
 };
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -24,7 +23,7 @@ pub const THEMES: [(&str, u32, u32); 8] = [
 #[serde(rename_all = "camelCase")]
 pub struct BriefChartInfo {
     pub id: Option<String>,
-    pub uploader: Option<Pointer>,
+    pub uploader: Option<PZPointer<PZUser>>,
     pub name: String,
     pub level: String,
     pub difficulty: f32,

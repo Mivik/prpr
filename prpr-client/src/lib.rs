@@ -1,6 +1,7 @@
-mod cloud;
 mod data;
+mod images;
 mod page;
+mod phizone;
 mod scene;
 
 use anyhow::Result;
