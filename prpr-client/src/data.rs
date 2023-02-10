@@ -77,6 +77,7 @@ pub struct LocalChart {
 }
 
 #[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Data {
     pub me: Option<User>,
     pub charts: Vec<LocalChart>,
