@@ -117,6 +117,7 @@ impl Page for OnlinePage {
             self.first_time = false;
             self.refresh(state);
         }
+        SharedState::update_charts(&mut state.charts_online);
         self.focus = focus;
 
         let t = state.t;

@@ -150,7 +150,22 @@ impl SharedState {
         })
     }
 
-    fn render_charts(ui: &mut Ui, content_size: (f32, f32), scroll: &mut Scroll, charts: &mut Vec<ChartItem>) {
+    fn update_charts(charts: &mut [ChartItem]) {
+        for chart in charts {
+            if let Some(task) = &mut chart.illustration_task {
+                if let Some(image) = task.take() {
+                    chart.illustration = if let Ok(image) = image {
+                        Images::into_texture(image)
+                    } else {
+                        (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone())
+                    };
+                    chart.illustration_task = None;
+                }
+            }
+        }
+    }
+
+    fn render_charts(ui: &mut Ui, content_size: (f32, f32), scroll: &mut Scroll, charts: &mut [ChartItem]) {
         scroll.size(content_size);
         let sy = scroll.y_scroller.offset();
         scroll.render(ui, |ui| {
@@ -170,16 +185,6 @@ impl SharedState {
                     return;
                 }
                 let chart = &mut charts[id as usize];
-                if let Some(task) = &mut chart.illustration_task {
-                    if let Some(image) = task.take() {
-                        chart.illustration = if let Ok(image) = image {
-                            Images::into_texture(image)
-                        } else {
-                            (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone())
-                        };
-                        chart.illustration_task = None;
-                    }
-                }
                 ui.fill_path(&path, (*chart.illustration.0, Rect::new(0., 0., cw, ch)));
                 ui.fill_path(&path, (Color::new(0., 0., 0., 0.4), (0., 0.), Color::new(0., 0., 0., 0.8), (0., ch)));
                 ui.text(&chart.info.name)

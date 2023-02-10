@@ -52,6 +52,7 @@ impl Page for LocalPage {
         if SHOULD_UPDATE.fetch_and(false, Ordering::SeqCst) {
             state.charts_local = load_local(&state.tex, self.order_box.to_order());
         }
+        SharedState::update_charts(&mut state.charts_local);
         if let Some((id, file)) = take_file() {
             if id == "chart" || id == "_import" {
                 async fn import(from: String) -> Result<LocalChart> {
