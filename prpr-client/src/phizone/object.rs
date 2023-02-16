@@ -106,11 +106,11 @@ pub enum RawPZPointer<T> {
 #[derive(Debug, Deserialize)]
 #[serde(bound = "T: PZObject + 'static")]
 #[serde(from = "RawPZPointer<T>")]
-pub enum PZPointer<T> {
+pub enum Ptr<T> {
     Id(u64),
     Concrete(Arc<T>),
 }
-impl<T: PZObject> Clone for PZPointer<T> {
+impl<T: PZObject> Clone for Ptr<T> {
     fn clone(&self) -> Self {
         match self {
             Self::Id(id) => Self::Id(*id),
@@ -118,12 +118,12 @@ impl<T: PZObject> Clone for PZPointer<T> {
         }
     }
 }
-impl<T: PZObject> From<u64> for PZPointer<T> {
+impl<T: PZObject> From<u64> for Ptr<T> {
     fn from(value: u64) -> Self {
         Self::Id(value)
     }
 }
-impl<T: PZObject + 'static> From<RawPZPointer<T>> for PZPointer<T> {
+impl<T: PZObject + 'static> From<RawPZPointer<T>> for Ptr<T> {
     fn from(value: RawPZPointer<T>) -> Self {
         match value {
             RawPZPointer::Id(id) => Self::Id(id),
@@ -142,7 +142,7 @@ impl<T: PZObject + 'static> From<RawPZPointer<T>> for PZPointer<T> {
     }
 }
 
-impl<T: PZObject + 'static> PZPointer<T> {
+impl<T: PZObject + 'static> Ptr<T> {
     pub fn id(&self) -> u64 {
         match self {
             Self::Id(id) => *id,
@@ -189,7 +189,7 @@ impl<T: PZObject + 'static> PZPointer<T> {
         }
     }
 }
-impl<T: PZObject + 'static> Serialize for PZPointer<T> {
+impl<T: PZObject + 'static> Serialize for Ptr<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_u64(self.id())
     }
@@ -225,9 +225,9 @@ impl PZFile {
 
     pub async fn load_thumbnail(&self) -> Result<DynamicImage> {
         if self.url.starts_with("https://res.phi.zone/") {
-            if let Some(pre) = self.url.strip_suffix(".webp") {
+            if let Some(index) = self.url.rfind('.') {
                 return Ok(PZFile {
-                    url: format!("{pre}.comp.webp"),
+                    url: format!("{}.comp.webp", &self.url[..index]),
                 }
                 .load_image()
                 .await?);

@@ -16,7 +16,13 @@ pub use online::OnlinePage;
 mod settings;
 pub use settings::SettingsPage;
 
-use crate::{data::BriefChartInfo, dir, get_data, phizone::PZFile, scene::ChartOrder, images::Images};
+use crate::{
+    data::BriefChartInfo,
+    dir, get_data,
+    images::Images,
+    phizone::{PZChart, PZFile, Ptr},
+    scene::{ChartOrder, fs_from_path},
+};
 use anyhow::Result;
 use image::DynamicImage;
 use lyon::{
@@ -30,7 +36,11 @@ use prpr::{
     task::Task,
     ui::{Scroll, Ui},
 };
-use std::{borrow::Cow, ops::DerefMut, sync::atomic::AtomicBool};
+use std::{
+    borrow::Cow,
+    ops::DerefMut,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 const ROW_NUM: u32 = 4;
 const CARD_HEIGHT: f32 = 0.3;
@@ -41,7 +51,7 @@ pub static SHOULD_UPDATE: AtomicBool = AtomicBool::new(false);
 
 pub fn illustration_task(path: String) -> Task<Result<(DynamicImage, Option<DynamicImage>)>> {
     Task::new(async move {
-        let mut fs = fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))?;
+        let mut fs = fs_from_path(&path)?;
         let info = fs::load_info(fs.deref_mut()).await?;
         let image = image::load_from_memory(&fs.load_file(&info.illustration).await?)?;
         let thumbnail =
@@ -125,6 +135,7 @@ pub struct SharedState {
 
     pub charts_local: Vec<ChartItem>,
     pub charts_online: Vec<ChartItem>,
+    pub pz_charts: Vec<Arc<PZChart>>,
 
     pub transit: Option<(Option<PZFile>, u32, f32, Rect, bool)>, // online, id, start_time, rect, delete
 }
@@ -140,6 +151,7 @@ impl SharedState {
 
             charts_local,
             charts_online: Vec::new(),
+            pz_charts: Vec::new(),
 
             transit: None,
         })

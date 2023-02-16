@@ -1,4 +1,4 @@
-use super::{MusicPosition, PZFile, PZObject, PZPointer, PZUser};
+use super::{MusicPosition, PZFile, PZObject, Ptr, PZUser};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
@@ -8,11 +8,11 @@ pub struct PZSong {
     pub name: String,
     pub composer: String,
     pub illustrator: String,
-    pub uploader: PZPointer<PZUser>,
+    pub uploader: Ptr<PZUser>,
     pub description: String,
 
     pub bpm: String,
-    pub offset: i32, // ?
+    pub offset: i32,
 
     #[serde(rename = "song")]
     pub music: PZFile,

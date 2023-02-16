@@ -1,7 +1,7 @@
 prpr::tl_file!("settings");
 
 use super::{Page, SharedState};
-use crate::{dir, get_data, get_data_mut, save_data, sync_lang, data::THEMES};
+use crate::{dir, get_data, get_data_mut, save_data, sync_data, data::THEMES};
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
 use prpr::{
@@ -281,7 +281,7 @@ impl Page for SettingsPage {
                     } else {
                         get_data_mut().language = Some("en-US".to_owned());
                     }
-                    sync_lang();
+                    sync_data();
                 }
                 r.x += r.w + 0.01;
                 if ui.button(

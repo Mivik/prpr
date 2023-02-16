@@ -1,4 +1,4 @@
-use super::{LevelType, PZFile, PZObject, PZPointer, PZRecord, PZSong, PZUser};
+use super::{LevelType, PZFile, PZObject, Ptr, PZRecord, PZSong, PZUser};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
@@ -20,9 +20,9 @@ pub struct PZChartRating {
 #[derive(Clone, Debug, Deserialize)]
 pub struct PZChart {
     pub id: u64,
-    pub song: PZPointer<PZSong>,
+    pub song: Ptr<PZSong>,
     pub charter: String,
-    pub owner: PZPointer<PZUser>,
+    pub owner: Ptr<PZUser>,
     pub level_type: LevelType,
     pub level: String,
     pub difficulty: f32,
@@ -50,7 +50,7 @@ pub struct PZChart {
     #[serde(rename = "votes")]
     pub num_vote: u32,
 
-    pub records: Vec<PZPointer<PZRecord>>,
+    pub records: Option<Vec<Ptr<PZRecord>>>,
     // pub at_event: bool,
 }
 impl PZObject for PZChart {

@@ -7,11 +7,13 @@ use crate::{
     dir,
     get_data,
     get_data_mut,
+    images::Images,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
-    phizone::{Client, PZFile, PZRecord, UserManager},
-    save_data, images::Images,
+    phizone::{Client, PZChart, PZFile, PZRecord, Ptr, UserManager},
+    save_data,
 };
 use anyhow::{Context, Result};
+use cap_std::ambient_authority;
 use futures_util::StreamExt;
 use image::DynamicImage;
 use macroquad::prelude::*;
@@ -31,10 +33,11 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
     borrow::Cow,
-    ops::DerefMut,
+    io::Write,
+    ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, Weak,
     },
 };
 use tokio::io::AsyncWriteExt;
@@ -47,11 +50,16 @@ const CHART_LIMIT: usize = 10 * 1024 * 1024;
 static CONFIRM_UPLOAD: AtomicBool = AtomicBool::new(false);
 static UPLOAD_STATUS: Mutex<Option<Cow<'static, str>>> = Mutex::new(None);
 
-fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
+pub fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
     if let Some(name) = path.strip_prefix(':') {
         fs::fs_from_assets(format!("charts/{name}/"))
     } else {
-        fs::fs_from_file(std::path::Path::new(&format!("{}/{}", dir::charts()?, path)))
+        let full_path = format!("{}/{}", dir::charts()?, path);
+        if path.starts_with("download/") {
+            Ok(Box::new(fs::PZFileSystem(Arc::new(cap_std::fs::Dir::open_ambient_dir(full_path, ambient_authority())?))))
+        } else {
+            fs::fs_from_file(std::path::Path::new(&full_path))
+        }
     }
 }
 
@@ -132,6 +140,7 @@ enum SideContent {
 
 pub struct SongScene {
     chart: ChartItem,
+    pz_chart: Option<Arc<PZChart>>,
     illustration: SafeTexture,
     icon_leaderboard: SafeTexture,
     icon_tool: SafeTexture,
@@ -168,6 +177,7 @@ pub struct SongScene {
     side_enter_time: f32,
 
     downloading: Option<(String, Arc<Mutex<f32>>, MessageHandle, Task<Result<LocalChart>>)>,
+    download_finish: Option<Weak<()>>,
     leaderboard_task: Option<Task<Result<(Vec<PZRecord>, u64)>>>,
     leaderboard_scroll: Scroll,
     leaderboards: Option<Vec<PZRecord>>,
@@ -198,6 +208,7 @@ fn create_info_task(path: String, brief: BriefChartInfo) -> Task<ChartInfo> {
 impl SongScene {
     pub fn new(
         chart: ChartItem,
+        pz_chart: Option<Arc<PZChart>>,
         illustration: SafeTexture,
         icon_leaderboard: SafeTexture,
         icon_tool: SafeTexture,
@@ -219,6 +230,7 @@ impl SongScene {
         }
         Self {
             chart,
+            pz_chart,
             illustration,
             icon_leaderboard,
             icon_tool,
@@ -256,6 +268,7 @@ impl SongScene {
             side_enter_time: f32::INFINITY,
 
             downloading: None,
+            download_finish: None,
             leaderboard_task: None,
             leaderboard_scroll: Scroll::new(),
             leaderboards: None,
@@ -605,6 +618,9 @@ impl SongScene {
     }
 
     fn start_download(&mut self) -> Result<()> {
+        if self.download_finish.as_ref().map_or(false, |it| it.strong_count() != 0) {
+            return Ok(());
+        }
         let id = self.chart.info.id.as_ref().unwrap();
         dir::downloaded_charts()?;
         let path = format!("download/{id}");
@@ -614,12 +630,15 @@ impl SongScene {
         }
         let handle = show_message(tl!("downloading")).handle();
         let url = self.chart.path.clone();
+        let pz_chart = self.pz_chart.as_ref().unwrap().deref().clone();
         let chart = LocalChart {
             info: self.chart.info.clone(),
             path,
         };
         let progress = Arc::new(Mutex::new(0.));
-        let prog_cl = Arc::clone(&progress);
+        let prog_wk = Arc::downgrade(&progress);
+        let finish_token = Arc::new(());
+        self.download_finish = Some(Arc::downgrade(&finish_token));
         self.downloading = Some((
             chart.info.name.clone(),
             progress,
@@ -627,19 +646,67 @@ impl SongScene {
             Task::new({
                 let path = format!("{}/{}", dir::downloaded_charts()?, id);
                 async move {
-                    let mut file = tokio::fs::File::create(path).await?;
-                    let res = reqwest::get(url).await.with_context(|| tl!("request-failed"))?;
-                    let size = res.content_length();
-                    let mut stream = res.bytes_stream();
-                    let mut count = 0;
-                    while let Some(chunk) = stream.next().await {
-                        let chunk = chunk?;
-                        file.write_all(&chunk).await?;
-                        count += chunk.len() as u64;
-                        if let Some(size) = size {
-                            *prog_cl.lock().unwrap() = count.min(size) as f32 / size as f32;
+                    let _finish = finish_token; // transfer the ownership, drops on the ending of the task
+                    tokio::fs::create_dir(&path).await?;
+                    let dir = cap_std::fs::Dir::open_ambient_dir(&path, ambient_authority())?;
+
+                    async fn download(dir: &cap_std::fs::Dir, name: &str, url: &str, prog_wk: &Weak<Mutex<f32>>) -> Result<()> {
+                        let Some(prog) = prog_wk.upgrade() else { return Ok(()) };
+                        let mut file = dir.create(name)?;
+                        let res = reqwest::get(url).await.with_context(|| tl!("request-failed"))?;
+                        let size = res.content_length();
+                        let mut stream = res.bytes_stream();
+                        let mut count = 0;
+                        *prog.lock().unwrap() = 0.;
+                        while let Some(chunk) = stream.next().await {
+                            let chunk = chunk?;
+                            file.write_all(&chunk)?;
+                            count += chunk.len() as u64;
+                            if let Some(size) = size {
+                                *prog.lock().unwrap() = count.min(size) as f32 / size as f32;
+                            }
+                            if prog_wk.strong_count() == 1 {
+                                // cancelled
+                                break;
+                            }
                         }
+                        Ok(())
                     }
+
+                    download(&dir, "chart", &url, &prog_wk).await?;
+                    let song = pz_chart.song.load().await?.deref().clone();
+                    download(&dir, "music", &song.music.url, &prog_wk).await?;
+                    download(&dir, "illustration", &song.illustration.url, &prog_wk).await?;
+                    warn!("TODO song configuration, preview time");
+                    println!("OFFSET {}", song.offset);
+                    let info = ChartInfo {
+                        id: Some(pz_chart.id),
+                        name: song.name,
+                        difficulty: pz_chart.difficulty,
+                        level: pz_chart.level,
+                        charter: pz_chart.charter,
+                        composer: song.composer,
+                        illustrator: song.illustrator,
+                        chart: ":chart".to_owned(),
+                        format: None,
+                        music: ":music".to_owned(),
+                        illustration: ":illustration".to_owned(),
+                        preview_time: song.preview_start.seconds as f32,
+                        intro: pz_chart.description.unwrap_or_default(),
+                        offset: song.offset as f32 / 1000.,
+                        ..Default::default()
+                    };
+                    if prog_wk.strong_count() != 0 {
+                        dir.write("info", serde_json::to_string(&info).unwrap())?;
+                    }
+                    warn!("TODO assets");
+
+                    if prog_wk.strong_count() == 0 {
+                        // cancelled
+                        drop(dir);
+                        tokio::fs::remove_dir_all(&path).await?;
+                    }
+
                     Ok(chart)
                 }
             }),
@@ -828,7 +895,6 @@ impl Scene for SongScene {
         if let Some(future) = &mut self.scene_task {
             if let Some(scene) = poll_future(future.as_mut()) {
                 self.scene_task = None;
-                println!("OK {}", scene.is_err());
                 self.next_scene = Some(NextScene::Overlay(Box::new(scene?)));
             }
         }
@@ -951,22 +1017,22 @@ impl Scene for SongScene {
                 *UPLOAD_STATUS.lock().unwrap() = Some(tl!("uploading-chart"));
                 todo!()
                 // let file = Client::upload_file("chart.zip", &chart_bytes)
-                    // .await
-                    // .with_context(|| tl!("upload-chart-failed"))?;
+                // .await
+                // .with_context(|| tl!("upload-chart-failed"))?;
                 // *UPLOAD_STATUS.lock().unwrap() = Some(tl!("uploading-illu"));
                 // let illustration = Client::upload_file("illustration.jpg", &image)
-                    // .await
-                    // .with_context(|| tl!("upload-illu-failed"))?;
+                // .await
+                // .with_context(|| tl!("upload-illu-failed"))?;
                 // *UPLOAD_STATUS.lock().unwrap() = Some(tl!("upload-saving"));
                 // let item = LCChartItem {
-                    // id: None,
-                    // info: BriefChartInfo {
-                        // uploader: Some(Pointer::from(user_id).with_class_name("_User")),
-                        // ..info.into()
-                    // },
-                    // file,
-                    // illustration,
-                    // checksum: Some(checksum),
+                // id: None,
+                // info: BriefChartInfo {
+                // uploader: Some(Pointer::from(user_id).with_class_name("_User")),
+                // ..info.into()
+                // },
+                // file,
+                // illustration,
+                // checksum: Some(checksum),
                 // };
                 // Client::create(item).await.with_context(|| tl!("upload-save-failed"))?;
                 // Ok(())
@@ -991,6 +1057,7 @@ impl Scene for SongScene {
                     }
                 }
                 self.downloading = None;
+                self.download_finish = None;
             }
         }
         Ok(())

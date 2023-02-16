@@ -3,7 +3,7 @@ prpr::tl_file!("online");
 use super::{get_touched, trigger_grid, ChartItem, Page, SharedState, CARD_HEIGHT, ROW_NUM};
 use crate::{
     data::BriefChartInfo,
-    phizone::{Client, PZChart, PZFile, PZSong},
+    phizone::{Client, PZChart, PZFile, PZSong, Ptr},
     scene::{ChartOrder, ChartOrderBox, CHARTS_BAR_HEIGHT},
 };
 use anyhow::Result;
@@ -15,7 +15,7 @@ use prpr::{
     task::Task,
     ui::{MessageHandle, Scroll, Ui},
 };
-use std::{borrow::Cow, ops::Deref};
+use std::{borrow::Cow, ops::Deref, sync::Arc};
 
 const PAGE_NUM: u64 = 30;
 
@@ -30,7 +30,7 @@ pub struct OnlinePage {
     page: u64,
     total_page: u64,
 
-    task_load: Task<Result<(Vec<(ChartItem, PZFile)>, u64)>>,
+    task_load: Task<Result<(Vec<(ChartItem, PZFile)>, Vec<Arc<PZChart>>, u64)>>,
     illu_files: Vec<PZFile>,
     first_time: bool,
     loading: Option<MessageHandle>,
@@ -79,6 +79,7 @@ impl OnlinePage {
                     .send()
                     .await?;
                 let total_page = (count - 1) / PAGE_NUM + 1;
+                let pz_charts = charts.iter().map(|it| Arc::new(it.clone())).collect();
                 let charts: Vec<_> = join_all(charts.into_iter().map(|it| {
                     let tex = tex.clone();
                     async move {
@@ -114,7 +115,7 @@ impl OnlinePage {
                 .await
                 .into_iter()
                 .collect::<Result<_>>()?;
-                Ok((charts, total_page))
+                Ok((charts, pz_charts, total_page))
             }
         });
     }
@@ -140,10 +141,11 @@ impl Page for OnlinePage {
         if let Some(charts) = self.task_load.take() {
             self.loading.take().unwrap().cancel();
             match charts {
-                Ok((charts, total_page)) => {
+                Ok((charts, pz_charts, total_page)) => {
                     show_message(tl!("loaded")).ok().duration(1.);
                     self.total_page = total_page;
                     (state.charts_online, self.illu_files) = charts.into_iter().unzip();
+                    state.pz_charts = pz_charts;
                 }
                 Err(err) => {
                     self.first_time = true;

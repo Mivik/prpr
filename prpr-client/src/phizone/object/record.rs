@@ -1,4 +1,4 @@
-use super::{PZChart, PZObject, PZPointer, PZUser};
+use super::{PZChart, PZObject, Ptr, PZUser};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
@@ -22,8 +22,8 @@ pub struct PZRecord {
     pub perfect_judgment: u32,
     pub good_judgment: u32,
     pub time: DateTime<Utc>,
-    pub chart: PZPointer<PZChart>,
-    pub player: PZPointer<PZUser>,
+    pub chart: Ptr<PZChart>,
+    pub player: Ptr<PZUser>,
     // pub event_part_id: Option<i64>,
     // pub app_id: Option<i64>,
 }

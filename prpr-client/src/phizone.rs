@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
 
+use crate::{get_data_mut, save_data};
+
 const CLIENT_ID: &str = env!("CLIENT_ID");
 const CLIENT_SECRET: &str = env!("CLIENT_SECRET");
 
@@ -18,17 +20,37 @@ static CLIENT: Lazy<RwLock<reqwest::Client>> = Lazy::new(|| RwLock::new(reqwest:
 
 pub struct Client;
 
-const API_URL: &str = "http://localhost:3000";
+// const API_URL: &str = "http://localhost:3000";
+const API_URL: &str = "https://api.phi.zone";
 
-async fn recv_raw(request: RequestBuilder) -> Result<Response> {
+pub fn set_access_token_sync(access_token: &str) -> Result<()> {
+    let mut headers = header::HeaderMap::new();
+    let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {}", access_token))?;
+    auth_value.set_sensitive(true);
+    headers.insert(header::AUTHORIZATION, auth_value);
+    *CLIENT.blocking_write() = reqwest::ClientBuilder::new().default_headers(headers).build()?;
+    Ok(())
+}
+
+async fn set_access_token(access_token: &str) -> Result<()> {
+    let mut headers = header::HeaderMap::new();
+    let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {}", &access_token))?;
+    auth_value.set_sensitive(true);
+    headers.insert(header::AUTHORIZATION, auth_value);
+    *CLIENT.write().await = reqwest::ClientBuilder::new().default_headers(headers).build()?;
+    Ok(())
+}
+
+pub async fn recv_raw(request: RequestBuilder) -> Result<Response> {
     let response = request.send().await?;
     if !response.status().is_success() {
         let text = response.text().await.context("failed to receive text")?;
         if let Ok(what) = serde_json::from_str::<serde_json::Value>(&text) {
-            bail!("request failed: {}", what["detail"].as_str().unwrap());
-        } else {
-            bail!("request failed: {text}");
+            if let Some(detail) = what["detail"].as_str() {
+                bail!("request failed: {detail}");
+            }
         }
+        bail!("request failed: {text}");
     }
     Ok(response)
 }
@@ -47,6 +69,11 @@ impl Client {
     #[inline]
     pub async fn put<T: Serialize>(path: impl AsRef<str>, data: &T) -> RequestBuilder {
         Self::request(Method::PUT, path).await.json(data)
+    }
+
+    #[inline]
+    pub async fn patch<T: Serialize>(path: impl AsRef<str>, data: &T) -> RequestBuilder {
+        Self::request(Method::PATCH, path).await.json(data)
     }
 
     pub async fn request(method: Method, path: impl AsRef<str>) -> RequestBuilder {
@@ -78,14 +105,7 @@ impl Client {
     }
 
     async fn fetch_inner<T: PZObject>(id: u64) -> Result<Option<T>> {
-        Ok(recv_raw(
-            Self::get(format!("/{}/{id}/", T::QUERY_PATH))
-                .await
-                .query(&[("query_owner", "1"), ("query_records", "1")]),
-        )
-        .await?
-        .json()
-        .await?)
+        Ok(recv_raw(Self::get(format!("/{}/{id}/", T::QUERY_PATH)).await).await?.json().await?)
     }
 
     pub fn query<T: PZObject>() -> QueryBuilder<T> {
@@ -136,11 +156,37 @@ impl Client {
         .json()
         .await?;
 
-        let mut headers = header::HeaderMap::new();
-        let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {}", resp.access_token))?;
-        auth_value.set_sensitive(true);
-        headers.insert(header::AUTHORIZATION, auth_value);
-        *CLIENT.write().await = reqwest::ClientBuilder::new().default_headers(headers).build()?;
+        set_access_token(&resp.access_token).await?;
+        get_data_mut().tokens = Some((resp.access_token, resp.refresh_token));
+        save_data()?;
+        Ok(())
+    }
+
+    pub async fn refresh(refresh_token: &str) -> Result<()> {
+        #[derive(Deserialize)]
+        struct Resp {
+            access_token: String,
+            refresh_token: String,
+        }
+        let resp: Resp = recv_raw(
+            Self::post(
+                "/auth/token/",
+                &json!({
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                }),
+            )
+            .await,
+        )
+        .await?
+        .json()
+        .await?;
+
+        set_access_token(&resp.access_token).await?;
+        get_data_mut().tokens = Some((resp.access_token, resp.refresh_token));
+        save_data()?;
         Ok(())
     }
 
@@ -163,7 +209,7 @@ impl<T: PZObject> QueryBuilder<T> {
     }
 
     #[inline]
-    pub fn order(mut self, order: impl Into<Cow<'static, str>>) -> Self {
+    pub fn order(self, order: impl Into<Cow<'static, str>>) -> Self {
         self.query("order", order)
     }
 

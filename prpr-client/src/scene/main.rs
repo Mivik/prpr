@@ -5,7 +5,8 @@ use crate::{
     data::THEMES,
     dir, get_data, get_data_mut,
     page::{self, ChartItem, Page, SharedState},
-    save_data, phizone::{UserManager, PZFile},
+    phizone::{PZChart, PZFile, UserManager},
+    save_data,
 };
 use anyhow::Result;
 use lyon::{
@@ -22,7 +23,7 @@ use prpr::{
 };
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Mutex,
+    Arc, Mutex,
 };
 
 const PAGE_NUM: usize = 6;
@@ -155,7 +156,7 @@ impl MainScene {
         });
     }
 
-    pub fn song_scene(&self, chart: &ChartItem, file: Option<PZFile>, online: bool) -> Option<NextScene> {
+    pub fn song_scene(&self, chart: &ChartItem, pz_chart: Option<Arc<PZChart>>, file: Option<PZFile>, online: bool) -> Option<NextScene> {
         Some(NextScene::Overlay(Box::new(SongScene::new(
             ChartItem {
                 info: chart.info.clone(),
@@ -163,6 +164,7 @@ impl MainScene {
                 illustration: chart.illustration.clone(),
                 illustration_task: None,
             },
+            pz_chart,
             chart.illustration.1.clone(),
             self.icon_leaderboard.clone(),
             self.icon_tool.clone(),
@@ -341,7 +343,7 @@ impl Scene for MainScene {
                     let path = format!("download/{}", self.shared_state.charts_online[id].info.id.as_ref().unwrap());
                     if let Some(index) = self.shared_state.charts_local.iter().position(|it| it.path == path) {
                         self.shared_state.charts_local[index].illustration = self.shared_state.charts_online[id].illustration.clone();
-                        self.song_scene(&self.shared_state.charts_local[index], None, false)
+                        self.song_scene(&self.shared_state.charts_local[index], None, None, false)
                     } else {
                         let chart = &self.shared_state.charts_online[id];
                         let file = if chart.illustration.0 == chart.illustration.1 {
@@ -349,10 +351,10 @@ impl Scene for MainScene {
                         } else {
                             None
                         };
-                        self.song_scene(chart, file, true)
+                        self.song_scene(chart, Some(Arc::clone(&self.shared_state.pz_charts[id])), file, true)
                     }
                 } else {
-                    self.song_scene(&self.shared_state.charts_local[id], None, false)
+                    self.song_scene(&self.shared_state.charts_local[id], None, None, false)
                 };
             }
         }

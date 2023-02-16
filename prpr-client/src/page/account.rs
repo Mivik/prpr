@@ -3,7 +3,7 @@ prpr::tl_file!("account");
 use super::{Page, SharedState};
 use crate::{
     get_data, get_data_mut,
-    phizone::{Client, PZUser, UserManager},
+    phizone::{recv_raw, Client, PZUser, UserManager},
     save_data, Rect, Ui,
 };
 use anyhow::{Context, Result};
@@ -52,7 +52,10 @@ impl AccountPage {
         Self {
             register: false,
             task: if logged_in {
-                Some(Task::new(async { Ok(Some(Client::get_me().await?)) }))
+                Some(Task::new(async {
+                    Client::refresh(&get_data().tokens.as_ref().unwrap().1).await?;
+                    Ok(Some(Client::get_me().await?))
+                }))
             } else {
                 None
             },
@@ -87,6 +90,7 @@ impl Page for AccountPage {
                             get_data_mut().me = Some(user);
                             save_data()?;
                         }
+                        self.password_input.clear();
                         show_message(tl!("action-success", "action" => action)).ok().duration(1.);
                         if action == "register" {
                             show_message(tl!("email-sent"));
@@ -105,9 +109,8 @@ impl Page for AccountPage {
                 } else {
                     let user = get_data().me.clone().unwrap();
                     self.start("edit-name", async move {
-                        // Client::update_user(json!({ "username": text })).await?;
-                        // Ok(Some(User { name: text, ..user }))
-                        todo!()
+                        recv_raw(Client::patch(format!("/users/{}/", user.id), &json!({ "username": text })).await).await?;
+                        Ok(Some(PZUser { name: text, ..user }))
                     });
                 }
             } else {

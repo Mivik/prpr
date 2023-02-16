@@ -1,6 +1,7 @@
 use crate::{ext::spawn_task, info::ChartInfo};
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
+use cap_std::ambient_authority;
 use chardetng::EncodingDetector;
 use concat_string::concat_string;
 use macroquad::prelude::load_file;
@@ -83,7 +84,7 @@ impl FileSystem for AssetsFileSystem {
 }
 
 #[derive(Clone)]
-pub struct ExternalFileSystem(PathBuf);
+pub struct ExternalFileSystem(Arc<cap_std::fs::Dir>);
 
 #[async_trait]
 impl FileSystem for ExternalFileSystem {
@@ -94,19 +95,60 @@ impl FileSystem for ExternalFileSystem {
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let path = self.0.join(path);
-            Ok(tokio::spawn(async move { tokio::fs::read(path).await }).await??)
+            let mut file = self.0.open(path)?;
+            tokio::spawn(async move {
+                let mut res = Vec::new();
+                file.read_to_end(&mut res)?;
+                Ok(res)
+            })
+            .await?
         }
     }
 
     async fn exists(&mut self, path: &str) -> Result<bool> {
-        Ok(self.0.join(path).exists())
+        Ok(self.0.exists(path))
     }
 
     fn list_root(&self) -> Result<Vec<String>> {
-        Ok(std::fs::read_dir(&self.0)?
-            .filter_map(|res| res.ok()?.file_name().into_string().ok())
-            .collect())
+        Ok(self.0.read_dir(".")?.filter_map(|res| res.ok()?.file_name().into_string().ok()).collect())
+    }
+
+    fn clone_box(&self) -> Box<dyn FileSystem> {
+        Box::new(self.clone())
+    }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[derive(Clone)]
+pub struct PZFileSystem(pub Arc<cap_std::fs::Dir>);
+
+#[async_trait]
+impl FileSystem for PZFileSystem {
+    async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
+        let path = if let Some(internal) = path.strip_prefix(':') {
+            internal.to_owned()
+        } else {
+            format!("assets/{path}")
+        };
+        let mut file = self.0.open(path)?;
+        tokio::spawn(async move {
+            let mut res = Vec::new();
+            file.read_to_end(&mut res)?;
+            Ok(res)
+        })
+        .await?
+    }
+
+    async fn exists(&mut self, path: &str) -> Result<bool> {
+        Ok(self.0.exists(path))
+    }
+
+    fn list_root(&self) -> Result<Vec<String>> {
+        warn!("returning empty list on PZ list root");
+        Ok(Vec::new())
     }
 
     fn clone_box(&self) -> Box<dyn FileSystem> {
@@ -394,7 +436,9 @@ fn bytes_to_text_auto(data: &[u8]) -> String {
 }
 
 pub async fn load_info(fs: &mut dyn FileSystem) -> Result<ChartInfo> {
-    let info = if let Ok(bytes) = fs.load_file("info.yml").await {
+    let info = if let Ok(bytes) = fs.load_file(":info").await {
+        serde_yaml::from_str(&bytes_to_text_auto(&bytes))?
+    } else if let Ok(bytes) = fs.load_file("info.yml").await {
         serde_yaml::from_str(&bytes_to_text_auto(&bytes))?
     } else if let Ok(bytes) = fs.load_file("info.txt").await {
         info_from_txt(&bytes_to_text_auto(&bytes))?
@@ -415,7 +459,7 @@ pub fn fs_from_file(path: &Path) -> Result<Box<dyn FileSystem>> {
         let bytes = fs::read(path).with_context(|| format!("Failed to read from {}", path.display()))?;
         Box::new(ZipFileSystem::new(bytes).with_context(|| format!("Cannot open {} as zip archive", path.display()))?)
     } else {
-        Box::new(ExternalFileSystem(fs::canonicalize(path)?))
+        Box::new(ExternalFileSystem(Arc::new(cap_std::fs::Dir::open_ambient_dir(path, ambient_authority())?)))
     })
 }
 
