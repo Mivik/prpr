@@ -33,45 +33,6 @@ use macroquad::prelude::*;
 use miniquad::PassAction;
 use std::{borrow::Cow, cell::RefCell, collections::HashMap, ops::Range};
 
-#[derive(Default, Clone, Copy)]
-pub struct Gravity(u8);
-
-impl Gravity {
-    pub const LEFT: u8 = 0;
-    pub const HCENTER: u8 = 1;
-    pub const RIGHT: u8 = 2;
-    pub const TOP: u8 = 0;
-    pub const VCENTER: u8 = 4;
-    pub const BOTTOM: u8 = 8;
-
-    pub const BEGIN: u8 = Self::LEFT | Self::TOP;
-    pub const CENTER: u8 = Self::HCENTER | Self::VCENTER;
-    pub const END: u8 = Self::RIGHT | Self::BOTTOM;
-
-    fn value(mode: u8) -> f32 {
-        match mode {
-            0 => 0.,
-            1 => 0.5,
-            2 => 1.,
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn offset(&self, total: (f32, f32), content: (f32, f32)) -> (f32, f32) {
-        (Self::value(self.0 & 3) * (total.0 - content.0), Self::value((self.0 >> 2) & 3) * (total.1 - content.1))
-    }
-
-    pub fn from_point(&self, point: (f32, f32), content: (f32, f32)) -> (f32, f32) {
-        (point.0 - content.0 * Self::value(self.0 & 3), point.1 - content.1 * Self::value((self.0 >> 2) & 3))
-    }
-}
-
-impl From<u8> for Gravity {
-    fn from(val: u8) -> Self {
-        Self(val)
-    }
-}
-
 struct ShadedConstructor<T: Shading>(Matrix, pub T);
 impl<T: Shading> FillVertexConstructor<Vertex> for ShadedConstructor<T> {
     fn new_vertex(&mut self, vertex: FillVertex) -> Vertex {

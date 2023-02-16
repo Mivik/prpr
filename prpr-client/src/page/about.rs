@@ -42,7 +42,7 @@ impl Page for AboutPage {
                 .max_width((1. - SIDE_PADDING) * 2. - 0.02)
                 .size(0.5)
                 .draw();
-            (r.w, r.h)
+            (r.w, r.h + 0.02)
         });
         Ok(())
     }
