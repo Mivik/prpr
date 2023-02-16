@@ -447,7 +447,7 @@ impl Judge {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
                     let note = &mut line.notes[*id as usize];
-                    if !matches!(note.judge, JudgeStatus::NotJudged) {
+                    if !matches!(note.judge, JudgeStatus::NotJudged | JudgeStatus::PreJudge) {
                         continue;
                     }
                     if !click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. }) {
@@ -472,13 +472,12 @@ impl Judge {
                     {
                         continue;
                     }
-                    let dt = dt
-                        + if matches!(note.kind, NoteKind::Flick | NoteKind::Drag) {
-                            0.05 /* TODO tweak*/
+                    let dt = if matches!(note.kind, NoteKind::Flick | NoteKind::Drag) {
+                            if dt <= LIMIT_PERFECT {dt.max(LIMIT_PERFECT)} else {dt.max(LIMIT_GOOD)}
                         } else {
-                            0.
+                            dt
                         };
-                    if dt + (dist / res.note_width - 1.).max(0.) * DIST_FACTOR < closest.2 + (closest.1 / res.note_width - 1.).max(0.) * DIST_FACTOR {
+                    if dt + (dist / res.note_width - 1.).max(0.) * DIST_FACTOR < closest.2 - 0.01 + (closest.1 / res.note_width - 1.).max(0.) * DIST_FACTOR {
                         closest = (Some((line_id, *id)), dist, dt + 0.01);
                     }
                 }
