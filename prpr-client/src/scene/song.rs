@@ -9,7 +9,7 @@ use crate::{
     get_data_mut,
     images::Images,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
-    phizone::{Client, PZChart, PZFile, PZRecord, Ptr, UserManager},
+    phizone::{PZChart, PZFile, PZRecord, UserManager},
     save_data,
 };
 use anyhow::{Context, Result};
@@ -29,7 +29,6 @@ use prpr::{
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, RectButton, Scroll, Ui},
 };
-use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
     borrow::Cow,
@@ -40,7 +39,6 @@ use std::{
         Arc, Mutex, Weak,
     },
 };
-use tokio::io::AsyncWriteExt;
 
 const FADEIN_TIME: f32 = 0.3;
 const EDIT_TRANSIT: f32 = 0.32;
@@ -693,7 +691,7 @@ impl SongScene {
                         illustration: ":illustration".to_owned(),
                         preview_time: song.preview_start.seconds as f32,
                         intro: pz_chart.description.unwrap_or_default(),
-                        offset: song.offset as f32 / 1000.,
+                        offset: 0.,
                         ..Default::default()
                     };
                     if prog_wk.strong_count() != 0 {
