@@ -676,7 +676,6 @@ impl SongScene {
                     download(&dir, "music", &song.music.url, &prog_wk).await?;
                     download(&dir, "illustration", &song.illustration.url, &prog_wk).await?;
                     warn!("TODO song configuration, preview time");
-                    println!("OFFSET {}", song.offset);
                     let info = ChartInfo {
                         id: Some(pz_chart.id),
                         name: song.name,
