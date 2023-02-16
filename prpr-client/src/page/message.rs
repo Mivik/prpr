@@ -1,12 +1,19 @@
 prpr::tl_file!("message");
 
+struct Message {
+    title: String,
+    content: String,
+    author: String,
+    updated_at: DateTime<Utc>,
+}
+
 use super::{Page, SharedState};
 use crate::{
-    cloud::{Client, Message},
+    // cloud::{Client, Message},
     get_data, get_data_mut, save_data,
 };
 use anyhow::Result;
-use chrono::{Local, Utc};
+use chrono::{Local, Utc, DateTime};
 use macroquad::prelude::*;
 use prpr::{
     scene::show_error,
@@ -30,7 +37,10 @@ impl MessagePage {
         Self {
             list_scroll: Scroll::new(),
             content_scroll: Scroll::new(),
-            load_task: Some(Task::new(Client::messages())),
+            load_task: Some(Task::new(async move {
+                // TODO
+                Ok(Vec::new())
+            })),
 
             messages: Vec::new(),
             focus: None,
@@ -53,7 +63,9 @@ impl Page for MessagePage {
             self.has_new = false;
             self.focus = None;
             self.messages.clear();
-            self.load_task = Some(Task::new(Client::messages()));
+            self.load_task = Some(Task::new(async move {
+                todo!()
+            }));
         }
         self.list_scroll.update(t);
         self.content_scroll.update(t);

@@ -1,5 +1,7 @@
 inner.rs
 
+/.env
+/http-cacache
 /prpr/build.rs
 /target
 /assets/font.ttf

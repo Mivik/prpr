@@ -405,6 +405,7 @@ impl Main {
             let now = self.tm.now();
             let delta = (now - self.last_update_time) / touches.len() as f64;
             let start_time = self.tm.start_time;
+            let mut last_err = None;
             DIALOG.with(|it| -> Result<()> {
                 let mut index = 1;
                 touches.retain_mut(|touch| {
@@ -420,11 +421,21 @@ impl Main {
                     } else {
                         drop(guard);
                         self.tm.seek_to(t);
-                        !self.scenes.last_mut().unwrap().touch(&mut self.tm, touch).unwrap_or(false)
+                        match self.scenes.last_mut().unwrap().touch(&mut self.tm, touch) {
+                            Ok(val) => !val,
+                            Err(err) => {
+                                warn!("failed to handle touch: {err:?}");
+                                last_err = Some(err);
+                                false
+                            }
+                        }
                     }
                 });
                 Ok(())
             })?;
+            if let Some(err) = last_err {
+                return Err(err);
+            }
             self.tm.start_time = start_time;
         }
         self.touches = Some(touches);

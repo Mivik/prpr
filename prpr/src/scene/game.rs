@@ -82,7 +82,7 @@ pub struct GameScene {
     pub chart: Chart,
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
-    player: Option<String>,
+    player: Option<u64>,
     chart_str: String,
     chart_format: ChartFormat,
     info_offset: f32,
@@ -181,7 +181,7 @@ impl GameScene {
         info: ChartInfo,
         mut config: Config,
         mut fs: Box<dyn FileSystem>,
-        player: (Option<SafeTexture>, Option<String>),
+        player: (Option<SafeTexture>, Option<u64>),
         background: SafeTexture,
         illustration: SafeTexture,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
@@ -747,17 +747,18 @@ impl Scene for GameScene {
                 if t >= AFTER_TIME + 0.3 {
                     let mut record_data = None;
                     // TODO strengthen the protection
-                    #[cfg(feature = "closed")]
-                    if let Some(upload_fn) = self.upload_fn {
-                        if !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
-                            if let Some(player) = &self.player {
-                                if let Some(chart) = &self.res.info.id {
-                                    use base64::Engine as _;
-                                    record_data = Some(base64::engine::general_purpose::STANDARD.encode(encode_record(self, player, chart)));
-                                }
-                            }
-                        }
-                    }
+                    warn!("TODO upload");
+                    // #[cfg(feature = "closed")]
+                    // if let Some(upload_fn) = self.upload_fn {
+                        // if !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
+                            // if let Some(player) = &self.player {
+                                // if let Some(chart) = &self.res.info.id {
+                                    // use base64::Engine as _;
+                                    // record_data = Some(base64::engine::general_purpose::STANDARD.encode(encode_record(self, player, chart)));
+                                // }
+                            // }
+                        // }
+                    // }
                     self.next_scene = match self.mode {
                         GameMode::Normal => Some(NextScene::Overlay(Box::new(EndingScene::new(
                             self.res.background.clone(),

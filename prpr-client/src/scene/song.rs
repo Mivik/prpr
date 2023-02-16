@@ -2,11 +2,14 @@ prpr::tl_file!("song");
 
 use super::main::{UPDATE_INFO, UPDATE_ONLINE_TEXTURE, UPDATE_TEXTURE};
 use crate::{
-    cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, QueryResult, RequestExt, UserManager},
+    // cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, QueryResult, RequestExt, UserManager},
     data::{BriefChartInfo, LocalChart},
-    dir, get_data, get_data_mut,
+    dir,
+    get_data,
+    get_data_mut,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
-    save_data,
+    phizone::{Client, PZFile, PZRecord, UserManager},
+    save_data, images::Images,
 };
 use anyhow::{Context, Result};
 use futures_util::StreamExt;
@@ -165,9 +168,9 @@ pub struct SongScene {
     side_enter_time: f32,
 
     downloading: Option<(String, Arc<Mutex<f32>>, MessageHandle, Task<Result<LocalChart>>)>,
-    leaderboard_task: Option<Task<Result<QueryResult<LCRecord>>>>,
+    leaderboard_task: Option<Task<Result<(Vec<PZRecord>, u64)>>>,
     leaderboard_scroll: Scroll,
-    leaderboards: Option<Vec<LCRecord>>,
+    leaderboards: Option<Vec<PZRecord>>,
     online: bool,
 }
 
@@ -203,16 +206,16 @@ impl SongScene {
         icon_download: SafeTexture,
         icon_play: SafeTexture,
         bin: TrashBin,
-        lc_file: Option<LCFile>,
+        lc_file: Option<PZFile>,
         online: bool,
     ) -> Self {
         if let Some(user) = chart.info.uploader.as_ref() {
-            UserManager::request(&user.id);
+            UserManager::request(user.id());
         }
         let path = chart.path.clone();
         let brief = chart.info.clone();
         if let Some(user) = brief.uploader.as_ref() {
-            UserManager::request(&user.id);
+            UserManager::request(user.id());
         }
         Self {
             chart,
@@ -236,7 +239,7 @@ impl SongScene {
 
             info_task: if online { None } else { Some(create_info_task(path, brief)) },
             illustration_task: None,
-            online_illustration_task: lc_file.map(|file| Task::new(async move { Images::load_lc(&file).await })),
+            online_illustration_task: lc_file.map(|file| Task::new(async move { Ok(image::load_from_memory(&file.fetch().await?)?) })),
 
             chart_info: None,
             scene_task: None,
@@ -267,14 +270,19 @@ impl SongScene {
         self.leaderboards = None;
         self.leaderboard_task = self.get_id().map(|id| {
             Task::new(
-                Client::query::<LCRecord>()
-                    .with_where(json!({
-                        "chart": Pointer::from(id.to_owned()).with_class_name("Chart"),
-                        "best": true,
-                    }))
-                    .order("-score")
-                    .limit(10)
-                    .send(),
+                // Client::query::<PZRecord>()
+                // .query("chart", id.to_string())
+                // .with_where(json!({
+                // "chart": id,
+                // "best": true,
+                // }))
+                // .order("-score")
+                // .limit(10)
+                // .send(),
+                async move {
+                    warn!("TODO leaderboard");
+                    Ok((Vec::new(), 0))
+                },
             )
         });
     }
@@ -359,11 +367,11 @@ impl SongScene {
                 sy += top + 0.03;
                 if let Some(user) = self.chart.info.uploader.as_ref() {
                     let r = Rect::new(0., 0., 0.1, 0.1);
-                    if let Some(avatar) = UserManager::get_avatar(&user.id) {
+                    if let Some(avatar) = UserManager::get_avatar(user.id()) {
                         let ct = r.center();
                         ui.fill_circle(ct.x, ct.y, r.w / 2., (*avatar, r));
                     }
-                    if let Some(name) = UserManager::get_name(&user.id) {
+                    if let Some(name) = UserManager::get_name(user.id()) {
                         ui.text(name).pos(r.right() + 0.01, r.center().y).anchor(0., 0.5).size(0.6).draw();
                     }
                     ui.dy(r.h + 0.02);
@@ -432,7 +440,7 @@ impl SongScene {
                     .no_baseline()
                     .size(0.47)
                     .draw();
-                if let Some(avatar) = UserManager::get_avatar(&rec.player.id) {
+                if let Some(avatar) = UserManager::get_avatar(rec.player.id()) {
                     let r = s / 2. - 0.02;
                     ui.fill_circle(0.14, s / 2., r, (*avatar, Rect::new(0.14 - r, s / 2. - r, r * 2., r * 2.)));
                 }
@@ -455,7 +463,7 @@ impl SongScene {
                     .draw();
                 rt -= r.w + 0.03;
                 let lt = 0.2;
-                if let Some(name) = UserManager::get_name(&rec.player.id) {
+                if let Some(name) = UserManager::get_name(rec.player.id()) {
                     ui.text(name)
                         .pos(lt, s / 2.)
                         .anchor(0., 0.5)
@@ -645,7 +653,12 @@ impl SongScene {
         }
         let fs = fs_from_path(&self.chart.path)?;
         let mut info = self.chart_info.clone().unwrap();
-        info.id = self.chart.path.strip_prefix("download/").map(str::to_owned);
+        info.id = self
+            .chart
+            .path
+            .strip_prefix("download/")
+            .map(str::to_owned)
+            .and_then(|it| it.parse().ok());
         self.scene_task = Some(Box::pin(async move {
             LoadingScene::new(
                 mode,
@@ -664,24 +677,25 @@ impl SongScene {
                     ..get_data().config.clone()
                 },
                 fs,
-                (get_data().me.as_ref().and_then(|it| UserManager::get_avatar(&it.id)), get_data().me.as_ref().map(|it| it.id.clone())),
+                (get_data().me.as_ref().and_then(|it| UserManager::get_avatar(it.id)), get_data().me.as_ref().map(|it| it.id.clone())),
                 None,
                 Some(move |data| {
                     Task::new(async move {
-                        let resp = Client::post(
-                            "/functions/uploadRecord",
-                            json!({
-                                "data": data,
-                            }),
-                        )
-                        .with_session()
-                        .send()
-                        .await?;
-                        let resp: LCFunctionResult<RecordUpdateState> = serde_json::from_str(&resp.text().await?)?;
-                        if let Some(err) = resp.error {
-                            tl!(bail "ldb-upload-error", "code" => resp.code, "error" => format!("{err:?}"));
-                        }
-                        resp.result.ok_or_else(|| tl!(err "ldb-server-no-resp"))
+                        warn!("TOOD UPLOAD");
+                        Ok(RecordUpdateState { best: false, improvement: 0 })
+                        // let resp = Client::post(
+                        // "/functions/uploadRecord",
+                        // json!({
+                        // "data": data,
+                        // }),
+                        // )
+                        // .send()
+                        // .await?;
+                        // let resp: LCFunctionResult<RecordUpdateState> = serde_json::from_str(&resp.text().await?)?;
+                        // if let Some(err) = resp.error {
+                        // tl!(bail "ldb-upload-error", "code" => resp.code, "error" => format!("{err:?}"));
+                        // }
+                        // resp.result.ok_or_else(|| tl!(err "ldb-server-no-resp"))
                     })
                 }),
             )
@@ -690,8 +704,11 @@ impl SongScene {
         Ok(())
     }
 
-    fn get_id(&self) -> Option<&str> {
-        self.chart.info.id.as_deref().or_else(|| self.chart.path.strip_prefix("download/"))
+    fn get_id(&self) -> Option<u64> {
+        self.chart
+            .info
+            .id
+            .or_else(|| self.chart.path.strip_prefix("download/").and_then(|it| it.parse().ok()))
     }
 }
 
@@ -811,6 +828,7 @@ impl Scene for SongScene {
         if let Some(future) = &mut self.scene_task {
             if let Some(scene) = poll_future(future.as_mut()) {
                 self.scene_task = None;
+                println!("OK {}", scene.is_err());
                 self.next_scene = Some(NextScene::Overlay(Box::new(scene?)));
             }
         }
@@ -862,10 +880,10 @@ impl Scene for SongScene {
                         show_error(err.context(tl!("ldb-load-failed")));
                     }
                     Ok(records) => {
-                        for rec in &records.results {
-                            UserManager::request(&rec.player.id);
+                        for rec in &records.0 {
+                            UserManager::request(rec.player.id());
                         }
-                        self.leaderboards = Some(records.results);
+                        self.leaderboards = Some(records.0);
                     }
                 }
                 self.leaderboard_task = None;
@@ -931,26 +949,27 @@ impl Scene for SongScene {
                     tl!(bail "upload-illu-too-large")
                 }
                 *UPLOAD_STATUS.lock().unwrap() = Some(tl!("uploading-chart"));
-                let file = Client::upload_file("chart.zip", &chart_bytes)
-                    .await
-                    .with_context(|| tl!("upload-chart-failed"))?;
-                *UPLOAD_STATUS.lock().unwrap() = Some(tl!("uploading-illu"));
-                let illustration = Client::upload_file("illustration.jpg", &image)
-                    .await
-                    .with_context(|| tl!("upload-illu-failed"))?;
-                *UPLOAD_STATUS.lock().unwrap() = Some(tl!("upload-saving"));
-                let item = LCChartItem {
-                    id: None,
-                    info: BriefChartInfo {
-                        uploader: Some(Pointer::from(user_id).with_class_name("_User")),
-                        ..info.into()
-                    },
-                    file,
-                    illustration,
-                    checksum: Some(checksum),
-                };
-                Client::create(item).await.with_context(|| tl!("upload-save-failed"))?;
-                Ok(())
+                todo!()
+                // let file = Client::upload_file("chart.zip", &chart_bytes)
+                    // .await
+                    // .with_context(|| tl!("upload-chart-failed"))?;
+                // *UPLOAD_STATUS.lock().unwrap() = Some(tl!("uploading-illu"));
+                // let illustration = Client::upload_file("illustration.jpg", &image)
+                    // .await
+                    // .with_context(|| tl!("upload-illu-failed"))?;
+                // *UPLOAD_STATUS.lock().unwrap() = Some(tl!("upload-saving"));
+                // let item = LCChartItem {
+                    // id: None,
+                    // info: BriefChartInfo {
+                        // uploader: Some(Pointer::from(user_id).with_class_name("_User")),
+                        // ..info.into()
+                    // },
+                    // file,
+                    // illustration,
+                    // checksum: Some(checksum),
+                // };
+                // Client::create(item).await.with_context(|| tl!("upload-save-failed"))?;
+                // Ok(())
             }));
         }
         if let Some((.., handle, task)) = &mut self.downloading {

@@ -16,7 +16,9 @@ bytes = "1.4.0"
 chrono = { version = "0.4.23", features = ["serde"] }
 futures-util = "0.3.25"
 hex = "0.4.3"
+http-cache-reqwest = "0.6.0"
 image = "*"
+lru = "0.9.0"
 lyon = "*"
 macroquad = { git = "https://github.com/Mivik/prpr-macroquad", default-features = false }
 md5 = "0.7"
@@ -26,6 +28,7 @@ pollster = "0.2.5"
 prpr = { path = "../prpr" }
 regex = "1.7.0"
 reqwest = { version = "0.11", features = ["json", "stream"] }
+reqwest-middleware = "0.2.0"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 sha2 = "*"
@@ -43,3 +46,6 @@ sasa = { git = "https://github.com/Mivik/sasa" }
 [target.'cfg(target_os = "ios")'.dependencies]
 objc = "*"
 objc-foundation = "*"
+
+[build-dependencies]
+dotenv-build = "0.1"

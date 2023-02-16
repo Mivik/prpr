@@ -2,11 +2,10 @@ prpr::tl_file!("main_scene");
 
 use super::{song::TrashBin, SongScene};
 use crate::{
-    cloud::{LCFile, UserManager},
     data::THEMES,
     dir, get_data, get_data_mut,
     page::{self, ChartItem, Page, SharedState},
-    save_data,
+    save_data, phizone::{UserManager, PZFile},
 };
 use anyhow::Result;
 use lyon::{
@@ -64,7 +63,7 @@ pub struct MainScene {
 impl MainScene {
     pub async fn new() -> Result<Self> {
         if let Some(user) = &get_data().me {
-            UserManager::request(&user.id);
+            UserManager::request(user.id);
         }
         let shared_state = SharedState::new().await?;
         macro_rules! load_tex {
@@ -156,7 +155,7 @@ impl MainScene {
         });
     }
 
-    pub fn song_scene(&self, chart: &ChartItem, file: Option<LCFile>, online: bool) -> Option<NextScene> {
+    pub fn song_scene(&self, chart: &ChartItem, file: Option<PZFile>, online: bool) -> Option<NextScene> {
         Some(NextScene::Overlay(Box::new(SongScene::new(
             ChartItem {
                 info: chart.info.clone(),

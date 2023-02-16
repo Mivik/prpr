@@ -38,7 +38,7 @@ impl LoadingScene {
         mut info: ChartInfo,
         config: Config,
         mut fs: Box<dyn FileSystem>,
-        player: (Option<SafeTexture>, Option<String>),
+        player: (Option<SafeTexture>, Option<u64>),
         get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>,
         upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
     ) -> Result<Self> {

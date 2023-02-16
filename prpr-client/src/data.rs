@@ -22,7 +22,7 @@ pub const THEMES: [(&str, u32, u32); 8] = [
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BriefChartInfo {
-    pub id: Option<String>,
+    pub id: Option<u64>,
     pub uploader: Option<PZPointer<PZUser>>,
     pub name: String,
     pub level: String,
@@ -77,7 +77,7 @@ pub struct LocalChart {
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Data {
-    pub me: Option<User>,
+    pub me: Option<PZUser>,
     pub charts: Vec<LocalChart>,
     pub config: Config,
     pub message_check_time: Option<DateTime<Utc>>,

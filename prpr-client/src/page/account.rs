@@ -2,8 +2,9 @@ prpr::tl_file!("account");
 
 use super::{Page, SharedState};
 use crate::{
-    cloud::{Client, User, UserManager},
-    get_data, get_data_mut, save_data, Rect, Ui,
+    get_data, get_data_mut,
+    phizone::{Client, PZUser, UserManager},
+    save_data, Rect, Ui,
 };
 use anyhow::{Context, Result};
 use image::imageops::FilterType;
@@ -18,8 +19,15 @@ use regex::Regex;
 use serde_json::json;
 use std::{borrow::Cow, future::Future, io::Cursor};
 
+static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"\A[a-z0-9!#$%&'*+/=?^_‘{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_‘{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z",
+    )
+    .unwrap()
+});
+
 fn validate_username(username: &str) -> Option<Cow<'static, str>> {
-    if !(4..=20).contains(&username.len()) {
+    if !(4..=12).contains(&username.chars().count()) {
         return Some(tl!("name-length-req"));
     }
     if username.chars().any(|it| it != '_' && it != '-' && !it.is_alphanumeric()) {
@@ -30,7 +38,7 @@ fn validate_username(username: &str) -> Option<Cow<'static, str>> {
 
 pub struct AccountPage {
     register: bool,
-    task: Option<Task<Result<Option<User>>>>,
+    task: Option<Task<Result<Option<PZUser>>>>,
     task_name: String,
     email_input: String,
     username_input: String,
@@ -56,7 +64,7 @@ impl AccountPage {
         }
     }
 
-    pub fn start(&mut self, desc: impl Into<String>, future: impl Future<Output = Result<Option<User>>> + Send + 'static) {
+    pub fn start(&mut self, desc: impl Into<String>, future: impl Future<Output = Result<Option<PZUser>>> + Send + 'static) {
         self.task_name = desc.into();
         self.task = Some(Task::new(future));
     }
@@ -75,7 +83,7 @@ impl Page for AccountPage {
                     Err(err) => show_error(err.context(tl!("action-failed", "action" => action))),
                     Ok(user) => {
                         if let Some(user) = user {
-                            UserManager::request(&user.id);
+                            UserManager::request(user.id);
                             get_data_mut().me = Some(user);
                             save_data()?;
                         }
@@ -97,8 +105,9 @@ impl Page for AccountPage {
                 } else {
                     let user = get_data().me.clone().unwrap();
                     self.start("edit-name", async move {
-                        Client::update_user(json!({ "username": text })).await?;
-                        Ok(Some(User { name: text, ..user }))
+                        // Client::update_user(json!({ "username": text })).await?;
+                        // Ok(Some(User { name: text, ..user }))
+                        todo!()
                     });
                 }
             } else {
@@ -107,7 +116,7 @@ impl Page for AccountPage {
         }
         if let Some((id, file)) = take_file() {
             if id == "avatar" {
-                let mut load = |path: String| -> Result<()> {
+                /*let mut load = |path: String| -> Result<()> {
                     let image = image::load_from_memory(&std::fs::read(path).with_context(|| tl!("picture-read-failed"))?)
                         .with_context(|| tl!("picture-load-failed"))?
                         .resize_exact(512, 512, FilterType::CatmullRom);
@@ -135,7 +144,8 @@ impl Page for AccountPage {
                 };
                 if let Err(err) = load(file) {
                     show_error(err.context(tl!("avatar-import-failed")));
-                }
+                }*/
+                todo!()
             } else {
                 return_file(id, file);
             }
@@ -155,7 +165,7 @@ impl Page for AccountPage {
         ui.dx(0.02);
         let r = Rect::new(0., 0., 0.22, 0.22);
         self.avatar_button.set(ui, r);
-        if let Some(avatar) = get_data().me.as_ref().and_then(|it| UserManager::get_avatar(&it.id)) {
+        if let Some(avatar) = get_data().me.as_ref().and_then(|it| UserManager::get_avatar(it.id)) {
             let ct = r.center();
             ui.fill_circle(ct.x, ct.y, r.w / 2., (*avatar, r));
         }
@@ -173,12 +183,12 @@ impl Page for AccountPage {
         ui.dy(r.h + 0.03);
         if get_data().me.is_none() {
             ui.dx(0.15);
+            let r = ui.input(tl!("email"), &mut self.email_input, ());
+            ui.dy(r.h + 0.02);
             if self.register {
-                let r = ui.input(tl!("email"), &mut self.email_input, ());
+                let r = ui.input(tl!("username"), &mut self.username_input, ());
                 ui.dy(r.h + 0.02);
             }
-            let r = ui.input(tl!("username"), &mut self.username_input, ());
-            ui.dy(r.h + 0.02);
             let r = ui.input(tl!("password"), &mut self.password_input, true);
             ui.dy(r.h + 0.02);
             let labels = if self.register {
@@ -194,19 +204,18 @@ impl Page for AccountPage {
             r.x = cx + 0.01;
             if ui.button("right", r, labels[1].as_ref()) {
                 let mut login = || -> Option<Cow<'static, str>> {
-                    let username = self.username_input.clone();
+                    let email = self.email_input.clone();
                     let password = self.password_input.clone();
-                    if let Some(error) = validate_username(&username) {
-                        return Some(error);
+                    if !EMAIL_REGEX.is_match(&email) {
+                        return Some(tl!("illegal-email"));
                     }
-                    if !(6..=26).contains(&password.len()) {
+                    if !(8..=32).contains(&password.len()) {
                         return Some(tl!("pwd-length-req"));
                     }
                     if self.register {
-                        let email = self.email_input.clone();
-                        static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$").unwrap());
-                        if !EMAIL_REGEX.is_match(&email) {
-                            return Some(tl!("illegal-email"));
+                        let username = self.username_input.clone();
+                        if let Some(error) = validate_username(&username) {
+                            return Some(error);
                         }
                         self.start("register", async move {
                             Client::register(&email, &username, &password).await?;
@@ -214,7 +223,8 @@ impl Page for AccountPage {
                         });
                     } else {
                         self.start("login", async move {
-                            let user = Client::login(&username, &password).await?;
+                            Client::login(&email, &password).await?;
+                            let user = Client::get_me().await?;
                             Ok(Some(user))
                         });
                     }

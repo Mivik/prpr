@@ -13,7 +13,7 @@ pub enum ChartFormat {
 #[serde(default)]
 #[serde(rename_all = "camelCase")]
 pub struct ChartInfo {
-    pub id: Option<String>,
+    pub id: Option<u64>,
 
     pub name: String,
     pub difficulty: f32,

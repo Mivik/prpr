@@ -2,21 +2,22 @@ prpr::tl_file!("online");
 
 use super::{get_touched, trigger_grid, ChartItem, Page, SharedState, CARD_HEIGHT, ROW_NUM};
 use crate::{
-    cloud::{Client, Images, LCChartItem, LCFile, QueryResult},
     data::BriefChartInfo,
+    phizone::{Client, PZChart, PZFile, PZSong},
     scene::{ChartOrder, ChartOrderBox, CHARTS_BAR_HEIGHT},
 };
 use anyhow::Result;
-use macroquad::prelude::{Rect, Touch};
+use futures_util::future::join_all;
+use macroquad::prelude::{warn, Rect, Touch};
 use prpr::{
     ext::SafeTexture,
     scene::{show_error, show_message},
     task::Task,
     ui::{MessageHandle, Scroll, Ui},
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Deref};
 
-const PAGE_NUM: usize = 28;
+const PAGE_NUM: u64 = 30;
 
 pub struct OnlinePage {
     focus: bool,
@@ -26,11 +27,11 @@ pub struct OnlinePage {
 
     order_box: ChartOrderBox,
 
-    page: usize,
-    total_page: usize,
+    page: u64,
+    total_page: u64,
 
-    task_load: Task<Result<(Vec<(ChartItem, LCFile)>, usize)>>,
-    illu_files: Vec<LCFile>,
+    task_load: Task<Result<(Vec<(ChartItem, PZFile)>, u64)>>,
+    illu_files: Vec<PZFile>,
     first_time: bool,
     loading: Option<MessageHandle>,
 }
@@ -66,41 +67,53 @@ impl OnlinePage {
         self.task_load = Task::new({
             let tex = state.tex.clone();
             async move {
-                let result: QueryResult<LCChartItem> = Client::query()
+                let (charts, count) = Client::query::<PZChart>()
+                    .flag("query_song")
                     .order(match order {
-                        (ChartOrder::Default, false) => "-updatedAt",
-                        (ChartOrder::Default, true) => "updatedAt",
-                        (ChartOrder::Name, false) => "name",
-                        (ChartOrder::Name, true) => "-name",
+                        (ChartOrder::Default, false) => "-time",
+                        (ChartOrder::Default, true) => "time",
+                        (ChartOrder::Name, false) => todo!(),
+                        (ChartOrder::Name, true) => todo!(),
                     })
-                    .limit(PAGE_NUM)
-                    .skip(page * PAGE_NUM)
-                    .with_count()
+                    .page(page)
                     .send()
                     .await?;
-                let total_page = (result.count.unwrap() - 1) / PAGE_NUM + 1;
-                let charts = result
-                    .results
-                    .into_iter()
-                    .map(|it| {
-                        let illu = it.illustration.clone();
-                        (
+                let total_page = (count - 1) / PAGE_NUM + 1;
+                let charts: Vec<_> = join_all(charts.into_iter().map(|it| {
+                    let tex = tex.clone();
+                    async move {
+                        // let illu = it.illustration.clone();
+                        let song: PZSong = it.song.load().await?.deref().clone();
+                        Result::<_>::Ok((
                             ChartItem {
                                 info: BriefChartInfo {
-                                    id: it.id,
-                                    ..it.info.clone()
+                                    id: Some(it.id),
+                                    uploader: Some(it.owner),
+                                    name: song.name,
+                                    level: it.level,
+                                    difficulty: it.difficulty,
+                                    preview_time: song.preview_start.seconds as f32, // TODO
+                                    intro: it.description.unwrap_or_default(),
+                                    tags: Vec::new(), // TODO
+                                    composer: song.composer,
+                                    illustrator: song.illustrator,
                                 },
-                                path: it.file.url,
-                                illustration: (tex.clone(), tex.clone()),
-                                illustration_task: Some(Task::new(async move {
-                                    let image = Images::load_lc_thumbnail(&illu).await?;
-                                    Ok((image, None))
+                                path: it.chart.map(|it| it.url).unwrap_or_default(),
+                                illustration: (tex.clone(), tex),
+                                illustration_task: Some(Task::new({
+                                    let illu = song.illustration.clone();
+                                    async move {
+                                        Ok((illu.load_thumbnail().await?, None))
+                                    }
                                 })),
                             },
-                            it.illustration,
-                        )
-                    })
-                    .collect::<Vec<_>>();
+                            song.illustration,
+                        ))
+                    }
+                }))
+                .await
+                .into_iter()
+                .collect::<Result<_>>()?;
                 Ok((charts, total_page))
             }
         });

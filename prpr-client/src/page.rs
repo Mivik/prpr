@@ -16,7 +16,7 @@ pub use online::OnlinePage;
 mod settings;
 pub use settings::SettingsPage;
 
-use crate::{data::BriefChartInfo, dir, get_data, phizone::PZFile, scene::ChartOrder};
+use crate::{data::BriefChartInfo, dir, get_data, phizone::PZFile, scene::ChartOrder, images::Images};
 use anyhow::Result;
 use image::DynamicImage;
 use lyon::{
