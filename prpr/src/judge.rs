@@ -172,7 +172,9 @@ impl JudgeInner {
     pub fn commit(&mut self, what: Judgement, diff: Option<f32>) {
         use Judgement::*;
         if let Some(diff) = diff {
-            self.diffs.push(diff);
+            if matches!(what, Judgement::Good) {
+                self.diffs.push(diff);
+            }
         }
         self.counts[what as usize] += 1;
         match what {

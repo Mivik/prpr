@@ -1,6 +1,6 @@
 crate::tl_file!("ending");
 
-use super::{draw_background, draw_illustration, NextScene, Scene};
+use super::{draw_background, draw_illustration, NextScene, Scene, loading::UploadFn};
 use crate::{
     config::Config,
     ext::{
@@ -47,9 +47,9 @@ pub struct EndingScene {
     update_state: Option<RecordUpdateState>,
     rated: bool,
 
-    upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
+    upload_fn: Option<UploadFn>,
     upload_task: Option<(Task<Result<RecordUpdateState>>, MessageHandle)>,
-    record_data: Option<String>,
+    record_data: Option<serde_json::Value>,
 }
 
 impl EndingScene {
@@ -65,8 +65,8 @@ impl EndingScene {
         challenge_texture: SafeTexture,
         config: &Config,
         bgm: AudioClip,
-        upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
-        record_data: Option<String>,
+        upload_fn: Option<UploadFn>,
+        record_data: Option<serde_json::Value>,
     ) -> Result<Self> {
         let mut audio = create_audio_manger(config)?;
         let bgm = audio.create_music(
@@ -77,7 +77,7 @@ impl EndingScene {
                 ..Default::default()
             },
         )?;
-        let upload_task = upload_fn.and_then(|f| record_data.clone().map(|data| (f(data), show_message(tl!("uploading")).handle())));
+        let upload_task = upload_fn.as_ref().and_then(|f| record_data.clone().map(|data| (f(data), show_message(tl!("uploading")).handle())));
         Ok(Self {
             background,
             illustration,
@@ -148,7 +148,7 @@ impl Scene for EndingScene {
             self.upload_task = self
                 .record_data
                 .clone()
-                .map(|data| ((self.upload_fn.unwrap())(data), show_message(tl!("uploading")).handle()));
+                .map(|data| ((self.upload_fn.as_ref().unwrap())(data), show_message(tl!("uploading")).handle()));
         }
         if let Some((task, handle)) = &mut self.upload_task {
             if let Some(result) = task.take() {

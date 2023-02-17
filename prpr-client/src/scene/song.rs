@@ -9,10 +9,10 @@ use crate::{
     get_data_mut,
     images::Images,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
-    phizone::{PZChart, PZFile, PZRecord, UserManager},
+    phizone::{recv_raw, Client, PZChart, PZFile, PZRecord, PZUser, UserManager},
     save_data,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use cap_std::ambient_authority;
 use futures_util::StreamExt;
 use image::DynamicImage;
@@ -29,6 +29,8 @@ use prpr::{
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, RectButton, Scroll, Ui},
 };
+use serde::Deserialize;
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
     borrow::Cow,
@@ -176,7 +178,7 @@ pub struct SongScene {
 
     downloading: Option<(String, Arc<Mutex<f32>>, MessageHandle, Task<Result<LocalChart>>)>,
     download_finish: Option<Weak<()>>,
-    leaderboard_task: Option<Task<Result<(Vec<PZRecord>, u64)>>>,
+    leaderboard_task: Option<Task<Result<Vec<PZRecord>>>>,
     leaderboard_scroll: Scroll,
     leaderboards: Option<Vec<PZRecord>>,
     online: bool,
@@ -280,21 +282,12 @@ impl SongScene {
         }
         self.leaderboards = None;
         self.leaderboard_task = self.get_id().map(|id| {
-            Task::new(
-                // Client::query::<PZRecord>()
-                // .query("chart", id.to_string())
-                // .with_where(json!({
-                // "chart": id,
-                // "best": true,
-                // }))
-                // .order("-score")
-                // .limit(10)
-                // .send(),
-                async move {
-                    warn!("TODO leaderboard");
-                    Ok((Vec::new(), 0))
-                },
-            )
+            Task::new(async move {
+                Ok(recv_raw(Client::get("/records/list15").await.query(&[("chart", id)]))
+                    .await?
+                    .json()
+                    .await?)
+            })
         });
     }
 
@@ -440,12 +433,16 @@ impl SongScene {
             return;
         };
         self.leaderboard_scroll.size((width, ui.top * 2. - r.h - 0.08));
+        let me = get_data().me.as_ref().map(|it| it.id);
         self.leaderboard_scroll.render(ui, |ui| {
             let s = 0.14;
             let mut h = 0.;
             ui.dx(0.02);
-            for (id, rec) in leaderboards.iter().enumerate() {
-                ui.text(tl!("ldb-rank", "rank" => id + 1))
+            for rec in leaderboards.iter() {
+                if Some(rec.player.id()) == me {
+                    ui.fill_rect(Rect::new(-0.04, 0.015, 0.84, s - 0.03), Color::from_hex(0xff303f9f));
+                }
+                ui.text(tl!("ldb-rank", "rank" => rec.rank.unwrap()))
                     .pos(0., s / 2.)
                     .anchor(0., 0.5)
                     .no_baseline()
@@ -462,7 +459,7 @@ impl SongScene {
                     .anchor(1., 0.5)
                     .no_baseline()
                     .size(0.4)
-                    .color(GRAY)
+                    .color(Color::new(1., 1., 1., 0.7))
                     .draw();
                 rt -= r.w + 0.01;
                 let r = ui
@@ -530,7 +527,8 @@ impl SongScene {
         ) && self.upload_task.is_none()
             && self.save_task.is_none()
         {
-            if get_data().me.is_none() {
+            show_message(tl!("upload-not-available")).error();
+            /*if get_data().me.is_none() {
                 show_message(tl!("upload-login-first"));
             } else if self.chart.path.starts_with(':') {
                 show_message(tl!("upload-builtin"));
@@ -545,7 +543,7 @@ impl SongScene {
                         }
                     })
                     .show();
-            }
+            }*/
         }
         r.x += dx;
         if ui.button(
@@ -680,7 +678,7 @@ impl SongScene {
                         id: Some(pz_chart.id),
                         name: song.name,
                         difficulty: pz_chart.difficulty,
-                        level: pz_chart.level,
+                        level: format!("{} Lv.{}", pz_chart.level, pz_chart.difficulty as u16),
                         charter: pz_chart.charter,
                         composer: song.composer,
                         illustrator: song.illustrator,
@@ -723,7 +721,29 @@ impl SongScene {
             .strip_prefix("download/")
             .map(str::to_owned)
             .and_then(|it| it.parse().ok());
+        #[cfg(feature = "closed")]
+        let rated = info.id.is_some() && !get_data().config.autoplay && get_data().config.speed >= 1.0 - 1e-3;
+        #[cfg(not(feature = "closed"))]
+        let rated = false;
+        if !rated && info.id.is_some() {
+            show_message(tl!("warn-unrated")).duration(0.6);
+        }
         self.scene_task = Some(Box::pin(async move {
+            #[derive(Deserialize)]
+            struct Resp {
+                play_token: Option<String>,
+            }
+            let mut play_token: Option<String> = None;
+            if rated {
+                let resp: Resp = recv_raw(Client::get("/player/play/").await.query(&json!({
+                    "chart": info.id.clone().unwrap(),
+                    "config": 1,
+                })))
+                .await?
+                .json()
+                .await?;
+                play_token = Some(resp.play_token.ok_or_else(|| anyhow!("didn't receive play token"))?);
+            }
             LoadingScene::new(
                 mode,
                 info,
@@ -743,10 +763,25 @@ impl SongScene {
                 fs,
                 (get_data().me.as_ref().and_then(|it| UserManager::get_avatar(it.id)), get_data().me.as_ref().map(|it| it.id.clone())),
                 None,
-                Some(move |data| {
+                Some(Arc::new(move |mut data| {
+                    let Some(play_token) = play_token.clone() else { unreachable!() };
+                    data["play_token"] = play_token.into();
+                    data["app"] = 3.into();
                     Task::new(async move {
-                        warn!("TOOD UPLOAD");
-                        Ok(RecordUpdateState { best: false, improvement: 0 })
+                        println!("{data}");
+                        #[derive(Deserialize)]
+                        struct Resp {
+                            exp_delta: f64,
+                            former_rks: f64,
+                            player: PZUser,
+                            new_best: Option<bool>,
+                            improvement: Option<u32>,
+                        }
+                        let resp: Resp = recv_raw(Client::post("/records/", &data).await).await?.json().await?;
+                        Ok(RecordUpdateState {
+                            best: resp.new_best.unwrap_or_default(),
+                            improvement: resp.improvement.unwrap_or_default(),
+                        })
                         // let resp = Client::post(
                         // "/functions/uploadRecord",
                         // json!({
@@ -761,7 +796,7 @@ impl SongScene {
                         // }
                         // resp.result.ok_or_else(|| tl!(err "ldb-server-no-resp"))
                     })
-                }),
+                })),
             )
             .await
         }));
@@ -890,9 +925,14 @@ impl Scene for SongScene {
             super::main::SHOULD_DELETE.store(true, Ordering::SeqCst);
         }
         if let Some(future) = &mut self.scene_task {
-            if let Some(scene) = poll_future(future.as_mut()) {
+            if let Some(result) = poll_future(future.as_mut()) {
+                match result {
+                    Err(err) => {
+                        show_error(err.context(tl!("failed-to-play")));
+                    }
+                    Ok(scene) => self.next_scene = Some(NextScene::Overlay(Box::new(scene))),
+                }
                 self.scene_task = None;
-                self.next_scene = Some(NextScene::Overlay(Box::new(scene?)));
             }
         }
         if self.leaderboard_scroll.y_scroller.pulled {
@@ -943,10 +983,10 @@ impl Scene for SongScene {
                         show_error(err.context(tl!("ldb-load-failed")));
                     }
                     Ok(records) => {
-                        for rec in &records.0 {
+                        for rec in &records {
                             UserManager::request(rec.player.id());
                         }
-                        self.leaderboards = Some(records.0);
+                        self.leaderboards = Some(records);
                     }
                 }
                 self.leaderboard_task = None;

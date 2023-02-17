@@ -29,9 +29,7 @@ pub fn sync_data() {
     }
     langs.push(langid!("zh-CN"));
     set_locale_order(&langs);
-    if let Some((token, _)) = get_data().tokens.as_ref() {
-        let _ = phizone::set_access_token_sync(token);
-    }
+    let _ = phizone::set_access_token_sync(get_data().tokens.as_ref().map(|it| &*it.0));
 }
 
 pub fn set_data(data: Data) {

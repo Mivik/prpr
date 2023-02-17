@@ -91,7 +91,7 @@ impl OnlinePage {
                                     id: Some(it.id),
                                     uploader: Some(it.owner),
                                     name: song.name,
-                                    level: it.level,
+                                    level: format!("{} Lv.{}", it.level, it.difficulty as u16),
                                     difficulty: it.difficulty,
                                     preview_time: song.preview_start.seconds as f32, // TODO
                                     intro: it.description.unwrap_or_default(),

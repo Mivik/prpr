@@ -4,7 +4,7 @@ use super::{Page, SharedState};
 use crate::{
     get_data, get_data_mut,
     phizone::{recv_raw, Client, PZUser, UserManager},
-    save_data, Rect, Ui,
+    save_data, Rect, Ui, sync_data,
 };
 use anyhow::{Context, Result};
 use image::imageops::FilterType;
@@ -242,7 +242,9 @@ impl Page for AccountPage {
             let mut r = Rect::new(0., 0., cx - 0.01, 0.06);
             if ui.button("logout", r, tl!("logout")) && self.task.is_none() {
                 get_data_mut().me = None;
+                get_data_mut().tokens = None;
                 let _ = save_data();
+                sync_data();
                 show_message(tl!("logged-out"));
             }
             r.x = cx + 0.01;

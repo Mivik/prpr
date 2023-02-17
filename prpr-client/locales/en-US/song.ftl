@@ -74,3 +74,8 @@ upload-saving = Saving…
 upload-save-failed = Failed to upload
 upload-success = Uploaded successfully, please wait for review!
 upload-failed = Upload failed
+
+warn-unrated = This play is unrated
+failed-to-play = Failed to start playing
+
+upload-not-available = Upload is not available

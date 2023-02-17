@@ -14,11 +14,13 @@ use macroquad::{
     prelude::*,
     rand::{srand, ChooseRandom},
 };
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 const BEFORE_TIME: f32 = 1.;
 const TRANSITION_TIME: f32 = 1.4;
 const WAIT_TIME: f32 = 0.4;
+
+pub type UploadFn = Arc<dyn Fn(serde_json::Value) -> Task<Result<RecordUpdateState>>>;
 
 pub struct LoadingScene {
     info: ChartInfo,
@@ -40,7 +42,7 @@ impl LoadingScene {
         mut fs: Box<dyn FileSystem>,
         player: (Option<SafeTexture>, Option<u64>),
         get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>,
-        upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
+        upload_fn: Option<UploadFn>,
     ) -> Result<Self> {
         async fn load(fs: &mut Box<dyn FileSystem>, path: &str) -> Result<(Texture2D, Texture2D)> {
             let image = image::load_from_memory(&fs.load_file(path).await?).context("Failed to decode image")?;

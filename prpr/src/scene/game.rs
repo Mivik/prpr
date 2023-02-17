@@ -2,7 +2,7 @@
 
 crate::tl_file!("game");
 
-use super::{draw_background, ending::RecordUpdateState, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene};
+use super::{draw_background, ending::RecordUpdateState, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene, loading::UploadFn};
 use crate::{
     config::Config,
     core::{copy_fbo, BadNote, Chart, ChartExtra, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
@@ -26,7 +26,7 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
     rc::Rc,
-    sync::Mutex,
+    sync::{Mutex, Arc},
 };
 
 const PAUSE_CLICK_INTERVAL: f32 = 0.7;
@@ -105,7 +105,7 @@ pub struct GameScene {
 
     bad_notes: Vec<BadNote>,
 
-    upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
+    upload_fn: Option<UploadFn>,
 }
 
 macro_rules! reset {
@@ -185,7 +185,7 @@ impl GameScene {
         background: SafeTexture,
         illustration: SafeTexture,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
-        upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
+        upload_fn: Option<UploadFn>,
     ) -> Result<Self> {
         match mode {
             GameMode::TweakOffset => {
@@ -748,17 +748,17 @@ impl Scene for GameScene {
                     let mut record_data = None;
                     // TODO strengthen the protection
                     warn!("TODO upload");
-                    // #[cfg(feature = "closed")]
-                    // if let Some(upload_fn) = self.upload_fn {
-                        // if !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
-                            // if let Some(player) = &self.player {
-                                // if let Some(chart) = &self.res.info.id {
-                                    // use base64::Engine as _;
-                                    // record_data = Some(base64::engine::general_purpose::STANDARD.encode(encode_record(self, player, chart)));
-                                // }
-                            // }
-                        // }
-                    // }
+                    #[cfg(feature = "closed")]
+                    if let Some(upload_fn) = &self.upload_fn {
+                        if !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
+                            if let Some(player) = &self.player {
+                                if let Some(chart) = &self.res.info.id {
+                                    use base64::Engine as _;
+                                    record_data = Some(encode_record_pz(self, *player, *chart));
+                                }
+                            }
+                        }
+                    }
                     self.next_scene = match self.mode {
                         GameMode::Normal => Some(NextScene::Overlay(Box::new(EndingScene::new(
                             self.res.background.clone(),
@@ -772,7 +772,7 @@ impl Scene for GameScene {
                             self.res.challenge_icons[self.res.config.challenge_color.clone() as usize].clone(),
                             &self.res.config,
                             self.res.res_pack.ending.clone(),
-                            self.upload_fn,
+                            self.upload_fn.as_ref().map(Arc::clone),
                             record_data,
                         )?))),
                         GameMode::TweakOffset => Some(NextScene::PopWithResult(Box::new(None::<f32>))),

@@ -74,3 +74,8 @@ upload-saving = 保存中…
 upload-save-failed = 上传失败
 upload-success = 上传成功，请等待审核！
 upload-failed = 上传失败
+
+warn-unrated = 本次游玩不计成绩
+failed-to-play = 打开谱面失败
+
+upload-not-available = 上传功能不可用

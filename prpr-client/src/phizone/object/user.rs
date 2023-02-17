@@ -35,7 +35,7 @@ pub struct PZUser {
     pub name: String,
     pub avatar: PZFile,
     pub gender: u8,
-    pub bio: String,
+    pub bio: Option<String>,
     #[serde(rename = "type")]
     pub role: PZUserRole,
 

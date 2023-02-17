@@ -26,6 +26,7 @@ pub struct PZRecord {
     pub player: Ptr<PZUser>,
     // pub event_part_id: Option<i64>,
     // pub app_id: Option<i64>,
+    pub rank: Option<u32>,
 }
 impl PZObject for PZRecord {
     const QUERY_PATH: &'static str = "records";
