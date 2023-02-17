@@ -221,6 +221,11 @@ impl<T: PZObject> QueryBuilder<T> {
         self
     }
 
+    #[inline]
+    pub fn page_num(self, page_num: u64) -> Self {
+        self.query("pagination", page_num.to_string())
+    }
+
     pub fn page(mut self, page: u64) -> Self {
         self.page = Some(page);
         self

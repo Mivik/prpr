@@ -18,7 +18,7 @@ use prpr::{
 };
 use std::{borrow::Cow, ops::Deref, sync::Arc};
 
-const PAGE_NUM: u64 = 30;
+const PAGE_NUM: u64 = 28;
 
 pub struct OnlinePage {
     focus: bool,
@@ -77,6 +77,7 @@ impl OnlinePage {
                         (ChartOrder::Name, true) => todo!(),
                     })
                     .page(page)
+                    .page_num(PAGE_NUM)
                     .send()
                     .await?;
                 let total_page = (count - 1) / PAGE_NUM + 1;
