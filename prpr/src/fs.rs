@@ -13,7 +13,7 @@ use std::{
     collections::HashMap,
     fs,
     io::{Cursor, Read, Seek, Write},
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, Mutex},
 };
 use zip::{write::FileOptions, CompressionMethod, ZipArchive, ZipWriter};

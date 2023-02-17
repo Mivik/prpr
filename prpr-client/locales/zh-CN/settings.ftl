@@ -8,6 +8,7 @@ respack-load-failed = 加载资源包失败
 respack-save-failed = 保存资源包失败
 
 autoplay = 自动游玩
+offline-mode = 离线模式
 double-tips = 双押提示
 fixed-aspect-ratio = 固定宽高比
 time-adjustment = 自动对齐时间

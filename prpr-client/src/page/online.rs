@@ -3,12 +3,12 @@ prpr::tl_file!("online");
 use super::{get_touched, trigger_grid, ChartItem, Page, SharedState, CARD_HEIGHT, ROW_NUM};
 use crate::{
     data::BriefChartInfo,
-    phizone::{Client, PZChart, PZFile, PZSong, Ptr},
+    phizone::{Client, PZChart, PZFile, PZSong},
     scene::{ChartOrder, ChartOrderBox, CHARTS_BAR_HEIGHT},
 };
 use anyhow::Result;
 use futures_util::future::join_all;
-use macroquad::prelude::{warn, Rect, Touch};
+use macroquad::prelude::{Rect, Touch};
 use prpr::{
     ext::SafeTexture,
     scene::{show_error, show_message},
@@ -103,9 +103,7 @@ impl OnlinePage {
                                 illustration: (tex.clone(), tex),
                                 illustration_task: Some(Task::new({
                                     let illu = song.illustration.clone();
-                                    async move {
-                                        Ok((illu.load_thumbnail().await?, None))
-                                    }
+                                    async move { Ok((illu.load_thumbnail().await?, None)) }
                                 })),
                             },
                             song.illustration,

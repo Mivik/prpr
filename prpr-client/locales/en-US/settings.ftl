@@ -8,6 +8,7 @@ respack-load-failed = Failed to load resource pack
 respack-save-failed = Failed to save resource pack
 
 autoplay = Autoplay
+offline-mode = Offline mode
 double-tips = Double tips
 fixed-aspect-ratio = Fixed aspect ratio
 time-adjustment = Automatic time adjustment

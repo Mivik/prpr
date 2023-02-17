@@ -76,6 +76,9 @@ upload-success = 上传成功，请等待审核！
 upload-failed = 上传失败
 
 warn-unrated = 本次游玩不计成绩
-failed-to-play = 打开谱面失败
+failed-to-play = 启动在线模式失败
+play-cancel = 取消
+play-switch-to-offline = 切换到离线模式
+switched-to-offline = 已切换到离线模式
 
 upload-not-available = 上传功能不可用

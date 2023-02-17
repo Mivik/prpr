@@ -178,6 +178,10 @@ impl Page for SettingsPage {
             ui.scope(|ui| {
                 let s = 0.005;
                 let r = ui.checkbox(tl!("autoplay"), &mut config.autoplay);
+                ui.scope(|ui| {
+                    ui.dx(0.27);
+                    ui.checkbox(tl!("offline-mode"), &mut config.offline_mode)
+                });
                 ui.dy(r.h + s);
                 let r = ui.checkbox(tl!("double-tips"), &mut config.multiple_hint);
                 ui.dy(r.h + s);

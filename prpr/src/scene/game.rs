@@ -750,7 +750,7 @@ impl Scene for GameScene {
                     warn!("TODO upload");
                     #[cfg(feature = "closed")]
                     if let Some(upload_fn) = &self.upload_fn {
-                        if !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
+                        if !self.res.config.offline_mode && !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
                             if let Some(player) = &self.player {
                                 if let Some(chart) = &self.res.info.id {
                                     use base64::Engine as _;

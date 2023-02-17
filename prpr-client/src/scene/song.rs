@@ -722,11 +722,14 @@ impl SongScene {
             .map(str::to_owned)
             .and_then(|it| it.parse().ok());
         #[cfg(feature = "closed")]
-        let rated = info.id.is_some() && !get_data().config.autoplay && get_data().config.speed >= 1.0 - 1e-3;
+        let rated = {
+            let config = &get_data().config;
+            !config.offline_mode && info.id.is_some() && !config.autoplay && config.speed >= 1.0 - 1e-3
+        };
         #[cfg(not(feature = "closed"))]
         let rated = false;
-        if !rated && info.id.is_some() {
-            show_message(tl!("warn-unrated")).duration(0.6);
+        if !rated && info.id.is_some() && !get_data().config.offline_mode {
+            show_message(tl!("warn-unrated")).warn();
         }
         self.scene_task = Some(Box::pin(async move {
             #[derive(Deserialize)]
@@ -768,7 +771,6 @@ impl SongScene {
                     data["play_token"] = play_token.into();
                     data["app"] = 3.into();
                     Task::new(async move {
-                        println!("{data}");
                         #[derive(Deserialize)]
                         struct Resp {
                             exp_delta: f64,
@@ -928,7 +930,17 @@ impl Scene for SongScene {
             if let Some(result) = poll_future(future.as_mut()) {
                 match result {
                     Err(err) => {
-                        show_error(err.context(tl!("failed-to-play")));
+                        let error = format!("{err:?}");
+                        Dialog::plain(tl!("failed-to-play"), error)
+                            .buttons(vec![tl!("play-cancel").to_string(), tl!("play-switch-to-offline").to_string()])
+                            .listener(move |pos| {
+                                if pos == 1 {
+                                    get_data_mut().config.offline_mode = true;
+                                    let _ = save_data();
+                                    show_message(tl!("switched-to-offline")).ok();
+                                }
+                            })
+                            .show();
                     }
                     Ok(scene) => self.next_scene = Some(NextScene::Overlay(Box::new(scene))),
                 }

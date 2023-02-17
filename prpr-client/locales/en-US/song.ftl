@@ -76,6 +76,9 @@ upload-success = Uploaded successfully, please wait for review!
 upload-failed = Upload failed
 
 warn-unrated = This play is unrated
-failed-to-play = Failed to start playing
+failed-to-play = Failed to start as online mode
+play-cancel = Cancel
+play-switch-to-offline = Switch to offline mode
+switched-to-offline = Switched to offline mode
 
 upload-not-available = Upload is not available
