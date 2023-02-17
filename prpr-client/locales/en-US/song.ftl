@@ -82,3 +82,5 @@ play-switch-to-offline = Switch to offline mode
 switched-to-offline = Switched to offline mode
 
 upload-not-available = Upload is not available
+
+offline = Can't load leaderboard in offline mode

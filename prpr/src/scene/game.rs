@@ -747,7 +747,6 @@ impl Scene for GameScene {
                 if t >= AFTER_TIME + 0.3 {
                     let mut record_data = None;
                     // TODO strengthen the protection
-                    warn!("TODO upload");
                     #[cfg(feature = "closed")]
                     if let Some(upload_fn) = &self.upload_fn {
                         if !self.res.config.offline_mode && !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {

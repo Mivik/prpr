@@ -3,6 +3,7 @@ prpr::tl_file!("online");
 use super::{get_touched, trigger_grid, ChartItem, Page, SharedState, CARD_HEIGHT, ROW_NUM};
 use crate::{
     data::BriefChartInfo,
+    get_data,
     phizone::{Client, PZChart, PZFile, PZSong},
     scene::{ChartOrder, ChartOrderBox, CHARTS_BAR_HEIGHT},
 };
@@ -57,7 +58,7 @@ impl OnlinePage {
     }
 
     fn refresh(&mut self, state: &mut SharedState) {
-        if self.loading.is_some() {
+        if self.loading.is_some() || get_data().config.offline_mode {
             return;
         }
         state.charts_online.clear();
@@ -133,7 +134,11 @@ impl Page for OnlinePage {
 
         let t = state.t;
         if self.scroll.y_scroller.pulled {
-            self.refresh(state);
+            if get_data().config.offline_mode {
+                show_message(tl!("offline")).error();
+            } else {
+                self.refresh(state);
+            }
         }
         self.scroll.update(t);
         if let Some(charts) = self.task_load.take() {

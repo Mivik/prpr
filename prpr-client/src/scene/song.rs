@@ -277,7 +277,7 @@ impl SongScene {
     }
 
     fn fetch_leaderboard(&mut self) {
-        if self.leaderboard_task.is_some() {
+        if self.leaderboard_task.is_some() || get_data().config.offline_mode {
             return;
         }
         self.leaderboards = None;
@@ -948,7 +948,11 @@ impl Scene for SongScene {
             }
         }
         if self.leaderboard_scroll.y_scroller.pulled {
-            self.fetch_leaderboard();
+            if get_data().config.offline_mode {
+                show_message(tl!("offline")).error();
+            } else {
+                self.fetch_leaderboard();
+            }
         }
         let t = tm.now() as f32;
         self.bin.update(t);
@@ -993,6 +997,7 @@ impl Scene for SongScene {
                 match result {
                     Err(err) => {
                         show_error(err.context(tl!("ldb-load-failed")));
+                        self.leaderboards = Some(Vec::new());
                     }
                     Ok(records) => {
                         for rec in &records {

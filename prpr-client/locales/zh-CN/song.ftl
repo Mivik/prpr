@@ -82,3 +82,5 @@ play-switch-to-offline = 切换到离线模式
 switched-to-offline = 已切换到离线模式
 
 upload-not-available = 上传功能不可用
+
+offline = 离线模式下无法加载排行榜
