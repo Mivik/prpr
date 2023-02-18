@@ -1,6 +1,4 @@
 mod extra;
-use std::collections::HashMap;
-
 pub use extra::parse_extra;
 
 mod pec;
@@ -28,47 +26,36 @@ fn process_lines(v: &mut [crate::core::JudgeLine]) {
         let v = &mut line.notes;
         let mut i = 0;
         while i < v.len() {
-            times.push((v[idx[i]].time.not_nan(), v[idx[i]].fake));
+            times.push(v[idx[i]].time.not_nan());
             let mut j = i + 1;
             while j < v.len() && v[idx[j]].time == v[idx[i]].time {
                 j += 1;
             }
             if j != i + 1 {
-                times.push((v[idx[i]].time.not_nan(), v[idx[i]].fake));
+                times.push(v[idx[i]].time.not_nan());
             }
             i = j;
         }
     }
+    times.sort();
     let mut mt = Vec::new();
-    let mut count = HashMap::new();
     if !times.is_empty() {
-        for i in 0..times.len() {
-            let (time, fake) = times[i];
-            let entry = count.entry(time).or_insert((0, 0));
-            entry.0 += 1;
-            if !fake {
-                entry.1 += 1;
-            }
-        }
-    
-        for (time, (n, m)) in count {
-            if n >= 2 {
-                let real = m >= 2;
-                mt.push((time, real));
+        for i in 0..(times.len() - 1) {
+            // since times are generated in the same way, theoretically we can compare them directly
+            if times[i] == times[i + 1] && (i == 0 || times[i - 1] != times[i]) {
+                mt.push(*times[i]);
             }
         }
     }
-    mt.sort_by(|a, b| a.0.cmp(&b.0));
     for (line, idx) in v.iter_mut().zip(sorts.iter()) {
         let mut i = 0;
         for id in idx {
             let note = &mut line.notes[*id];
             let time = note.time;
-            while i < mt.len() && *mt[i].0 < time {
+            while i < mt.len() && mt[i] < time {
                 i += 1;
             }
-            let (t, real) = mt[i];
-            if i < mt.len() && t == time && (note.fake || real) {
+            if i < mt.len() && mt[i] == time {
                 note.multiple_hint = true;
             }
         }
