@@ -29,7 +29,7 @@ use prpr::{
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, RectButton, Scroll, Ui},
 };
-use sasa::{AudioClip, AudioManager, Frame, Music, MusicParams};
+use sasa::{AudioClip, AudioManager, Music, MusicParams};
 use serde::Deserialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -908,6 +908,10 @@ impl Scene for SongScene {
             self.first_in = false;
             tm.seek_to(-FADEIN_TIME as _);
         }
+        if let Some(music) = &mut self.preview {
+            music.seek_to(0.)?;
+            music.play()?;
+        }
         self.fetch_leaderboard();
         Ok(())
     }
@@ -1215,6 +1219,13 @@ impl Scene for SongScene {
     }
 
     fn next_scene(&mut self, _tm: &mut TimeManager) -> NextScene {
-        self.next_scene.take().unwrap_or_default()
+        if let Some(scene) = self.next_scene.take() {
+            if let Some(music) = &mut self.preview {
+                let _ = music.pause();
+            }
+            scene
+        } else {
+            NextScene::default()
+        }
     }
 }
