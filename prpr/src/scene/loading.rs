@@ -23,6 +23,12 @@ const WAIT_TIME: f32 = 0.4;
 
 pub type UploadFn = Arc<dyn Fn(serde_json::Value) -> Task<Result<RecordUpdateState>>>;
 
+pub struct BasicPlayer {
+    pub avatar: Option<SafeTexture>,
+    pub id: u64,
+    pub rks: f32,
+}
+
 pub struct LoadingScene {
     info: ChartInfo,
     background: SafeTexture,
@@ -42,7 +48,7 @@ impl LoadingScene {
         mut info: ChartInfo,
         config: Config,
         mut fs: Box<dyn FileSystem>,
-        player: (Option<SafeTexture>, Option<u64>),
+        player: Option<BasicPlayer>,
         get_size_fn: Option<Rc<dyn Fn() -> (u32, u32)>>,
         upload_fn: Option<UploadFn>,
     ) -> Result<Self> {

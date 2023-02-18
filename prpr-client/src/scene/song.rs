@@ -22,9 +22,9 @@ use prpr::{
     config::Config,
     core::Tweenable,
     ext::{poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
-    fs::{self, update_zip, FileSystem, ZipFileSystem},
+    fs::{self, update_zip, FileSystem, PZFileSystem, ZipFileSystem},
     info::ChartInfo,
-    scene::{show_error, show_message, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
+    scene::{show_error, show_message, BasicPlayer, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
     task::Task,
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, RectButton, Scroll, Ui},
@@ -595,6 +595,11 @@ impl SongScene {
                 if let Some(zip) = fs.as_any().downcast_mut::<ZipFileSystem>() {
                     let bytes = update_zip(&mut zip.0.lock().unwrap(), patches).with_context(|| tl!("edit-save-config-failed"))?;
                     std::fs::write(format!("{}/{}", dir::charts()?, path), bytes).with_context(|| tl!("edit-save-failed"))?;
+                } else if let Some(pz) = fs.as_any().downcast_mut::<PZFileSystem>() {
+                    for (path, data) in patches.into_iter() {
+                        pz.0.write(PZFileSystem::map_path(if path == "info.yml" { ":info" } else { &path }), data)
+                            .with_context(|| tl!("edit-save-failed"))?;
+                    }
                 } else {
                     unreachable!();
                 }
@@ -764,7 +769,11 @@ impl SongScene {
                     ..get_data().config.clone()
                 },
                 fs,
-                (get_data().me.as_ref().and_then(|it| UserManager::get_avatar(it.id)), get_data().me.as_ref().map(|it| it.id.clone())),
+                get_data().me.as_ref().map(|it| BasicPlayer {
+                    avatar: UserManager::get_avatar(it.id),
+                    id: it.id,
+                    rks: it.rks,
+                }),
                 None,
                 Some(Arc::new(move |mut data| {
                     let Some(play_token) = play_token.clone() else { unreachable!() };
@@ -783,6 +792,8 @@ impl SongScene {
                         Ok(RecordUpdateState {
                             best: resp.new_best.unwrap_or_default(),
                             improvement: resp.improvement.unwrap_or_default(),
+                            gain_exp: resp.exp_delta as f32,
+                            new_rks: resp.player.rks,
                         })
                         // let resp = Client::post(
                         // "/functions/uploadRecord",
@@ -977,7 +988,7 @@ impl Scene for SongScene {
                     if self.info_edit.as_ref().unwrap().illustration.is_some() {
                         self.illustration_task = Some(illustration_task(self.chart.path.clone()));
                     }
-                    show_message(tl!("save-success"));
+                    show_message(tl!("save-success")).ok();
                 }
                 self.save_task = None;
             }

@@ -122,7 +122,7 @@ struct RPENote {
 #[serde(rename_all = "camelCase")]
 struct RPEJudgeLine {
     // TODO group
-    // TODO alphaControl, bpmfactor
+    // TODO bpmfactor
     #[serde(rename = "Name")]
     name: String,
     #[serde(rename = "Texture")]

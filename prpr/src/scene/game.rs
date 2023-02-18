@@ -2,7 +2,7 @@
 
 crate::tl_file!("game");
 
-use super::{draw_background, ending::RecordUpdateState, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene, loading::UploadFn};
+use super::{draw_background, ending::RecordUpdateState, request_input, return_input, show_message, take_input, EndingScene, NextScene, Scene, loading::{UploadFn, BasicPlayer}};
 use crate::{
     config::Config,
     core::{copy_fbo, BadNote, Chart, ChartExtra, Effect, Point, Resource, UIElement, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
@@ -82,7 +82,7 @@ pub struct GameScene {
     pub chart: Chart,
     pub judge: Judge,
     pub gl: InternalGlContext<'static>,
-    player: Option<u64>,
+    player: Option<BasicPlayer>,
     chart_str: String,
     chart_format: ChartFormat,
     info_offset: f32,
@@ -181,7 +181,7 @@ impl GameScene {
         info: ChartInfo,
         mut config: Config,
         mut fs: Box<dyn FileSystem>,
-        player: (Option<SafeTexture>, Option<u64>),
+        player: Option<BasicPlayer>,
         background: SafeTexture,
         illustration: SafeTexture,
         get_size_fn: Rc<dyn Fn() -> (u32, u32)>,
@@ -206,8 +206,7 @@ impl GameScene {
         }
 
         let info_offset = info.offset;
-        let (avatar, player) = player;
-        let mut res = Resource::new(config, info, fs, avatar, background, illustration, chart.extra.effects.is_empty() && effects.is_empty())
+        let mut res = Resource::new(config, info, fs, player.as_ref().and_then(|it| it.avatar.clone()), background, illustration, chart.extra.effects.is_empty() && effects.is_empty())
             .await
             .context("Failed to load resources")?;
         let exercise_range = (chart.offset + info_offset + res.config.offset)..res.track_length;
@@ -753,7 +752,7 @@ impl Scene for GameScene {
                             if let Some(player) = &self.player {
                                 if let Some(chart) = &self.res.info.id {
                                     use base64::Engine as _;
-                                    record_data = Some(encode_record_pz(self, *player, *chart));
+                                    record_data = Some(encode_record_pz(self, player.id, *chart));
                                 }
                             }
                         }
@@ -772,6 +771,7 @@ impl Scene for GameScene {
                             &self.res.config,
                             self.res.res_pack.ending.clone(),
                             self.upload_fn.as_ref().map(Arc::clone),
+                            self.player.as_ref().map(|it| it.rks),
                             record_data,
                         )?))),
                         GameMode::TweakOffset => Some(NextScene::PopWithResult(Box::new(None::<f32>))),

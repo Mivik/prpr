@@ -1,6 +1,6 @@
 crate::tl_file!("ending");
 
-use super::{draw_background, draw_illustration, NextScene, Scene, loading::UploadFn};
+use super::{draw_background, draw_illustration, loading::UploadFn, NextScene, Scene};
 use crate::{
     config::Config,
     ext::{
@@ -22,6 +22,8 @@ use std::{cell::RefCell, ops::DerefMut};
 pub struct RecordUpdateState {
     pub best: bool,
     pub improvement: u32,
+    pub gain_exp: f32,
+    pub new_rks: f32,
 }
 
 pub struct EndingScene {
@@ -38,7 +40,7 @@ pub struct EndingScene {
     info: ChartInfo,
     result: PlayResult,
     player_name: String,
-    player_rks: f32,
+    player_rks: Option<f32>,
     challenge_texture: SafeTexture,
     challenge_rank: u32,
     autoplay: bool,
@@ -66,6 +68,7 @@ impl EndingScene {
         config: &Config,
         bgm: AudioClip,
         upload_fn: Option<UploadFn>,
+        player_rks: Option<f32>,
         record_data: Option<serde_json::Value>,
     ) -> Result<Self> {
         let mut audio = create_audio_manger(config)?;
@@ -77,7 +80,9 @@ impl EndingScene {
                 ..Default::default()
             },
         )?;
-        let upload_task = upload_fn.as_ref().and_then(|f| record_data.clone().map(|data| (f(data), show_message(tl!("uploading")).handle())));
+        let upload_task = upload_fn
+            .as_ref()
+            .and_then(|f| record_data.clone().map(|data| (f(data), show_message(tl!("uploading")).handle())));
         Ok(Self {
             background,
             illustration,
@@ -94,6 +99,8 @@ impl EndingScene {
                 Some(RecordUpdateState {
                     best: true,
                     improvement: result.score,
+                    gain_exp: 0.,
+                    new_rks: 0.,
                 })
             },
             rated: upload_task.is_some(),
@@ -101,7 +108,7 @@ impl EndingScene {
             info,
             result,
             player_name: config.player_name.clone(),
-            player_rks: config.player_rks,
+            player_rks,
             challenge_texture,
             challenge_rank: config.challenge_rank,
             autoplay: config.autoplay,
@@ -370,7 +377,21 @@ impl Scene for EndingScene {
         let sub = Rect::new(1. - 0.13, main.center().y + 0.01, 0.12, 0.03);
         let color = Color::new(1., 1., 1., alpha);
         draw_parallelogram(sub, None, color, false);
-        draw_text_aligned(ui, &format!("{:.2}", self.player_rks), sub.center().x, sub.center().y, (0.5, 0.5), 0.37, Color::new(0., 0., 0., alpha));
+        draw_text_aligned(
+            ui,
+            &if let Some(state) = &self.update_state {
+                format!("{:.2}", state.new_rks)
+            } else if let Some(rks) = &self.player_rks {
+                format!("{rks:.2}")
+            } else {
+                "".to_owned()
+            },
+            sub.center().x,
+            sub.center().y,
+            (0.5, 0.5),
+            0.37,
+            Color::new(0., 0., 0., alpha),
+        );
         let r = draw_illustration(*self.player, 1. - 0.21, main.center().y, 0.12 / (0.076 * 7.), 0.12 / (0.076 * 7.), color);
         let text = draw_text_aligned(ui, &self.player_name, r.x - 0.01, r.center().y, (1., 0.5), 0.54, color);
         draw_parallelogram(

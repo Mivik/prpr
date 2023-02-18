@@ -449,7 +449,7 @@ impl Judge {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
                     let note = &mut line.notes[*id as usize];
-                    if !matches!(note.judge, JudgeStatus::NotJudged) {
+                    if !matches!(note.judge, JudgeStatus::NotJudged | JudgeStatus::PreJudge) {
                         continue;
                     }
                     if !click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. }) {

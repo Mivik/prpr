@@ -125,15 +125,20 @@ impl FileSystem for ExternalFileSystem {
 #[derive(Clone)]
 pub struct PZFileSystem(pub Arc<cap_std::fs::Dir>);
 
-#[async_trait]
-impl FileSystem for PZFileSystem {
-    async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
-        let path = if let Some(internal) = path.strip_prefix(':') {
+impl PZFileSystem {
+    pub fn map_path(path: &str) -> String {
+        if let Some(internal) = path.strip_prefix(':') {
             internal.to_owned()
         } else {
             format!("assets/{path}")
-        };
-        let mut file = self.0.open(path)?;
+        }
+    }
+}
+
+#[async_trait]
+impl FileSystem for PZFileSystem {
+    async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
+        let mut file = self.0.open(Self::map_path(path))?;
         tokio::spawn(async move {
             let mut res = Vec::new();
             file.read_to_end(&mut res)?;
@@ -143,7 +148,7 @@ impl FileSystem for PZFileSystem {
     }
 
     async fn exists(&mut self, path: &str) -> Result<bool> {
-        Ok(self.0.exists(path))
+        Ok(self.0.exists(Self::map_path(path)))
     }
 
     fn list_root(&self) -> Result<Vec<String>> {
