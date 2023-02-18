@@ -1,5 +1,6 @@
 inner.rs
 
+/.env
 /prpr/build.rs
 /target
 /assets/font.ttf

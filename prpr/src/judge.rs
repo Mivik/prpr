@@ -473,7 +473,7 @@ impl Judge {
                         continue;
                     }
                     let dt = if matches!(note.kind, NoteKind::Flick | NoteKind::Drag) {
-                        dt.max(LIMIT_PERFECT)
+                        dt + 0.05
                     } else {
                         dt
                     };
