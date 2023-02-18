@@ -10,16 +10,17 @@ pub use song::*;
 mod user;
 pub use user::*;
 
-use crate::images::{THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH};
-
 use super::Client;
+use crate::{
+    dir,
+    images::{THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH},
+};
 use anyhow::Result;
 use bytes::Bytes;
 use futures_util::Stream;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache};
 use image::DynamicImage;
 use lru::LruCache;
-use macroquad::prelude::info;
 use once_cell::sync::Lazy;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::{de::DeserializeOwned, Deserialize, Serialize, Serializer};
@@ -199,7 +200,9 @@ static CACHE_CLIENT: Lazy<ClientWithMiddleware> = Lazy::new(|| {
     ClientBuilder::new(reqwest::Client::new())
         .with(Cache(HttpCache {
             mode: CacheMode::Default,
-            manager: CACacheManager::default(),
+            manager: CACacheManager {
+                path: format!("{}/http-cache", dir::cache().unwrap_or_else(|_| ".".to_owned())),
+            },
             options: None,
         }))
         .build()

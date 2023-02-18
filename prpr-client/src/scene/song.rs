@@ -692,7 +692,7 @@ impl SongScene {
                         ..Default::default()
                     };
                     if prog_wk.strong_count() != 0 {
-                        dir.write("info", serde_json::to_string(&info).unwrap())?;
+                        dir.write("info", serde_yaml::to_string(&info).unwrap())?;
                     }
                     warn!("TODO assets");
 

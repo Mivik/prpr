@@ -20,6 +20,7 @@ use std::sync::{mpsc, Mutex};
 
 static MESSAGES_TX: Mutex<Option<mpsc::Sender<bool>>> = Mutex::new(None);
 static DATA_PATH: Mutex<Option<String>> = Mutex::new(None);
+static CACHE_DIR: Mutex<Option<String>> = Mutex::new(None);
 pub static mut DATA: Option<Data> = None;
 
 pub fn sync_data() {
@@ -54,7 +55,7 @@ pub fn save_data() -> Result<()> {
 mod dir {
     use anyhow::Result;
 
-    use crate::DATA_PATH;
+    use crate::{DATA_PATH, CACHE_DIR};
 
     fn ensure(s: &str) -> Result<String> {
         let s = format!("{}/{}", DATA_PATH.lock().unwrap().as_ref().map(|it| it.as_str()).unwrap_or("."), s);
@@ -65,18 +66,16 @@ mod dir {
         Ok(s)
     }
 
-    pub fn cache_image() -> Result<String> {
-        // TODO generalize
-        ensure(if cfg!(target_os = "ios") { "Caches/image" } else { "cache/image" })
+    pub fn cache() -> Result<String> {
+        if let Some(cache) = &*CACHE_DIR.lock().unwrap() {
+            ensure(cache)
+        } else {
+            ensure("cache")
+        }
     }
 
     pub fn cache_image_local() -> Result<String> {
-        // TODO generalize
-        ensure(if cfg!(target_os = "ios") {
-            "Caches/image/local"
-        } else {
-            "cache/image/local"
-        })
+        ensure(&format!("{}/image", cache()?))
     }
 
     pub fn root() -> Result<String> {
@@ -121,6 +120,7 @@ async fn the_main() -> Result<()> {
         let first: &mut NSString = msg_send![directories, firstObject];
         let path = first.as_str().to_owned();
         *DATA_PATH.lock().unwrap() = Some(path);
+        *CACHE_DIR.lock().unwrap() = Some("Caches".to_owned());
     }
 
     let dir = dir::root()?;
@@ -224,7 +224,9 @@ pub unsafe extern "C" fn Java_quad_1native_QuadNative_setDataPath(_: *mut std::f
 #[no_mangle]
 pub unsafe extern "C" fn Java_quad_1native_QuadNative_setTempDir(_: *mut std::ffi::c_void, _: *const std::ffi::c_void, path: ndk_sys::jstring) {
     let env = crate::miniquad::native::attach_jni_env();
-    std::env::set_var("TMPDIR", string_from_java(env, path));
+    let path = string_from_java(env, path);
+    std::env::set_var("TMPDIR", path.clone());
+    *CACHE_DIR.lock().unwrap() = Some(path);
 }
 
 #[cfg(target_os = "android")]

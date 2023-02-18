@@ -4,13 +4,14 @@ pub use object::*;
 use anyhow::{anyhow, bail, Context, Result};
 use object::PZObject;
 use once_cell::sync::Lazy;
+use prpr::l10n::LANG_IDENTS;
 use reqwest::{header, Method, RequestBuilder, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{borrow::Cow, collections::HashMap, marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
 
-use crate::{get_data_mut, save_data};
+use crate::{get_data, get_data_mut, save_data};
 
 const CLIENT_ID: &str = env!("CLIENT_ID");
 const CLIENT_SECRET: &str = env!("CLIENT_SECRET");
@@ -19,19 +20,18 @@ static CLIENT: Lazy<RwLock<reqwest::Client>> = Lazy::new(|| RwLock::new(reqwest:
 
 pub struct Client;
 
-const API_URL: &str = "http://localhost:3000";
+const API_URL: &str = "http://mivik.info:3000";
 // const API_URL: &str = "https://api.phi.zone";
 
 pub fn set_access_token_sync(access_token: Option<&str>) -> Result<()> {
+    let mut headers = header::HeaderMap::new();
+    headers.append(header::ACCEPT_LANGUAGE, header::HeaderValue::from_str(&get_data().language.clone().unwrap_or(LANG_IDENTS[0].to_string()))?);
     if let Some(access_token) = access_token {
-        let mut headers = header::HeaderMap::new();
         let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {}", access_token))?;
         auth_value.set_sensitive(true);
         headers.insert(header::AUTHORIZATION, auth_value);
-        *CLIENT.blocking_write() = reqwest::ClientBuilder::new().default_headers(headers).build()?;
-    } else {
-        *CLIENT.blocking_write() = reqwest::Client::new();
     }
+    *CLIENT.blocking_write() = reqwest::ClientBuilder::new().default_headers(headers).build()?;
     Ok(())
 }
 

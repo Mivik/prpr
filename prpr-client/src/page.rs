@@ -20,8 +20,8 @@ use crate::{
     data::BriefChartInfo,
     dir, get_data,
     images::Images,
-    phizone::{PZChart, PZFile, Ptr},
-    scene::{ChartOrder, fs_from_path},
+    phizone::{PZChart, PZFile},
+    scene::{fs_from_path, ChartOrder},
 };
 use anyhow::Result;
 use image::DynamicImage;

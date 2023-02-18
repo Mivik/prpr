@@ -14,6 +14,7 @@ use macroquad::{
     prelude::*,
     rand::{srand, ChooseRandom},
 };
+use regex::Regex;
 use std::{rc::Rc, sync::Arc};
 
 const BEFORE_TIME: f32 = 1.;
@@ -30,6 +31,7 @@ pub struct LoadingScene {
     next_scene: Option<NextScene>,
     finish_time: f32,
     target: Option<RenderTarget>,
+    charter: String,
 }
 
 impl LoadingScene {
@@ -85,6 +87,10 @@ impl LoadingScene {
         }
         let future =
             Box::pin(GameScene::new(mode, info.clone(), config, fs, player, background.clone(), illustration.clone(), get_size_fn, upload_fn));
+        let charter = Regex::new(r"\[PZUser:[0-9]+:([^:]*)(:PZRT)?\]")
+            .unwrap()
+            .replace_all(&info.charter, "$1")
+            .to_string();
         Ok(Self {
             info,
             background,
@@ -93,6 +99,7 @@ impl LoadingScene {
             next_scene: None,
             finish_time: f32::INFINITY,
             target: None,
+            charter,
         })
     }
 }
@@ -173,7 +180,7 @@ impl Scene for LoadingScene {
         draw_text_aligned(ui, &(self.info.difficulty as u32).to_string(), ct.x, ct.y + sub.h * 0.05, (0.5, 1.), 0.88, BLACK);
         draw_text_aligned(ui, self.info.level.split_whitespace().next().unwrap_or_default(), ct.x, ct.y + sub.h * 0.09, (0.5, 0.), 0.34, BLACK);
         let t = draw_text_aligned(ui, "Chart", main.x + main.w / 6., main.y + main.h * 1.2, (0., 0.), 0.3, WHITE);
-        draw_text_aligned(ui, &self.info.charter, t.x, t.y + top / 20., (0., 0.), 0.47, WHITE);
+        draw_text_aligned(ui, &self.charter, t.x, t.y + top / 20., (0., 0.), 0.47, WHITE);
         let w = 0.027;
         let t = draw_text_aligned(ui, "Illustration", t.x - w, t.y + w / 0.13 / 13. * 5., (0., 0.), 0.3, WHITE);
         draw_text_aligned(ui, &self.info.illustrator, t.x, t.y + top / 20., (0., 0.), 0.47, WHITE);
