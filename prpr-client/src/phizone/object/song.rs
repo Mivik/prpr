@@ -19,6 +19,7 @@ pub struct PZSong {
     pub illustration: PZFile,
 
     pub duration: MusicPosition,
+    pub preview: Option<PZFile>,
     pub preview_start: MusicPosition,
     pub preview_end: MusicPosition,
 

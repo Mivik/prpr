@@ -36,6 +36,7 @@ pub struct PZChart {
     pub rating: PZChartRating,
 
     pub chart: Option<PZFile>,
+    pub assets: Option<PZFile>,
 
     pub time: DateTime<Utc>,
 

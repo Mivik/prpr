@@ -13,6 +13,7 @@ guest = Guest
 
 load-illu-failed = Failed to load illustration
 load-chart-failed = Failed to load the beatmap
+load-preview-failed = Failed to load song preview
 
 ldb = Leaderboard
 ldb-loading = Loading…

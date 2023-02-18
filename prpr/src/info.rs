@@ -25,6 +25,7 @@ pub struct ChartInfo {
     pub chart: String,
     pub format: Option<ChartFormat>,
     pub music: String,
+    pub preview: Option<String>,
     pub illustration: String,
 
     pub preview_time: f32,
@@ -55,6 +56,7 @@ impl Default for ChartInfo {
             chart: "chart.json".to_string(),
             format: None,
             music: "song.mp3".to_string(),
+            preview: None,
             illustration: "background.png".to_string(),
 
             preview_time: 0.,

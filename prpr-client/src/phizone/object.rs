@@ -196,7 +196,7 @@ impl<T: PZObject + 'static> Serialize for Ptr<T> {
     }
 }
 
-static CACHE_CLIENT: Lazy<ClientWithMiddleware> = Lazy::new(|| {
+pub static CACHE_CLIENT: Lazy<ClientWithMiddleware> = Lazy::new(|| {
     ClientBuilder::new(reqwest::Client::new())
         .with(Cache(HttpCache {
             mode: CacheMode::Default,

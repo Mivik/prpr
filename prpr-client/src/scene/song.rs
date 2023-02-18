@@ -9,7 +9,7 @@ use crate::{
     get_data_mut,
     images::Images,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
-    phizone::{recv_raw, Client, PZChart, PZFile, PZRecord, PZUser, UserManager},
+    phizone::{recv_raw, Client, PZChart, PZFile, PZRecord, PZUser, UserManager, CACHE_CLIENT},
     save_data,
 };
 use anyhow::{anyhow, Context, Result};
@@ -21,7 +21,7 @@ use pollster::FutureExt;
 use prpr::{
     config::Config,
     core::Tweenable,
-    ext::{poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
+    ext::{create_audio_manger, poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, PZFileSystem, ZipFileSystem},
     info::ChartInfo,
     scene::{show_error, show_message, BasicPlayer, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
@@ -29,6 +29,7 @@ use prpr::{
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, RectButton, Scroll, Ui},
 };
+use sasa::{AudioClip, AudioManager, Frame, Music, MusicParams};
 use serde::Deserialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -49,6 +50,28 @@ const CHART_LIMIT: usize = 10 * 1024 * 1024;
 
 static CONFIRM_UPLOAD: AtomicBool = AtomicBool::new(false);
 static UPLOAD_STATUS: Mutex<Option<Cow<'static, str>>> = Mutex::new(None);
+
+fn with_effects(data: Vec<u8>, range: Option<(u32, u32)>) -> Result<AudioClip> {
+    let (mut frames, sample_rate) = AudioClip::decode(data)?;
+    if let Some((begin, end)) = range {
+        frames.drain((end as usize * sample_rate as usize).min(frames.len())..);
+        frames.drain(..(begin as usize * sample_rate as usize));
+    }
+    let len = (0.8 * sample_rate as f64) as usize;
+    let len = len.min(frames.len() / 2);
+    for (i, frame) in frames[..len].iter_mut().enumerate() {
+        let s = i as f32 / len as f32;
+        frame.0 *= s;
+        frame.1 *= s;
+    }
+    let st = frames.len() - len;
+    for (i, frame) in frames[st..].iter_mut().rev().enumerate() {
+        let s = i as f32 / len as f32;
+        frame.0 *= s;
+        frame.1 *= s;
+    }
+    Ok(AudioClip::from_raw(frames, sample_rate))
+}
 
 pub fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
     if let Some(name) = path.strip_prefix(':') {
@@ -182,6 +205,10 @@ pub struct SongScene {
     leaderboard_scroll: Scroll,
     leaderboards: Option<Vec<PZRecord>>,
     online: bool,
+
+    audio: AudioManager,
+    preview: Option<Music>,
+    preview_task: Option<Task<Result<AudioClip>>>,
 }
 
 fn create_info_task(path: String, brief: BriefChartInfo) -> Task<ChartInfo> {
@@ -228,6 +255,7 @@ impl SongScene {
         if let Some(user) = brief.uploader.as_ref() {
             UserManager::request(user.id());
         }
+        let song_ptr = pz_chart.as_ref().map(|it| it.song.clone());
         Self {
             chart,
             pz_chart,
@@ -249,7 +277,7 @@ impl SongScene {
             scroll: Scroll::new(),
             edit_scroll: Scroll::new(),
 
-            info_task: if online { None } else { Some(create_info_task(path, brief)) },
+            info_task: if online { None } else { Some(create_info_task(path.clone(), brief)) },
             illustration_task: None,
             online_illustration_task: lc_file.map(|file| Task::new(async move { Ok(image::load_from_memory(&file.fetch().await?)?) })),
 
@@ -273,6 +301,27 @@ impl SongScene {
             leaderboard_scroll: Scroll::new(),
             leaderboards: None,
             online,
+
+            audio: create_audio_manger(&get_data().config).unwrap(),
+            preview: None,
+            preview_task: Some(Task::new(async move {
+                if let Some(song) = song_ptr {
+                    let song = song.load().await?;
+                    if let Some(preview) = &song.preview {
+                        with_effects(preview.fetch().await?.to_vec(), None)
+                    } else {
+                        with_effects(song.music.fetch().await?.to_vec(), Some((song.preview_start.seconds, song.preview_end.seconds)))
+                    }
+                } else {
+                    let mut fs = fs_from_path(&path)?;
+                    let info = fs::load_info(fs.deref_mut()).await?;
+                    if let Some(preview) = info.preview {
+                        with_effects(fs.load_file(&preview).await?, None)
+                    } else {
+                        with_effects(fs.load_file(&info.music).await?, Some((info.preview_time as u32, info.preview_time as u32 + 15)))
+                    }
+                }
+            })),
         }
     }
 
@@ -654,7 +703,7 @@ impl SongScene {
                     async fn download(dir: &cap_std::fs::Dir, name: &str, url: &str, prog_wk: &Weak<Mutex<f32>>) -> Result<()> {
                         let Some(prog) = prog_wk.upgrade() else { return Ok(()) };
                         let mut file = dir.create(name)?;
-                        let res = reqwest::get(url).await.with_context(|| tl!("request-failed"))?;
+                        let res = CACHE_CLIENT.get(url).send().await.with_context(|| tl!("request-failed"))?;
                         let size = res.content_length();
                         let mut stream = res.bytes_stream();
                         let mut count = 0;
@@ -678,6 +727,12 @@ impl SongScene {
                     let song = pz_chart.song.load().await?.deref().clone();
                     download(&dir, "music", &song.music.url, &prog_wk).await?;
                     download(&dir, "illustration", &song.illustration.url, &prog_wk).await?;
+                    if let Some(assets) = &pz_chart.assets {
+                        download(&dir, "assets", &assets.url, &prog_wk).await?;
+                    }
+                    if let Some(preview) = &song.preview {
+                        download(&dir, "preview", &preview.url, &prog_wk).await?;
+                    }
                     warn!("TODO song configuration, preview time");
                     let info = ChartInfo {
                         id: Some(pz_chart.id),
@@ -937,8 +992,8 @@ impl Scene for SongScene {
             self.next_scene = Some(NextScene::Pop);
             super::main::SHOULD_DELETE.store(true, Ordering::SeqCst);
         }
-        if let Some(future) = &mut self.scene_task {
-            if let Some(result) = poll_future(future.as_mut()) {
+        if let Some(task) = &mut self.scene_task {
+            if let Some(result) = poll_future(task.as_mut()) {
                 match result {
                     Err(err) => {
                         let error = format!("{err:?}");
@@ -1051,6 +1106,27 @@ impl Scene for SongScene {
                     }
                     self.online_illustration_task = None;
                 }
+            }
+        }
+        if let Some(task) = &mut self.preview_task {
+            if let Some(result) = task.take() {
+                match result {
+                    Err(err) => {
+                        show_error(err.context(tl!("load-preview-failed")));
+                    }
+                    Ok(clip) => {
+                        let mut music = self.audio.create_music(
+                            clip,
+                            MusicParams {
+                                loop_: true,
+                                ..Default::default()
+                            },
+                        )?;
+                        music.play()?;
+                        self.preview = Some(music);
+                    }
+                }
+                self.preview_task = None;
             }
         }
         if CONFIRM_UPLOAD.fetch_and(false, Ordering::SeqCst) {

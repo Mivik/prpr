@@ -13,6 +13,7 @@ guest = 游客
 
 load-illu-failed = 加载插图失败
 load-chart-failed = 加载谱面失败
+load-preview-failed = 加载歌曲预览失败
 
 ldb = 排行榜
 ldb-loading = 加载中…
