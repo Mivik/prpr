@@ -1,6 +1,5 @@
+use super::{PZFile, PZObject};
 use crate::phizone::Client;
-
-use super::{PZFile, PZObject, Ptr};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use image::DynamicImage;

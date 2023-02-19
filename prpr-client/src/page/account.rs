@@ -4,10 +4,9 @@ use super::{Page, SharedState};
 use crate::{
     get_data, get_data_mut,
     phizone::{recv_raw, Client, PZUser, UserManager},
-    save_data, Rect, Ui, sync_data,
+    save_data, sync_data, Rect, Ui,
 };
-use anyhow::{Context, Result};
-use image::imageops::FilterType;
+use anyhow::Result;
 use macroquad::prelude::Touch;
 use once_cell::sync::Lazy;
 use prpr::{
@@ -17,7 +16,7 @@ use prpr::{
 };
 use regex::Regex;
 use serde_json::json;
-use std::{borrow::Cow, future::Future, io::Cursor};
+use std::{borrow::Cow, future::Future};
 
 static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(

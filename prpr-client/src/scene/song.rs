@@ -697,7 +697,14 @@ impl SongScene {
                 let path = format!("{}/{}", dir::downloaded_charts()?, id);
                 async move {
                     let _finish = finish_token; // transfer the ownership, drops on the ending of the task
-                    tokio::fs::create_dir(&path).await?;
+                    let path = std::path::Path::new(&path);
+                    if path.exists() {
+                        if !path.is_dir() {
+                            tokio::fs::remove_file(path).await?;
+                        }
+                    } else {
+                        tokio::fs::create_dir(path).await?;
+                    }
                     let dir = cap_std::fs::Dir::open_ambient_dir(&path, ambient_authority())?;
 
                     async fn download(dir: &cap_std::fs::Dir, name: &str, url: &str, prog_wk: &Weak<Mutex<f32>>) -> Result<()> {
