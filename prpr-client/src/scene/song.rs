@@ -357,7 +357,7 @@ impl SongScene {
         self.back_button.set(ui, r);
 
         let s = 0.1;
-        let r = Rect::new(-s, -s, s * 2., s * 2.);
+        let r = Rect::new(-s, -s - sp * 0.08, s * 2., s * 2.);
         ui.fill_rect(r, (if self.online { *self.icon_download } else { *self.icon_play }, r, ScaleType::Fit, color));
         if self.online {
             let p = self.downloading.as_ref().map_or(0., |(_, p, ..)| *p.lock().unwrap());
