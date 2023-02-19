@@ -318,7 +318,7 @@ impl SongScene {
                     if let Some(preview) = info.preview {
                         with_effects(fs.load_file(&preview).await?, None)
                     } else {
-                        with_effects(fs.load_file(&info.music).await?, Some((info.preview_time as u32, info.preview_time as u32 + 15)))
+                        with_effects(fs.load_file(&info.music).await?, Some((info.preview_start as u32, info.preview_end.unwrap_or_else(|| info.preview_start + 15.) as u32)))
                     }
                 }
             })),
@@ -740,7 +740,7 @@ impl SongScene {
                     if let Some(preview) = &song.preview {
                         download(&dir, "preview", &preview.url, &prog_wk).await?;
                     }
-                    warn!("TODO song configuration, preview time");
+                    warn!("TODO song configuration");
                     let info = ChartInfo {
                         id: Some(pz_chart.id),
                         name: song.name,
@@ -753,7 +753,8 @@ impl SongScene {
                         format: None,
                         music: ":music".to_owned(),
                         illustration: ":illustration".to_owned(),
-                        preview_time: song.preview_start.seconds as f32,
+                        preview_start: song.preview_start.seconds as f32,
+                        preview_end: Some(song.preview_end.seconds as f32),
                         intro: pz_chart.description.unwrap_or_default(),
                         offset: 0.,
                         ..Default::default()

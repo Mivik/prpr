@@ -7,6 +7,7 @@ use crate::{
     scene::{request_input, return_input, show_message, take_input},
 };
 use anyhow::Result;
+use miniquad::warn;
 use std::{borrow::Cow, collections::HashMap};
 
 #[derive(Clone)]
@@ -82,17 +83,18 @@ pub fn render_chart_info(ui: &mut Ui, edit: &mut ChartInfoEdit, width: f32) -> (
         dy!(r.h + s + 0.01);
         ui.dx(rt);
 
-        let mut string = format!("{:.2}", info.preview_time);
-        let r = ui.input(tl!("preview-time"), &mut string, len);
-        dy!(r.h + s);
-        match string.parse::<f32>() {
-            Err(_) => {
-                show_message(tl!("illegal-input")).error();
-            }
-            Ok(value) => {
-                info.preview_time = value;
-            }
-        }
+        warn!("TODO preview time");
+        // let mut string = format!("{:.2}", info.preview_time);
+        // let r = ui.input(tl!("preview-time"), &mut string, len);
+        // dy!(r.h + s);
+        // match string.parse::<f32>() {
+            // Err(_) => {
+                // show_message(tl!("illegal-input")).error();
+            // }
+            // Ok(value) => {
+                // info.preview_time = value;
+            // }
+        // }
 
         let mut string = format!("{:.3}", info.offset);
         let r = ui.input(tl!("offset"), &mut string, len);

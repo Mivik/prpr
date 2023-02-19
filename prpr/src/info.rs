@@ -28,7 +28,9 @@ pub struct ChartInfo {
     pub preview: Option<String>,
     pub illustration: String,
 
-    pub preview_time: f32,
+    #[serde(alias = "preview_time")]
+    pub preview_start: f32,
+    pub preview_end: Option<f32>,
     pub aspect_ratio: f32,
     pub background_dim: f32,
     pub line_length: f32,
@@ -59,7 +61,8 @@ impl Default for ChartInfo {
             preview: None,
             illustration: "background.png".to_string(),
 
-            preview_time: 0.,
+            preview_start: 0.,
+            preview_end: None,
             aspect_ratio: 16. / 9.,
             background_dim: 0.6,
             line_length: 6.,

@@ -95,7 +95,8 @@ impl OnlinePage {
                                     name: song.name,
                                     level: format!("{} Lv.{}", it.level, it.difficulty as u16),
                                     difficulty: it.difficulty,
-                                    preview_time: song.preview_start.seconds as f32, // TODO
+                                    preview_start: song.preview_start.seconds as f32,
+                                    preview_end: Some(song.preview_end.seconds as f32),
                                     intro: it.description.unwrap_or_default(),
                                     tags: Vec::new(), // TODO
                                     composer: song.composer,
