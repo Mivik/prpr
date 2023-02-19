@@ -8,12 +8,9 @@ struct Message {
 }
 
 use super::{Page, SharedState};
-use crate::{
-    // cloud::{Client, Message},
-    get_data, get_data_mut, save_data,
-};
+use crate::{get_data, get_data_mut, save_data};
 use anyhow::Result;
-use chrono::{Local, Utc, DateTime};
+use chrono::{DateTime, Local, Utc};
 use macroquad::prelude::*;
 use prpr::{
     scene::show_error,
@@ -63,9 +60,7 @@ impl Page for MessagePage {
             self.has_new = false;
             self.focus = None;
             self.messages.clear();
-            self.load_task = Some(Task::new(async move {
-                todo!()
-            }));
+            self.load_task = Some(Task::new(async move { todo!() }));
         }
         self.list_scroll.update(t);
         self.content_scroll.update(t);

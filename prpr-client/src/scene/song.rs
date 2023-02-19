@@ -2,11 +2,8 @@ prpr::tl_file!("song");
 
 use super::main::{UPDATE_INFO, UPDATE_ONLINE_TEXTURE, UPDATE_TEXTURE};
 use crate::{
-    // cloud::{Client, Images, LCChartItem, LCFile, LCFunctionResult, LCRecord, Pointer, QueryResult, RequestExt, UserManager},
     data::{BriefChartInfo, LocalChart},
-    dir,
-    get_data,
-    get_data_mut,
+    dir, get_data, get_data_mut,
     images::Images,
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
     phizone::{recv_raw, Client, PZChart, PZFile, PZRecord, PZUser, UserManager, CACHE_CLIENT},
@@ -42,6 +39,7 @@ use std::{
         Arc, Mutex, Weak,
     },
 };
+use zip::ZipArchive;
 
 const FADEIN_TIME: f32 = 0.3;
 const EDIT_TRANSIT: f32 = 0.32;
@@ -318,7 +316,10 @@ impl SongScene {
                     if let Some(preview) = info.preview {
                         with_effects(fs.load_file(&preview).await?, None)
                     } else {
-                        with_effects(fs.load_file(&info.music).await?, Some((info.preview_start as u32, info.preview_end.unwrap_or_else(|| info.preview_start + 15.) as u32)))
+                        with_effects(
+                            fs.load_file(&info.music).await?,
+                            Some((info.preview_start as u32, info.preview_end.unwrap_or_else(|| info.preview_start + 15.) as u32)),
+                        )
                     }
                 }
             })),
@@ -735,7 +736,23 @@ impl SongScene {
                     download(&dir, "music", &song.music.url, &prog_wk).await?;
                     download(&dir, "illustration", &song.illustration.url, &prog_wk).await?;
                     if let Some(assets) = &pz_chart.assets {
-                        download(&dir, "assets", &assets.url, &prog_wk).await?;
+                        download(&dir, "assets.zip", &assets.url, &prog_wk).await?;
+                        if prog_wk.strong_count() != 0 {
+                            dir.create_dir("assets")?;
+                            let assets = dir.open_dir("assets")?;
+                            let mut zip = ZipArchive::new(dir.open("assets.zip")?)?;
+                            for i in 0..zip.len() {
+                                let mut entry = zip.by_index(i)?;
+                                if entry.is_dir() {
+                                    assets.create_dir_all(entry.name())?;
+                                } else {
+                                    let mut file = assets.create(entry.name())?;
+                                    std::io::copy(&mut entry, &mut file)?;
+                                }
+                            }
+                            drop(zip);
+                            dir.remove_file("assets.zip")?;
+                        }
                     }
                     if let Some(preview) = &song.preview {
                         download(&dir, "preview", &preview.url, &prog_wk).await?;
@@ -762,7 +779,6 @@ impl SongScene {
                     if prog_wk.strong_count() != 0 {
                         dir.write("info", serde_yaml::to_string(&info).unwrap())?;
                     }
-                    warn!("TODO assets");
 
                     if prog_wk.strong_count() == 0 {
                         // cancelled
@@ -1196,6 +1212,12 @@ impl Scene for SongScene {
                 handle.cancel();
                 match res {
                     Err(err) => {
+                        let id = self.chart.info.id.as_ref().unwrap();
+                        let path = format!("{}/{id}", dir::downloaded_charts()?);
+                        let path = std::path::Path::new(&path);
+                        if path.exists() {
+                            std::fs::remove_dir_all(path)?;
+                        }
                         show_error(err.context(tl!("download-failed")));
                     }
                     Ok(chart) => {
