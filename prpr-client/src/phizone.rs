@@ -20,8 +20,8 @@ static CLIENT: Lazy<RwLock<reqwest::Client>> = Lazy::new(|| RwLock::new(reqwest:
 
 pub struct Client;
 
-const API_URL: &str = "http://mivik.info:3000";
-// const API_URL: &str = "https://api.phi.zone";
+// const API_URL: &str = "http://mivik.info:3000";
+const API_URL: &str = "https://devapi.phi.zone";
 
 pub fn set_access_token_sync(access_token: Option<&str>) -> Result<()> {
     let mut headers = header::HeaderMap::new();
