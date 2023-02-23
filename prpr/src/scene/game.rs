@@ -662,6 +662,7 @@ impl Scene for GameScene {
         self.music = Self::new_music(&mut self.res)?;
         self.res.camera.render_target = target;
         tm.speed = self.res.config.speed as _;
+        tm.adjust_time = self.res.config.adjust_time;
         reset!(self, self.res, tm);
         set_camera(&self.res.camera);
         self.first_in = true;
@@ -1023,12 +1024,14 @@ impl Scene for GameScene {
                 tm.resume();
             }
             tm.speed = 1.0;
+            tm.adjust_time = false;
             match self.mode {
                 GameMode::Normal | GameMode::Exercise => NextScene::Pop,
                 GameMode::TweakOffset => NextScene::PopWithResult(Box::new(None::<f32>)),
             }
         } else if let Some(next_scene) = self.next_scene.take() {
             tm.speed = 1.0;
+            tm.adjust_time = false;
             next_scene
         } else {
             NextScene::None

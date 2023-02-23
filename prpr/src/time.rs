@@ -1,7 +1,7 @@
 use crate::config::Config;
 
 pub struct TimeManager {
-    adjust_time: bool,
+    pub adjust_time: bool,
     pub start_time: f64,
     pause_time: Option<f64>,
     pub speed: f64,
