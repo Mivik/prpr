@@ -13,6 +13,9 @@ pub use scroll::Scroll;
 mod shading;
 pub use shading::*;
 
+mod shadow;
+pub use shadow::*;
+
 mod text;
 pub use text::{DrawText, TextPainter};
 
@@ -20,14 +23,17 @@ pub use glyph_brush::ab_glyph::FontArc;
 
 use crate::{
     core::{Matrix, Point, Vector},
-    ext::{get_viewport, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType},
+    ext::{get_viewport, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType, SafeTexture},
     judge::Judge,
     scene::{request_input, return_input, take_input},
 };
 use lyon::{
-    lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, FillVertexConstructor, VertexBuffers},
+    lyon_tessellation::{
+        BuffersBuilder, FillOptions, FillTessellator, FillVertex, FillVertexConstructor, StrokeOptions, StrokeTessellator, StrokeVertex,
+        StrokeVertexConstructor, VertexBuffers,
+    },
     math as lm,
-    path::PathEvent,
+    path::{Path, PathEvent},
 };
 use macroquad::prelude::*;
 use miniquad::PassAction;
@@ -75,6 +81,12 @@ impl From<u8> for Gravity {
 struct ShadedConstructor<T: Shading>(Matrix, pub T);
 impl<T: Shading> FillVertexConstructor<Vertex> for ShadedConstructor<T> {
     fn new_vertex(&mut self, vertex: FillVertex) -> Vertex {
+        let pos = vertex.position();
+        self.1.new_vertex(&self.0, &Point::new(pos.x, pos.y))
+    }
+}
+impl<T: Shading> StrokeVertexConstructor<Vertex> for ShadedConstructor<T> {
+    fn new_vertex(&mut self, vertex: StrokeVertex) -> Vertex {
         let pos = vertex.position();
         self.1.new_vertex(&self.0, &Point::new(pos.x, pos.y))
     }
@@ -169,6 +181,137 @@ impl RectButton {
     }
 }
 
+pub struct DRectButton {
+    inner: RectButton,
+    last_touching: bool,
+    start_time: Option<f32>,
+    config: ShadowConfig,
+    delta: f32,
+}
+impl DRectButton {
+    pub const TIME: f32 = 0.2;
+
+    pub fn new() -> Self {
+        Self {
+            inner: RectButton::new(),
+            last_touching: false,
+            start_time: None,
+            config: ShadowConfig::default(),
+            delta: -0.006,
+        }
+    }
+
+    fn build(&mut self, ui: &mut Ui, t: f32, r: Rect) -> (Rect, Path) {
+        let r = r.feather((1. - self.progress(t)) * self.delta);
+        self.inner.set(ui, r);
+        (r, r.rounded(self.config.radius))
+    }
+
+    pub fn invalidate(&mut self) {
+        self.inner.rect = Rect::default();
+    }
+
+    pub fn render_shadow<T: IntoShading>(&mut self, ui: &mut Ui, r: Rect, t: f32, alpha: f32, shading: impl FnOnce(Rect) -> T) -> (Rect, Path) {
+        let (r, path) = self.build(ui, t, r);
+        rounded_rect_shadow(
+            ui,
+            r,
+            &ShadowConfig {
+                elevation: self.config.elevation * self.progress(t),
+                base: self.config.base * alpha,
+                ..self.config
+            },
+        );
+        ui.fill_path(&path, shading(r).into_shading());
+        (r, path)
+    }
+
+    pub fn render_text<'a>(
+        &mut self,
+        ui: &mut Ui,
+        r: Rect,
+        t: f32,
+        alpha: f32,
+        text: impl Into<Cow<'a, str>>,
+        size: f32,
+        chosen: bool,
+    ) -> (Rect, Path) {
+        let oh = r.h;
+        let (r, path) = self.build(ui, t, r);
+        let ct = r.center();
+        ui.fill_path(
+            &path,
+            if chosen {
+                Color::new(1., 1., 1., alpha)
+            } else {
+                Color::new(0., 0., 0., 0.4 * alpha)
+            },
+        );
+        ui.text(text)
+            .pos(ct.x, ct.y)
+            .anchor(0.5, 0.5)
+            .no_baseline()
+            .size(size * r.h / oh)
+            .color(if chosen {
+                Color::new(0.3, 0.3, 0.3, 1.)
+            } else {
+                Color::new(1., 1., 1., alpha)
+            })
+            .draw();
+        (r, path)
+    }
+
+    #[inline]
+    pub fn with_radius(mut self, radius: f32) -> Self {
+        self.config.radius = radius;
+        self
+    }
+
+    #[inline]
+    pub fn with_elevation(mut self, elevation: f32) -> Self {
+        self.config.elevation = elevation;
+        self
+    }
+
+    #[inline]
+    pub fn with_base(mut self, base: f32) -> Self {
+        self.config.base = base;
+        self
+    }
+
+    #[inline]
+    pub fn with_delta(mut self, delta: f32) -> Self {
+        self.delta = delta;
+        self
+    }
+
+    pub fn progress(&mut self, t: f32) -> f32 {
+        if self.start_time.as_ref().map_or(false, |it| t > *it + Self::TIME) {
+            self.start_time = None;
+        }
+        let p = if let Some(time) = &self.start_time {
+            (t - time) / Self::TIME
+        } else {
+            1.
+        };
+        if self.inner.touching() {
+            1. - p
+        } else {
+            p
+        }
+    }
+
+    pub fn touch(&mut self, touch: &Touch, t: f32) -> bool {
+        let res = self.inner.touch(touch);
+        let touching = self.inner.touching();
+        if self.last_touching != touching {
+            self.last_touching = touching;
+            self.start_time = Some(t);
+        }
+        res
+    }
+}
+
 thread_local! {
     static STATE: RefCell<HashMap<String, Option<u64>>> = RefCell::new(HashMap::new());
 }
@@ -210,6 +353,8 @@ pub struct Ui<'a> {
     vertex_buffers: VertexBuffers<Vertex, u16>,
     fill_tess: FillTessellator,
     fill_options: FillOptions,
+    stroke_tess: StrokeTessellator,
+    stroke_options: StrokeOptions,
 }
 
 impl<'a> Ui<'a> {
@@ -230,6 +375,8 @@ impl<'a> Ui<'a> {
             vertex_buffers: VertexBuffers::new(),
             fill_tess: FillTessellator::new(),
             fill_options: FillOptions::default(),
+            stroke_tess: StrokeTessellator::new(),
+            stroke_options: StrokeOptions::default(),
         }
     }
 
@@ -262,6 +409,7 @@ impl<'a> Ui<'a> {
     fn set_tolerance(&mut self) {
         let tol = 0.15 / (self.model_stack.last().unwrap().transform_vector(&Vector::new(1., 0.)).norm() * screen_width() / 2.);
         self.fill_options.tolerance = tol;
+        self.stroke_options.tolerance = tol;
     }
 
     pub fn fill_path(&mut self, path: impl IntoIterator<Item = PathEvent>, shading: impl IntoShading) {
@@ -280,6 +428,28 @@ impl<'a> Ui<'a> {
         let tex = shaded.1.texture();
         self.fill_tess
             .tessellate_circle(lm::point(x, y), radius, &self.fill_options, &mut BuffersBuilder::new(&mut self.vertex_buffers, shaded))
+            .unwrap();
+        self.emit_lyon(tex);
+    }
+
+    pub fn stroke_circle(&mut self, x: f32, y: f32, radius: f32, width: f32, shading: impl IntoShading) {
+        self.set_tolerance();
+        let shaded = ShadedConstructor(self.get_matrix(), shading.into_shading());
+        let tex = shaded.1.texture();
+        self.stroke_options.line_width = width;
+        self.stroke_tess
+            .tessellate_circle(lm::point(x, y), radius, &self.stroke_options, &mut BuffersBuilder::new(&mut self.vertex_buffers, shaded))
+            .unwrap();
+        self.emit_lyon(tex);
+    }
+
+    pub fn stroke_path(&mut self, path: &Path, width: f32, shading: impl IntoShading) {
+        self.set_tolerance();
+        let shaded = ShadedConstructor(self.get_matrix(), shading.into_shading());
+        let tex = shaded.1.texture();
+        self.stroke_options.line_width = width;
+        self.stroke_tess
+            .tessellate_path(path, &self.stroke_options, &mut BuffersBuilder::new(&mut self.vertex_buffers, shaded))
             .unwrap();
         self.emit_lyon(tex);
     }
@@ -557,7 +727,6 @@ impl<'a> Ui<'a> {
         })
     }
 
-    #[inline]
     pub fn hgrids(&mut self, width: f32, height: f32, row_num: u32, count: u32, mut content: impl FnMut(&mut Self, u32)) -> (f32, f32) {
         let mut sh = 0.;
         let w = width / row_num as f32;
@@ -574,5 +743,108 @@ impl<'a> Ui<'a> {
         }
         self.dy(-sh);
         (width, sh)
+    }
+
+    pub fn avatar(&mut self, cx: f32, cy: f32, r: f32, c: Color, t: f32, avatar: Option<SafeTexture>) {
+        rounded_rect_shadow(
+            self,
+            Rect::new(cx - r, cy - r, r * 2., r * 2.),
+            &ShadowConfig {
+                radius: r,
+                ..Default::default()
+            },
+        );
+        if let Some(avatar) = avatar {
+            self.fill_circle(cx, cy, r, (*avatar, Rect::new(cx - r, cy - r, r * 2., r * 2.)));
+        } else {
+            self.loading(
+                cx,
+                cy,
+                t,
+                c,
+                LoadingParams {
+                    radius: r,
+                    ..Default::default()
+                },
+            );
+        }
+        self.stroke_circle(cx, cy, r, 0.004, WHITE);
+    }
+
+    pub fn loading_path(start: f32, len: f32, r: f32) -> Path {
+        use lyon::math::{point, vector, Angle};
+        let mut path = Path::svg_builder();
+        let pt = |a: f32| {
+            let (sin, cos) = a.sin_cos();
+            point(sin * r, cos * r)
+        };
+        path.move_to(pt(-start));
+        path.arc(point(0., 0.), vector(r, r), Angle::radians(len), Angle::radians(0.));
+        path.build()
+    }
+
+    const LOADING_SCALE: f32 = 0.74;
+    const LOADING_CHANGE_SPEED: f32 = 3.5;
+    const LOADING_ROTATE_SPEED: f32 = 4.1;
+
+    pub fn loading(&mut self, cx: f32, cy: f32, t: f32, shading: impl IntoShading, params: impl Into<LoadingParams>) {
+        use std::f32::consts::PI;
+
+        let params = params.into();
+        let (st, len) = if let Some(p) = params.progress {
+            (t * Self::LOADING_ROTATE_SPEED, p * PI * 2.)
+        } else {
+            let ct = t * Self::LOADING_CHANGE_SPEED;
+            let round = (ct / (PI * 2.)).floor();
+            let st = round * Self::LOADING_SCALE + {
+                let t = ct - round * PI * 2.;
+                if t < PI {
+                    0.
+                } else {
+                    ((t - PI * 3. / 2.).sin() + 1.) * Self::LOADING_SCALE / 2.
+                }
+            };
+            let st = st * PI * 2. + t * Self::LOADING_ROTATE_SPEED;
+            let len = (-ct.cos() * Self::LOADING_SCALE / 2. + 0.5) * PI * 2.;
+            (st, len)
+        };
+        self.scope(|ui| {
+            ui.dx(cx);
+            ui.dy(cy);
+            ui.stroke_path(&Self::loading_path(st, len, params.radius), params.width, shading);
+        });
+    }
+
+    #[inline]
+    pub fn back_rect(&self) -> Rect {
+        Rect::new(-0.97, -self.top + 0.04, 0.1, 0.1)
+    }
+}
+
+pub struct LoadingParams {
+    radius: f32,
+    width: f32,
+    progress: Option<f32>,
+}
+impl Default for LoadingParams {
+    fn default() -> Self {
+        Self {
+            radius: 0.05,
+            width: 0.012,
+            progress: None,
+        }
+    }
+}
+impl From<()> for LoadingParams {
+    fn from(_: ()) -> Self {
+        Self::default()
+    }
+}
+impl From<f32> for LoadingParams {
+    fn from(progress: f32) -> Self {
+        Self {
+            progress: Some(progress),
+            ..Self::default()
+        }
     }
 }

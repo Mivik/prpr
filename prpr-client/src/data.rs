@@ -27,9 +27,8 @@ pub struct BriefChartInfo {
     pub name: String,
     pub level: String,
     pub difficulty: f32,
-    #[serde(alias = "preview_time")]
     pub preview_start: f32,
-    pub preview_end: Option<f32>,
+    pub preview_end: f32,
     pub intro: String,
     pub tags: Vec<String>,
     pub composer: String,

@@ -1,6 +1,5 @@
-use crate::ext::{get_viewport, screen_aspect};
-
 use super::{Anim, Resource, Tweenable};
+use crate::ext::{get_viewport, screen_aspect};
 use anyhow::{anyhow, bail, Result};
 use macroquad::prelude::*;
 use miniquad::UniformType;

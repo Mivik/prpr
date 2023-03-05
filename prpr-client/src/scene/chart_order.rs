@@ -7,8 +7,6 @@ use prpr::{
     ui::{RectButton, Ui},
 };
 
-use super::main::CHARTS_BAR_HEIGHT;
-
 pub enum ChartOrder {
     Default,
     Name,
@@ -64,25 +62,6 @@ impl ChartOrderBox {
             return true;
         }
         false
-    }
-
-    pub fn render(&mut self, ui: &mut Ui) -> Rect {
-        ui.scope(|ui| {
-            let h = CHARTS_BAR_HEIGHT - 0.02;
-            let r = Rect::new(0., 0.01, 0.25, h);
-            self.button.set(ui, r);
-            ui.fill_rect(r, Color::new(1., 1., 1., if self.button.touching() { 0.1 } else { 0.4 }));
-            let icon = Rect::new(0.02, h / 2. + 0.01, 0., 0.).feather(0.02);
-            ui.fill_rect(icon, (*self.icon_play, icon));
-            ui.dx(icon.w);
-            ui.text(tl!(ORDER_LABELS[self.index]))
-                .pos(0., h / 2. + 0.01)
-                .anchor(0., 0.5)
-                .no_baseline()
-                .size(0.5)
-                .draw();
-            Rect::new(0., 0., 0.25, CHARTS_BAR_HEIGHT)
-        })
     }
 
     pub fn to_order(&self) -> &'static (ChartOrder, bool) {

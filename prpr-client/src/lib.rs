@@ -55,7 +55,7 @@ pub fn save_data() -> Result<()> {
 mod dir {
     use anyhow::Result;
 
-    use crate::{DATA_PATH, CACHE_DIR};
+    use crate::{CACHE_DIR, DATA_PATH};
 
     fn ensure(s: &str) -> Result<String> {
         let s = format!("{}/{}", DATA_PATH.lock().unwrap().as_ref().map(|it| it.as_str()).unwrap_or("."), s);

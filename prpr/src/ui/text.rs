@@ -84,7 +84,7 @@ impl<'a, 's, 'ui> DrawText<'a, 's, 'ui> {
         self
     }
 
-    fn measure_inner<'c>(&mut self, text: &'c str) -> (Section<'c>, Rect) {
+    fn measure_inner<'c>(&mut self, text: &'c str, painter: &mut Option<&mut TextPainter>) -> (Section<'c>, Rect) {
         let vp = get_viewport();
         let scale = 0.04 * self.size * vp.2 as f32;
         let mut section = Section::new().add_text(Text::new(text).with_scale(scale).with_color(self.color));
@@ -95,11 +95,21 @@ impl<'a, 's, 'ui> DrawText<'a, 's, 'ui> {
         if !self.multiline {
             section = section.with_layout(Layout::default_single_line());
         }
-        let bound = self.ui.text_painter.brush.glyph_bounds(&section).unwrap_or_default();
+        macro_rules! painter {
+            ($t:expr) => {
+                if let Some(painter) = painter.as_mut() {
+                    ($t)(painter)
+                } else {
+                    let painter = &mut self.ui.text_painter;
+                    ($t)(painter)
+                }
+            };
+        }
+        let bound = painter!(|p: &mut TextPainter| p.brush.glyph_bounds(&section).unwrap_or_default());
         let mut height = bound.height();
-        height += text.chars().take_while(|it| *it == '\n').count() as f32 * self.ui.text_painter.line_gap(scale) * 3.;
+        height += text.chars().take_while(|it| *it == '\n').count() as f32 * painter!(|p: &mut TextPainter| p.line_gap(scale)) * 3.;
         if self.baseline {
-            height += self.ui.text_painter.brush.fonts()[0].as_scaled(scale).descent();
+            height += painter!(|p: &mut TextPainter| p.brush.fonts()[0].as_scaled(scale).descent());
         }
         let mut rect = Rect::new(self.pos.0, self.pos.1, bound.width() * s, height * s);
         rect.x -= rect.w * self.anchor.0;
@@ -107,26 +117,44 @@ impl<'a, 's, 'ui> DrawText<'a, 's, 'ui> {
         (section, rect)
     }
 
-    pub fn measure(&mut self) -> Rect {
+    pub fn measure_with_font(&mut self, mut painter: Option<&mut TextPainter>) -> Rect {
         let text = self.text.take().unwrap();
-        let (_, rect) = self.measure_inner(&text);
+        let (_, rect) = self.measure_inner(&text, &mut painter);
         self.text = Some(text);
         rect
     }
 
-    pub fn draw(mut self) -> Rect {
+    #[inline]
+    pub fn measure(&mut self) -> Rect {
+        self.measure_with_font(None)
+    }
+
+    pub fn draw_with_font(mut self, mut painter: Option<&mut TextPainter>) -> Rect {
         let text = std::mem::take(&mut self.text).unwrap();
-        let (section, rect) = self.measure_inner(&text);
+        let (section, rect) = self.measure_inner(&text, &mut painter);
         let vp = get_viewport();
         let s = vp.2 as f32 / 2.;
-        self.ui.text_painter.brush.queue(section);
+        if let Some(painter) = &mut painter {
+            painter.brush.queue(section);
+        } else {
+            self.ui.text_painter.brush.queue(section);
+        }
         self.ui
             .with((Matrix::new_scaling(1. / s) * self.scale).append_translation(&Vector::new(rect.x, rect.y)), |ui| {
                 ui.apply(|ui| {
-                    ui.text_painter.submit();
+                    if let Some(painter) = painter {
+                        painter.submit();
+                    } else {
+                        ui.text_painter.submit();
+                    }
                 });
             });
         rect
+    }
+
+    #[inline]
+    pub fn draw(self) -> Rect {
+        self.draw_with_font(None)
     }
 }
 

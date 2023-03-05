@@ -15,6 +15,7 @@ Cargo.lock
 /data
 /.cargo
 /config.txt
+/assets/char.png
 
 # Mac
 

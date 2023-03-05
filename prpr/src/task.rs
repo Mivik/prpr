@@ -1,25 +1,27 @@
 use std::{
     future::Future,
-    pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
-use tokio::task::JoinError;
 
-pub struct Task<T: Send + 'static>(Option<Pin<Box<dyn Future<Output = Result<(), JoinError>> + Send>>>, Arc<Mutex<Option<T>>>);
+pub struct Task<T: Send + 'static>(Arc<Mutex<Option<T>>>);
+
+impl<T: Send + 'static> Clone for Task<T> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
 
 impl<T: Send + 'static> Task<T> {
     pub fn new(future: impl Future<Output = T> + Send + 'static) -> Self {
         let arc = Arc::new(Mutex::new(None));
-        Self(
-            Some({
-                let arc = Arc::clone(&arc);
-                Box::pin(tokio::spawn(async move {
-                    let result = future.await;
-                    *arc.lock().unwrap() = Some(result);
-                }))
-            }),
-            arc,
-        )
+        {
+            let arc = Arc::clone(&arc);
+            tokio::spawn(async move {
+                let result = future.await;
+                *arc.lock().unwrap() = Some(result);
+            });
+        }
+        Self(arc)
     }
 
     pub fn pending() -> Self {
@@ -27,10 +29,20 @@ impl<T: Send + 'static> Task<T> {
     }
 
     pub fn ok(&self) -> bool {
-        self.1.lock().unwrap().is_some()
+        self.0.lock().unwrap().is_some()
     }
 
     pub fn take(&mut self) -> Option<T> {
-        self.1.lock().unwrap().take()
+        self.0.lock().unwrap().take()
+    }
+
+    pub fn get(&self) -> MutexGuard<'_, Option<T>> {
+        self.0.lock().unwrap()
+    }
+}
+
+impl<T: Send + Clone + 'static> Task<T> {
+    pub fn clone_result(&self) -> Option<T> {
+        self.0.lock().unwrap().clone()
     }
 }
