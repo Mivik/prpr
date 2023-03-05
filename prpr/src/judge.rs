@@ -477,10 +477,10 @@ impl Judge {
                     } else {
                         dt
                     };
-                    if dt + (dist / res.note_width - 1.).max(0.) * DIST_FACTOR
-                        < closest.2 - 0.01 + (closest.1 / res.note_width - 1.).max(0.) * DIST_FACTOR
+                    if dt.abs() + (dist / res.note_width - 1.).max(0.) * DIST_FACTOR
+                        < closest.2.abs() + (closest.1 / res.note_width - 1.).max(0.) * DIST_FACTOR
                     {
-                        closest = (Some((line_id, *id)), dist, dt + 0.01);
+                        closest = (Some((line_id, *id)), dist, dt);
                     }
                 }
             }
