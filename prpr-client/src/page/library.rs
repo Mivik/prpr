@@ -314,24 +314,26 @@ impl Page for LibraryPage {
         if self.scroll.touch(touch, t) {
             return Ok(true);
         }
-        let charts = match self.chosen {
-            ChartListType::Local => Some(&s.charts_local),
-            ChartListType::Online => self.online_charts.as_ref(),
-            _ => unreachable!(),
-        };
-        for (id, (btn, chart)) in self.chart_btns.iter_mut().zip(charts.into_iter().flatten()).enumerate() {
-            if btn.touch(touch, t) {
-                let scene = SongScene::new(chart.clone(), self.icon_back.clone());
-                self.transit = Some(TransitState {
-                    id: id as _,
-                    rect: None,
-                    chart: chart.clone(),
-                    start_time: t,
-                    next_scene: Some(NextScene::Overlay(Box::new(scene))),
-                    back: false,
-                    done: false,
-                });
-                return Ok(true);
+        if self.scroll.contains(touch) {
+            let charts = match self.chosen {
+                ChartListType::Local => Some(&s.charts_local),
+                ChartListType::Online => self.online_charts.as_ref(),
+                _ => unreachable!(),
+            };
+            for (id, (btn, chart)) in self.chart_btns.iter_mut().zip(charts.into_iter().flatten()).enumerate() {
+                if btn.touch(touch, t) {
+                    let scene = SongScene::new(chart.clone(), self.icon_back.clone());
+                    self.transit = Some(TransitState {
+                        id: id as _,
+                        rect: None,
+                        chart: chart.clone(),
+                        start_time: t,
+                        next_scene: Some(NextScene::Overlay(Box::new(scene))),
+                        back: false,
+                        done: false,
+                    });
+                    return Ok(true);
+                }
             }
         }
         Ok(false)
@@ -376,19 +378,21 @@ impl Page for LibraryPage {
 
     fn render(&mut self, ui: &mut Ui, s: &mut SharedState) -> Result<()> {
         let t = s.t;
-        let mut r = Rect::new(-0.92, -ui.top + 0.18, 0.2, 0.11);
         s.render_fader(ui, |ui, c| {
-            let mut id = 0;
-            let mut btn = |btn: &mut DRectButton, text, ty| {
-                btn.render_text(ui, r, t, c.a, text, 0.6, self.chosen == ty);
-                id += 1;
-                r.y += 0.125;
-            };
-            btn(&mut self.btn_local, tl!("local"), ChartListType::Local);
-            btn(&mut self.btn_online, tl!("online"), ChartListType::Online);
-            btn(&mut self.btn_popular, tl!("popular"), ChartListType::Popular);
+            ui.tab_rects(
+                c,
+                t,
+                [
+                    (&mut self.btn_local, tl!("local"), ChartListType::Local),
+                    (&mut self.btn_online, tl!("online"), ChartListType::Online),
+                    (&mut self.btn_popular, tl!("popular"), ChartListType::Popular),
+                ]
+                .into_iter()
+                .map(|(btn, text, ty)| (btn, text, ty == self.chosen)),
+            );
         });
-        let r = Rect::new(-0.7, -ui.top + 0.15, 1.67, ui.top * 2. - 0.26);
+        let mut r = ui.content_rect();
+        r.h -= 0.08;
         s.fader.render(ui, t, |ui, c| {
             let path = r.rounded(0.02);
             ui.fill_path(&path, semi_black(0.4 * c.a));

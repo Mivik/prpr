@@ -4,6 +4,9 @@ pub use home::HomePage;
 mod library;
 pub use library::LibraryPage;
 
+mod settings;
+pub use settings::SettingsPage;
+
 use crate::{
     data::BriefChartInfo,
     dir, get_data,
@@ -26,9 +29,10 @@ use prpr::{
     ui::{FontArc, Scroll, TextPainter, Ui},
 };
 use std::{
+    any::Any,
     borrow::Cow,
     ops::DerefMut,
-    sync::{atomic::AtomicBool, Arc}, any::Any,
+    sync::{atomic::AtomicBool, Arc},
 };
 
 const ROW_NUM: u32 = 4;

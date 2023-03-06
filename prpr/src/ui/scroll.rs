@@ -162,15 +162,11 @@ impl Scroll {
         self.y_scroller.update(t);
     }
 
-    pub fn position(&self, touch: &Touch) -> Option<(f32, f32)> {
-        self.matrix.and_then(|mat| {
+    pub fn contains(&self, touch: &Touch) -> bool {
+        self.matrix.map_or(false, |mat| {
             let Vec2 { x, y } = touch.position;
             let p = mat.transform_point(&Point::new(x, y));
-            if p.x < 0. || p.x >= self.size.0 || p.y < 0. || p.y >= self.size.1 {
-                return None;
-            }
-            let (x, y) = (p.x + self.x_scroller.offset(), p.y + self.y_scroller.offset());
-            Some((x, y))
+            !(p.x < 0. || p.x >= self.size.0 || p.y < 0. || p.y >= self.size.1)
         })
     }
 

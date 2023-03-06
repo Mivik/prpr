@@ -1,6 +1,6 @@
 prpr::tl_file!("home");
 
-use super::{LibraryPage, NextPage, Page, SharedState};
+use super::{LibraryPage, NextPage, Page, SharedState, SettingsPage};
 use crate::{get_data, phizone::UserManager};
 use anyhow::Result;
 use macroquad::prelude::*;
@@ -79,6 +79,7 @@ impl Page for HomePage {
             return Ok(true);
         }
         if self.btn_settings.touch(touch, t) {
+            self.next_page = Some(NextPage::Overlay(Box::new(SettingsPage::new())));
             return Ok(true);
         }
         Ok(false)

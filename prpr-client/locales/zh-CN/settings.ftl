@@ -1,5 +1,8 @@
 label = 设置
 
+general = 通用
+chart = 谱面
+
 switch-language = English
 theme-prompt = 主题：{ $name }
 

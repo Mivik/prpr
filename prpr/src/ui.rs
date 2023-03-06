@@ -819,6 +819,20 @@ impl<'a> Ui<'a> {
     pub fn back_rect(&self) -> Rect {
         Rect::new(-0.97, -self.top + 0.04, 0.1, 0.1)
     }
+
+    #[inline]
+    pub fn tab_rects<'b>(&mut self, c: Color, t: f32, it: impl IntoIterator<Item = (&'b mut DRectButton, Cow<'b, str>, bool)>)  {
+        let mut r = Rect::new(-0.92, -self.top + 0.18, 0.2, 0.11);
+        for (btn, text, chosen) in it {
+            btn.render_text(self, r, t, c.a, text, 0.57, chosen);
+            r.y += 0.125;
+        }
+    }
+
+    #[inline]
+    pub fn content_rect(&self) -> Rect {
+        Rect::new(-0.7, -self.top + 0.15, 1.67, self.top * 2. - 0.18)
+    }
 }
 
 pub struct LoadingParams {

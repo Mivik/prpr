@@ -1,5 +1,8 @@
 label = Settings
 
+general = General
+chart = Beatmap
+
 switch-language = 中文
 theme-prompt = Theme: { $name }
 
