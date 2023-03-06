@@ -668,6 +668,14 @@ impl SongScene {
                 None,
                 Some(move |data| {
                     Task::new(async move {
+                        if let Some(events) = data.strip_prefix("#EV:") {
+                            let file = Client::upload_file("events.json", events.as_bytes()).await?;
+                            return Ok(RecordUpdateState {
+                                best: false,
+                                improvement: 0,
+                                what: file.id,
+                            });
+                        }
                         let resp = Client::post(
                             "/functions/uploadRecord",
                             json!({

@@ -10,6 +10,7 @@ use macroquad::prelude::{
 use miniquad::{EventHandler, MouseButton};
 use once_cell::sync::Lazy;
 use sasa::{PlaySfxParams, Sfx};
+use serde::Serialize;
 use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
@@ -137,7 +138,7 @@ pub enum JudgeStatus {
 }
 
 #[repr(u8)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize)]
 pub enum Judgement {
     Perfect,
     Good,
@@ -236,6 +237,31 @@ mod inner;
 #[cfg(feature = "closed")]
 use inner::*;
 
+#[derive(Serialize)]
+enum Phase {
+    Started,
+    Stationary,
+    Moved,
+    Ended,
+    Cancelled
+}
+
+#[derive(Serialize)]
+enum Event {
+    Touch {
+        time: f32,
+        id: u64,
+        position: (f32, f32),
+        phase: Phase,
+    },
+    Judge {
+        line_id: u32,
+        note_id: u32,
+        time: f32,
+        judgement: Judgement,
+    },
+}
+
 #[repr(C)]
 pub struct Judge {
     // notes of each line in order
@@ -243,6 +269,8 @@ pub struct Judge {
     pub notes: Vec<(Vec<u32>, usize)>,
     pub trackers: HashMap<u64, VelocityTracker>,
     pub last_time: f32,
+
+    events: Vec<Event>,
 
     pub(crate) inner: JudgeInner,
 }
@@ -253,6 +281,10 @@ thread_local! {
 }
 
 impl Judge {
+    pub fn events_string(&self) -> String {
+        serde_json::to_string(&self.events).unwrap()
+    }
+
     pub fn new(chart: &Chart) -> Self {
         let notes = chart
             .lines
@@ -267,6 +299,8 @@ impl Judge {
             notes,
             trackers: HashMap::new(),
             last_time: 0.,
+
+            events: Vec::new(),
 
             inner: JudgeInner::new(chart.lines.iter().map(|it| it.notes.iter().filter(|it| !it.fake).count() as u32).sum()),
         }
@@ -385,6 +419,18 @@ impl Judge {
             for Touch { id, phase, position: p } in events.into_iter() {
                 t += delta;
                 let t = t as f32;
+                self.events.push(Event::Touch {
+                    time: t,
+                    id: id,
+                    phase: match phase {
+                        TouchPhase::Started => Phase::Started,
+                        TouchPhase::Stationary => Phase::Stationary,
+                        TouchPhase::Moved => Phase::Moved,
+                        TouchPhase::Ended => Phase::Ended,
+                        TouchPhase::Cancelled => Phase::Cancelled,
+                    },
+                    position: (p.x, p.y),
+                });
                 let p = to_local(p);
                 match phase {
                     TouchPhase::Started => {
@@ -656,7 +702,13 @@ impl Judge {
                 }
             }
         }
-        for (judgement, line_id, id, diff) in judgements.into_iter() {
+        for (judgement, line_id, id, diff) in judgements {
+            self.events.push(Event::Judge {
+                line_id: line_id as _,
+                note_id: id as _,
+                judgement,
+                time: t,
+            });
             let line = &mut chart.lines[line_id];
             let note = &mut line.notes[id as usize];
             line.object.set_time(t);

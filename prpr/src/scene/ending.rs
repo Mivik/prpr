@@ -16,12 +16,21 @@ use anyhow::Result;
 use macroquad::prelude::*;
 use sasa::{AudioClip, AudioManager, Music, MusicParams};
 use serde::Deserialize;
-use std::{cell::RefCell, ops::DerefMut};
+use std::{
+    cell::RefCell,
+    ops::DerefMut,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 #[derive(Deserialize)]
 pub struct RecordUpdateState {
     pub best: bool,
     pub improvement: u32,
+    #[serde(default)]
+    pub what: String,
 }
 
 pub struct EndingScene {
@@ -46,6 +55,9 @@ pub struct EndingScene {
     next: u8, // 0 -> none, 1 -> pop, 2 -> exit
     update_state: Option<RecordUpdateState>,
     rated: bool,
+    events_string: String,
+    should_upload: Arc<AtomicBool>,
+    upload_events_task: Option<Task<Result<RecordUpdateState>>>,
 
     upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
     upload_task: Option<(Task<Result<RecordUpdateState>>, MessageHandle)>,
@@ -67,6 +79,7 @@ impl EndingScene {
         bgm: AudioClip,
         upload_fn: Option<fn(String) -> Task<Result<RecordUpdateState>>>,
         record_data: Option<String>,
+        events_string: String,
     ) -> Result<Self> {
         let mut audio = create_audio_manger(config)?;
         let bgm = audio.create_music(
@@ -94,9 +107,13 @@ impl EndingScene {
                 Some(RecordUpdateState {
                     best: true,
                     improvement: result.score,
+                    what: String::new(),
                 })
             },
             rated: upload_task.is_some(),
+            events_string,
+            should_upload: AtomicBool::new(false).into(),
+            upload_events_task: None,
 
             info,
             result,
@@ -124,6 +141,15 @@ impl Scene for EndingScene {
         tm.reset();
         tm.seek_to(-0.4);
         self.target = target;
+        let should = Arc::clone(&self.should_upload);
+        Dialog::plain("打击信息", "是否上传打击信息？")
+            .buttons(vec!["取消".to_owned(), "确认".to_owned()])
+            .listener(move |pos| {
+                if pos == 1 {
+                    should.store(true, Ordering::Relaxed);
+                }
+            })
+            .show();
         Ok(())
     }
 
@@ -172,6 +198,34 @@ impl Scene for EndingScene {
                 }
                 self.upload_task = None;
             }
+        }
+        if let Some(task) = &mut self.upload_events_task {
+            if let Some(result) = task.take() {
+                match result {
+                    Err(err) => {
+                        let error = format!("{:?}", err.context(tl!("upload-failed")));
+                        Dialog::plain(tl!("upload-failed"), error)
+                            .buttons(vec![tl!("upload-cancel").to_string(), tl!("upload-retry").to_string()])
+                            .listener({
+                                let should = Arc::clone(&self.should_upload);
+                                move |pos| {
+                                    if pos == 1 {
+                                        should.store(true, Ordering::Relaxed);
+                                    }
+                                }
+                            })
+                            .show();
+                    }
+                    Ok(state) => {
+                        Dialog::plain("上传成功", format!("ID：{}", state.what)).show();
+                    }
+                }
+                self.upload_task = None;
+            }
+        }
+        if self.should_upload.fetch_and(false, Ordering::Relaxed) {
+            show_message("上传中");
+            self.upload_events_task = Some((self.upload_fn.unwrap())(format!("#EV:{}", self.events_string)));
         }
         Ok(())
     }

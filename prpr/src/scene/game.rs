@@ -773,6 +773,7 @@ impl Scene for GameScene {
                             self.res.res_pack.ending.clone(),
                             self.upload_fn,
                             record_data,
+                            self.judge.events_string(),
                         )?))),
                         GameMode::TweakOffset => Some(NextScene::PopWithResult(Box::new(None::<f32>))),
                         GameMode::Exercise => None,
