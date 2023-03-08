@@ -53,7 +53,12 @@ impl SettingsPage {
         if let Some(subtitle) = subtitle {
             let title = title.into();
             let r1 = ui.text(Cow::clone(&title)).size(TITLE_SIZE).measure();
-            let r2 = ui.text(Cow::clone(&subtitle)).size(SUBTITLE_SIZE).max_width(SUB_MAX_WIDTH).no_baseline().measure();
+            let r2 = ui
+                .text(Cow::clone(&subtitle))
+                .size(SUBTITLE_SIZE)
+                .max_width(SUB_MAX_WIDTH)
+                .no_baseline()
+                .measure();
             let h = r1.h + PAD + r2.h;
             ui.text(subtitle)
                 .pos(LEFT, (ITEM_HEIGHT + h) / 2.)
@@ -62,7 +67,12 @@ impl SettingsPage {
                 .max_width(SUB_MAX_WIDTH)
                 .color(Color { a: c.a * 0.6, ..c })
                 .draw();
-            ui.text(title).pos(LEFT, (ITEM_HEIGHT - h) / 2.).no_baseline().size(TITLE_SIZE).color(c).draw();
+            ui.text(title)
+                .pos(LEFT, (ITEM_HEIGHT - h) / 2.)
+                .no_baseline()
+                .size(TITLE_SIZE)
+                .color(c)
+                .draw();
         } else {
             ui.text(title.into())
                 .pos(LEFT, ITEM_HEIGHT / 2.)
@@ -78,9 +88,16 @@ impl SettingsPage {
         self.scroll.render(ui, |ui| {
             let w = r.w;
             let mut h = 0.;
-            Self::title(ui, c, "语言", None);
-            ui.dy(ITEM_HEIGHT);
-            h += ITEM_HEIGHT;
+            macro_rules! item {
+                ($($b:tt)*) => {{
+                    $($b)*
+                    ui.dy(ITEM_HEIGHT);
+                    h += ITEM_HEIGHT;
+                }}
+            }
+            item! {
+                Self::title(ui, c, "语言", None);
+            }
             (w, h)
         });
     }
