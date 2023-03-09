@@ -5,7 +5,7 @@ use prpr::{
     ext::{screen_aspect, semi_black, semi_white, SafeTexture, ScaleType},
     scene::{NextScene, Scene},
     time::TimeManager,
-    ui::{RectButton, Ui},
+    ui::{RectButton, Ui, button_hit},
 };
 
 const FADE_IN_TIME: f32 = 0.3;
@@ -47,6 +47,7 @@ impl Scene for SongScene {
 
     fn touch(&mut self, _tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
         if self.back_btn.touch(touch) {
+            button_hit();
             self.next_scene = Some(NextScene::PopWithResult(Box::new(())));
             return Ok(true);
         }

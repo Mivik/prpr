@@ -7,7 +7,7 @@ use macroquad::prelude::*;
 use prpr::{
     ext::{semi_black, semi_white, RectExt, SafeTexture, ScaleType},
     scene::show_message,
-    ui::{DRectButton, Ui},
+    ui::{DRectButton, Ui, button_hit_large},
 };
 
 pub struct HomePage {
@@ -48,9 +48,9 @@ impl HomePage {
             icon_lang: load_texture("language.png").await?.into(),
             icon_back,
 
-            btn_play: DRectButton::new().with_delta(-0.01),
-            btn_event: DRectButton::new().with_elevation(0.002),
-            btn_respack: DRectButton::new().with_elevation(0.002),
+            btn_play: DRectButton::new().with_delta(-0.01).no_sound(),
+            btn_event: DRectButton::new().with_elevation(0.002).no_sound(),
+            btn_respack: DRectButton::new().with_elevation(0.002).no_sound(),
             btn_msg: DRectButton::new().with_radius(0.03).with_delta(-0.003).with_elevation(0.002),
             btn_settings: DRectButton::new().with_radius(0.03).with_delta(-0.003).with_elevation(0.002),
 
@@ -67,14 +67,17 @@ impl Page for HomePage {
     fn touch(&mut self, touch: &Touch, s: &mut SharedState) -> Result<bool> {
         let t = s.t;
         if self.btn_play.touch(touch, t) {
+            button_hit_large();
             self.next_page = Some(NextPage::Overlay(Box::new(LibraryPage::new(self.icon_back.clone())?)));
             return Ok(true);
         }
         if self.btn_event.touch(touch, t) {
+            button_hit_large();
             show_message(tl!("not-opened")).warn();
             return Ok(true);
         }
         if self.btn_respack.touch(touch, t) {
+            button_hit_large();
             return Ok(true);
         }
         if self.btn_msg.touch(touch, t) {

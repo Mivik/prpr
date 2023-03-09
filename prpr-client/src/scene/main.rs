@@ -7,8 +7,9 @@ use prpr::{
     ext::{screen_aspect, SafeTexture},
     scene::{NextScene, Scene},
     time::TimeManager,
-    ui::{RectButton, Ui},
+    ui::{RectButton, Ui, UI_AUDIO, button_hit},
 };
+use sasa::AudioClip;
 
 pub struct MainScene {
     state: SharedState,
@@ -22,6 +23,17 @@ pub struct MainScene {
 
 impl MainScene {
     pub async fn new() -> Result<Self> {
+        // init button hitsound
+        macro_rules! load_sfx {
+            ($name:ident, $path:literal) => {{
+                let clip = AudioClip::new(load_file($path).await?)?;
+                let sound = UI_AUDIO.with(|it| it.borrow_mut().create_sfx(clip, None))?;
+                prpr::ui::$name.with(|it| *it.borrow_mut() = Some(sound));
+            }};
+        }
+        load_sfx!(UI_BTN_HITSOUND_LARGE, "button_large.ogg");
+        load_sfx!(UI_BTN_HITSOUND, "button.ogg");
+
         let state = SharedState::new().await?;
 
         let background = load_texture("street.jpg").await?.into();
@@ -52,6 +64,7 @@ impl Scene for MainScene {
         let s = &mut self.state;
         s.t = tm.now() as _;
         if self.btn_back.touch(touch) {
+            button_hit();
             s.fader.back(s.t);
             return Ok(true);
         }
@@ -62,6 +75,7 @@ impl Scene for MainScene {
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
+        UI_AUDIO.with(|it| it.borrow_mut().recover_if_needed())?;
         let s = &mut self.state;
         s.t = tm.now() as _;
         if s.fader.transiting() {

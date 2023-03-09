@@ -8,6 +8,7 @@ mod dialog;
 pub use dialog::Dialog;
 
 mod scroll;
+use sasa::{AudioManager, PlaySfxParams, Sfx};
 pub use scroll::Scroll;
 
 mod shading;
@@ -187,6 +188,7 @@ pub struct DRectButton {
     start_time: Option<f32>,
     config: ShadowConfig,
     delta: f32,
+    play_sound: bool,
 }
 impl DRectButton {
     pub const TIME: f32 = 0.2;
@@ -198,6 +200,7 @@ impl DRectButton {
             start_time: None,
             config: ShadowConfig::default(),
             delta: -0.006,
+            play_sound: true,
         }
     }
 
@@ -253,6 +256,12 @@ impl DRectButton {
     }
 
     #[inline]
+    pub fn no_sound(mut self) -> Self {
+        self.play_sound = false;
+        self
+    }
+
+    #[inline]
     pub fn with_radius(mut self, radius: f32) -> Self {
         self.config.radius = radius;
         self
@@ -298,6 +307,9 @@ impl DRectButton {
         if self.last_touching != touching {
             self.last_touching = touching;
             self.start_time = Some(t);
+        }
+        if res && self.play_sound {
+            button_hit();
         }
         res
     }
@@ -860,4 +872,44 @@ impl From<f32> for LoadingParams {
             ..Self::default()
         }
     }
+}
+
+fn build_audio() -> AudioManager {
+    #[cfg(target_os = "android")]
+    {
+        use sasa::backend::oboe::*;
+        AudioManager::new(OboeBackend::new(OboeSettings {
+            performance_mode: PerformanceMode::LowLatency,
+            usage: Usage::Game,
+            ..Default::default()
+        }))
+        .unwrap()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use sasa::backend::cpal::*;
+        AudioManager::new(CpalBackend::new(CpalSettings::default())).unwrap()
+    }
+}
+
+thread_local! {
+    pub static UI_AUDIO: RefCell<AudioManager> = RefCell::new(build_audio());
+    pub static UI_BTN_HITSOUND_LARGE: RefCell<Option<Sfx>> = RefCell::new(None);
+    pub static UI_BTN_HITSOUND: RefCell<Option<Sfx>> = RefCell::new(None);
+}
+
+pub fn button_hit() {
+    UI_BTN_HITSOUND.with(|it| {
+        if let Some(sfx) = it.borrow_mut().as_mut() {
+            let _ = sfx.play(PlaySfxParams::default());
+        }
+    })
+}
+
+pub fn button_hit_large() {
+    UI_BTN_HITSOUND_LARGE.with(|it| {
+        if let Some(sfx) = it.borrow_mut().as_mut() {
+            let _ = sfx.play(PlaySfxParams::default());
+        }
+    })
 }

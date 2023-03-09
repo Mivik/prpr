@@ -14,7 +14,7 @@ use prpr::{
     ext::{semi_black, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     scene::{show_error, show_message, NextScene},
     task::Task,
-    ui::{DRectButton, Scroll, Ui},
+    ui::{DRectButton, Scroll, Ui, button_hit_large},
 };
 use std::{
     any::Any,
@@ -107,7 +107,7 @@ impl LibraryPage {
         let end_line = ((sy + content_size.1) / CHART_HEIGHT).ceil() as u32;
         let res = (start_line * ROW_NUM)..((end_line + 1) * ROW_NUM);
         if let Some(need) = (res.end as usize).checked_sub(self.chart_btns.len()) {
-            self.chart_btns.extend(std::iter::repeat_with(DRectButton::new).take(need));
+            self.chart_btns.extend(std::iter::repeat_with(|| DRectButton::new().no_sound()).take(need));
         }
         res
     }
@@ -227,6 +227,7 @@ impl LibraryPage {
                                 let illu = song.illustration.clone();
                                 async move { Ok((illu.load_thumbnail().await?, None)) }
                             })),
+                            loaded_illustration: Arc::default(),
                         },
                         song.illustration,
                     ))
@@ -322,6 +323,7 @@ impl Page for LibraryPage {
             };
             for (id, (btn, chart)) in self.chart_btns.iter_mut().zip(charts.into_iter().flatten()).enumerate() {
                 if btn.touch(touch, t) {
+                    button_hit_large();
                     let scene = SongScene::new(chart.clone(), self.icon_back.clone());
                     self.transit = Some(TransitState {
                         id: id as _,

@@ -31,8 +31,8 @@ use prpr::{
 use std::{
     any::Any,
     borrow::Cow,
-    ops::DerefMut,
-    sync::{atomic::AtomicBool, Arc},
+    ops::{Deref, DerefMut},
+    sync::{atomic::AtomicBool, Arc, Mutex},
 };
 
 const ROW_NUM: u32 = 4;
@@ -105,6 +105,7 @@ pub fn load_local(tex: &SafeTexture, order: &(ChartOrder, bool)) -> Vec<ChartIte
             path: it.path.clone(),
             illustration: (tex.clone(), tex.clone()),
             illustration_task: Some(illustration_task(it.path.clone())),
+            loaded_illustration: Arc::default(),
         })
         .collect();
     order.0.apply(&mut res);
@@ -120,6 +121,7 @@ pub struct ChartItem {
     pub path: String,
     pub illustration: (SafeTexture, SafeTexture),
     pub illustration_task: Option<Task<Result<(DynamicImage, Option<DynamicImage>)>>>,
+    pub loaded_illustration: Arc<Mutex<Option<(SafeTexture, SafeTexture)>>>,
 }
 
 impl ChartItem {
@@ -131,7 +133,10 @@ impl ChartItem {
                 } else {
                     (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone())
                 };
+                *self.loaded_illustration.lock().unwrap() = Some(self.illustration.clone());
                 self.illustration_task = None;
+            } else if let Some(loaded) = self.loaded_illustration.lock().unwrap().clone() {
+                self.illustration = loaded;
             }
         }
     }
