@@ -17,6 +17,7 @@ use std::{
 use sys_locale::get_locale;
 
 static LANGS: [&str; 2] = ["zh-CN", "en-US"]; // this should be consistent with the macro below (create_bundles)
+pub static LANG_NAMES: [&str; 2] = ["简体中文", "English"]; // this should be consistent with the macro below (create_bundles)
 pub static LANG_IDENTS: Lazy<[LanguageIdentifier; 2]> = Lazy::new(|| LANGS.map(|lang| lang.parse().unwrap()));
 
 #[macro_export]

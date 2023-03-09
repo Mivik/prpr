@@ -1,41 +1,18 @@
+
 label = Settings
 
 general = General
 chart = Beatmap
 
-switch-language = 中文
-theme-prompt = Theme: { $name }
+switch-on = On
+switch-off = Off
 
-respack-loaded = Resource pack loaded
-respack-load-failed = Failed to load resource pack
-respack-save-failed = Failed to save resource pack
-
-autoplay = Autoplay
-offline-mode = Offline mode
-double-tips = Double tips
-fixed-aspect-ratio = Fixed aspect ratio
-time-adjustment = Automatic time adjustment
-particles = Particles
-aggressive-opt = Aggressive optimization
-low-perf-mode = Low performance mode
-player-rks = Player RKS
-offset = Offset (s)
-speed = Speed
-note-size = Note size
-music-vol = Music volume
-sfx-vol = Sound effects volume
-chal-color = Challenge mode color
-chal-colors = White,Green,Blue,Red,Gold,Rainbow
-chal-level = Challenge mode level
-double-click-pause = Double click to pause
-
-respack = Respack
-reset = Reset
-audio-buffer = Audio buffer
-
-default = [Default]
-invalid-input = Invalid input
-reset-all = Restore default settings
-confirm-reset = Sure?
-reset-all-done = Settings are restored
-save-failed = Failed to save config
+item-lang = Language
+item-lowq = Low quality mode
+item-lowq-sub = Enable this if the UI is laggy
+item-autoplay = Autoplay
+item-autoplay-sub = Enabling this would disable record uploading
+item-dhint = Double hint
+item-dhint-sub = Notes that touch line simutaneously will be highlighted
+item-opt = Aggressive optimization
+item-opt-sub = Improves performance, but can cause incorrect behavior

@@ -18,6 +18,7 @@ pub struct Scroller {
     last_time: f32,
     tracker: VelocityTracker,
     pub pulled: bool,
+    frame_touched: bool,
 }
 
 impl Default for Scroller {
@@ -37,6 +38,7 @@ impl Scroller {
             last_time: 0.,
             tracker: VelocityTracker::empty(),
             pulled: false,
+            frame_touched: true,
         }
     }
 
@@ -48,6 +50,7 @@ impl Scroller {
                     self.tracker.push(t, Point::new(val, 0.));
                     self.speed = 0.;
                     self.touch = Some((id, val, self.offset, false));
+                    self.frame_touched = true;
                 }
             }
             TouchPhase::Stationary | TouchPhase::Moved => {
@@ -60,6 +63,7 @@ impl Scroller {
                         if *unlock {
                             self.offset = (*st_off + (*st - val)).clamp(-EXTEND, self.size + EXTEND);
                         }
+                        self.frame_touched = true;
                     }
                 }
             }
@@ -76,6 +80,7 @@ impl Scroller {
                     }
                     let res = self.touch.map(|it| it.3).unwrap_or_default();
                     self.touch = None;
+                    self.frame_touched = true;
                     return res;
                 }
             }
@@ -84,6 +89,11 @@ impl Scroller {
     }
 
     pub fn update(&mut self, t: f32) {
+        if !self.frame_touched {
+            if let Some((id, ..)) = self.touch {
+                self.touch(id, TouchPhase::Cancelled, 0., 0.);
+            }
+        }
         let dt = t - self.last_time;
         self.offset += self.speed * dt;
         const K: f32 = 3.;
@@ -99,6 +109,7 @@ impl Scroller {
         if self.pulled {
             self.pulled = false;
         }
+        self.frame_touched = false;
     }
 
     pub fn offset(&self) -> f32 {
@@ -150,7 +161,7 @@ impl Scroll {
         let Some(matrix) = self.matrix else { return false; };
         let pt = touch.position;
         let pt = matrix.transform_point(&Point::new(pt.x, pt.y));
-        if pt.x < 0. || pt.y < 0. || pt.x > self.size.0 || pt.y > self.size.1 {
+        if touch.phase == TouchPhase::Started && (pt.x < 0. || pt.y < 0. || pt.x > self.size.0 || pt.y > self.size.1) {
             return false;
         }
         // self.x_scroller.touch(touch.id, touch.phase, pt.x, t) |

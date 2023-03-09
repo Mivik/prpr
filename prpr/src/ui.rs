@@ -23,7 +23,7 @@ pub use glyph_brush::ab_glyph::FontArc;
 
 use crate::{
     core::{Matrix, Point, Vector},
-    ext::{get_viewport, nalgebra_to_glm, screen_aspect, source_of_image, RectExt, ScaleType, SafeTexture},
+    ext::{get_viewport, nalgebra_to_glm, screen_aspect, semi_black, semi_white, source_of_image, RectExt, SafeTexture, ScaleType},
     judge::Judge,
     scene::{request_input, return_input, take_input},
 };
@@ -213,12 +213,14 @@ impl DRectButton {
 
     pub fn render_shadow<T: IntoShading>(&mut self, ui: &mut Ui, r: Rect, t: f32, alpha: f32, shading: impl FnOnce(Rect) -> T) -> (Rect, Path) {
         let (r, path) = self.build(ui, t, r);
+        let p = self.progress(t);
         rounded_rect_shadow(
             ui,
             r,
             &ShadowConfig {
-                elevation: self.config.elevation * self.progress(t),
+                elevation: self.config.elevation * p,
                 base: self.config.base * alpha,
+                radius: self.config.radius * p,
                 ..self.config
             },
         );
@@ -239,24 +241,13 @@ impl DRectButton {
         let oh = r.h;
         let (r, path) = self.build(ui, t, r);
         let ct = r.center();
-        ui.fill_path(
-            &path,
-            if chosen {
-                Color::new(1., 1., 1., alpha)
-            } else {
-                Color::new(0., 0., 0., 0.4 * alpha)
-            },
-        );
+        ui.fill_path(&path, if chosen { semi_white(alpha) } else { semi_black(alpha * 0.4) });
         ui.text(text)
             .pos(ct.x, ct.y)
             .anchor(0.5, 0.5)
             .no_baseline()
             .size(size * r.h / oh)
-            .color(if chosen {
-                Color::new(0.3, 0.3, 0.3, 1.)
-            } else {
-                Color::new(1., 1., 1., alpha)
-            })
+            .color(if chosen { Color::new(0.3, 0.3, 0.3, alpha) } else { semi_white(alpha) })
             .draw();
         (r, path)
     }
@@ -517,6 +508,14 @@ impl<'a> Ui<'a> {
     pub fn scope<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
         let model = *self.model_stack.last().unwrap();
         self.model_stack.push(model);
+        let res = f(self);
+        self.model_stack.pop();
+        res
+    }
+
+    #[inline]
+    pub fn abs_scope<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        self.model_stack.push(Matrix::identity());
         let res = f(self);
         self.model_stack.pop();
         res
@@ -821,7 +820,7 @@ impl<'a> Ui<'a> {
     }
 
     #[inline]
-    pub fn tab_rects<'b>(&mut self, c: Color, t: f32, it: impl IntoIterator<Item = (&'b mut DRectButton, Cow<'b, str>, bool)>)  {
+    pub fn tab_rects<'b>(&mut self, c: Color, t: f32, it: impl IntoIterator<Item = (&'b mut DRectButton, Cow<'b, str>, bool)>) {
         let mut r = Rect::new(-0.92, -self.top + 0.18, 0.2, 0.11);
         for (btn, text, chosen) in it {
             btn.render_text(self, r, t, c.a, text, 0.57, chosen);

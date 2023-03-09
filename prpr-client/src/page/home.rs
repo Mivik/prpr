@@ -1,6 +1,6 @@
 prpr::tl_file!("home");
 
-use super::{LibraryPage, NextPage, Page, SharedState, SettingsPage};
+use super::{LibraryPage, NextPage, Page, SettingsPage, SharedState};
 use crate::{get_data, phizone::UserManager};
 use anyhow::Result;
 use macroquad::prelude::*;
@@ -19,6 +19,7 @@ pub struct HomePage {
     icon_msg: SafeTexture,
     icon_settings: SafeTexture,
     icon_back: SafeTexture,
+    icon_lang: SafeTexture,
 
     btn_play: DRectButton,
     btn_event: DRectButton,
@@ -44,6 +45,7 @@ impl HomePage {
             icon_respack: load_texture("respack.png").await?.into(),
             icon_msg: load_texture("message.png").await?.into(),
             icon_settings: load_texture("settings.png").await?.into(),
+            icon_lang: load_texture("language.png").await?.into(),
             icon_back,
 
             btn_play: DRectButton::new().with_delta(-0.01),
@@ -79,7 +81,7 @@ impl Page for HomePage {
             return Ok(true);
         }
         if self.btn_settings.touch(touch, t) {
-            self.next_page = Some(NextPage::Overlay(Box::new(SettingsPage::new())));
+            self.next_page = Some(NextPage::Overlay(Box::new(SettingsPage::new(self.icon_lang.clone()))));
             return Ok(true);
         }
         Ok(false)

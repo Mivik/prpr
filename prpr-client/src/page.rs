@@ -139,25 +139,32 @@ impl ChartItem {
 
 // srange name, isn't it?
 pub struct Fader {
-    distance: f32,
+    pub distance: f32,
     start_time: f32,
+    time: f32,
     index: usize,
     back: bool,
     pub sub: bool,
 }
 
 impl Fader {
-    const TIME: f32 = 0.7;
     const DELTA: f32 = 0.04;
 
     pub fn new() -> Self {
         Self {
             distance: 0.2,
             start_time: f32::NAN,
+            time: 0.7,
             index: 0,
             back: false,
             sub: false,
         }
+    }
+
+    #[inline]
+    pub fn with_time(mut self, time: f32) -> Self {
+        self.time = time;
+        self
     }
 
     #[inline]
@@ -195,7 +202,7 @@ impl Fader {
         if self.start_time.is_nan() {
             0.
         } else {
-            let p = ((t - self.start_time) / Self::TIME).clamp(0., 1.);
+            let p = ((t - self.start_time) / self.time).clamp(0., 1.);
             let p = (1. - p).powi(3);
             let p = if self.back { p } else { 1. - p };
             if self.sub {
@@ -222,7 +229,7 @@ impl Fader {
     }
 
     pub fn done(&mut self, t: f32) -> Option<bool> {
-        if !self.start_time.is_nan() && t - self.start_time > Self::TIME {
+        if !self.start_time.is_nan() && t - self.start_time > self.time {
             self.start_time = f32::NAN;
             Some(self.back)
         } else {

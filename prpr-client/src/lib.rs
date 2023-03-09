@@ -2,6 +2,7 @@ mod data;
 mod images;
 mod page;
 mod phizone;
+mod popup;
 mod scene;
 
 use anyhow::Result;
@@ -10,7 +11,7 @@ use macroquad::prelude::*;
 use prpr::{
     build_conf,
     core::init_assets,
-    l10n::{langid, set_locale_order, LanguageIdentifier},
+    l10n::{set_locale_order, LanguageIdentifier, LANG_IDENTS},
     time::TimeManager,
     ui::{FontArc, TextPainter, Ui},
     Main,
@@ -28,7 +29,7 @@ pub fn sync_data() {
     if let Some(lang) = &get_data().language {
         langs.push(lang.parse().unwrap());
     }
-    langs.push(langid!("zh-CN"));
+    langs.push(LANG_IDENTS[0].clone());
     set_locale_order(&langs);
     let _ = phizone::set_access_token_sync(get_data().tokens.as_ref().map(|it| &*it.0));
 }
