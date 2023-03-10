@@ -14,7 +14,7 @@ use prpr::{
     ext::{semi_black, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     scene::{show_error, show_message, NextScene},
     task::Task,
-    ui::{DRectButton, Scroll, Ui, button_hit_large},
+    ui::{button_hit_large, DRectButton, Scroll, Ui},
 };
 use std::{
     any::Any,
@@ -63,7 +63,7 @@ pub struct LibraryPage {
     chart_btns: Vec<DRectButton>,
     charts_fader: Fader,
     current_page: u64,
-    total_page: u64,
+    online_total_page: u64,
     prev_page_btn: DRectButton,
     next_page_btn: DRectButton,
 
@@ -88,7 +88,7 @@ impl LibraryPage {
             chart_btns: Vec::new(),
             charts_fader: Fader::new().with_distance(0.12),
             current_page: 0,
-            total_page: 0,
+            online_total_page: 0,
             prev_page_btn: DRectButton::new(),
             next_page_btn: DRectButton::new(),
 
@@ -101,13 +101,27 @@ impl LibraryPage {
 }
 
 impl LibraryPage {
+    fn total_page(&self, s: &SharedState) -> u64 {
+        match self.chosen {
+            ChartListType::Local => {
+                if s.charts_local.is_empty() {
+                    0
+                } else {
+                    (s.charts_local.len() - 1) as u64 / PAGE_NUM + 1
+                }
+            }
+            _ => self.online_total_page,
+        }
+    }
+
     fn charts_display_range(&mut self, content_size: (f32, f32)) -> Range<u32> {
         let sy = self.scroll.y_scroller.offset();
         let start_line = (sy / CHART_HEIGHT) as u32;
         let end_line = ((sy + content_size.1) / CHART_HEIGHT).ceil() as u32;
         let res = (start_line * ROW_NUM)..((end_line + 1) * ROW_NUM);
         if let Some(need) = (res.end as usize).checked_sub(self.chart_btns.len()) {
-            self.chart_btns.extend(std::iter::repeat_with(|| DRectButton::new().no_sound()).take(need));
+            self.chart_btns
+                .extend(std::iter::repeat_with(|| DRectButton::new().no_sound()).take(need));
         }
         res
     }
@@ -245,6 +259,7 @@ impl LibraryPage {
         if self.chosen != ty {
             self.chosen = ty;
             self.chart_btns.clear();
+            self.current_page = 0;
         }
     }
 }
@@ -304,7 +319,7 @@ impl Page for LibraryPage {
                 return Ok(true);
             }
             if self.next_page_btn.touch(touch, t) {
-                if self.current_page + 1 < self.total_page {
+                if self.current_page + 1 < self.total_page(s) {
                     self.current_page += 1;
                     self.chart_btns.clear();
                     self.load_online();
@@ -348,7 +363,7 @@ impl Page for LibraryPage {
                 match res {
                     Err(err) => show_error(err.context(tl!("failed-to-load-online"))),
                     Ok(res) => {
-                        self.total_page = res.2;
+                        self.online_total_page = res.2;
                         self.online_charts = Some(res.0.into_iter().map(|it| it.0).collect());
                         self.charts_fader.sub(t);
                     }
@@ -400,10 +415,11 @@ impl Page for LibraryPage {
             ui.fill_path(&path, semi_black(0.4 * c.a));
             self.render_charts(ui, c, s.t, &s.charts_local, r.feather(-0.01))
         });
+        let total_page = self.total_page(s);
         s.render_fader(ui, |ui, c| {
             let cx = r.center().x;
             let r = ui
-                .text(tl!("page", "current" => self.current_page + 1, "total" => self.total_page))
+                .text(tl!("page", "current" => self.current_page + 1, "total" => total_page))
                 .pos(cx, r.bottom() + 0.034)
                 .anchor(0.5, 0.)
                 .no_baseline()
