@@ -7,12 +7,16 @@ use prpr::{
     ext::{screen_aspect, SafeTexture},
     scene::{NextScene, Scene},
     time::TimeManager,
-    ui::{RectButton, Ui, UI_AUDIO, button_hit},
+    ui::{button_hit, RectButton, Ui, UI_AUDIO},
 };
-use sasa::AudioClip;
+use sasa::{AudioClip, Music, MusicParams};
+
+const LOW_PASS: f32 = 0.95;
 
 pub struct MainScene {
     state: SharedState,
+
+    bgm: Music,
 
     background: SafeTexture,
     btn_back: RectButton,
@@ -34,6 +38,18 @@ impl MainScene {
         load_sfx!(UI_BTN_HITSOUND_LARGE, "button_large.ogg");
         load_sfx!(UI_BTN_HITSOUND, "button.ogg");
 
+        let bgm_clip = AudioClip::new(load_file("ending.mp3").await?)?;
+        let mut bgm = UI_AUDIO.with(|it| {
+            it.borrow_mut().create_music(
+                bgm_clip,
+                MusicParams {
+                    loop_: true,
+                    ..Default::default()
+                },
+            )
+        })?;
+        // bgm.play()?;
+
         let state = SharedState::new().await?;
 
         let background = load_texture("street.jpg").await?.into();
@@ -42,6 +58,8 @@ impl MainScene {
         let pages: Vec<Box<dyn Page>> = vec![Box::new(HomePage::new(icon_back.clone()).await?)];
         Ok(Self {
             state,
+
+            bgm,
 
             background,
             btn_back: RectButton::new(),
@@ -65,6 +83,9 @@ impl Scene for MainScene {
         s.t = tm.now() as _;
         if self.btn_back.touch(touch) {
             button_hit();
+            if self.pages.len() == 2 {
+                self.bgm.set_low_pass(0.)?;
+            }
             s.fader.back(s.t);
             return Ok(true);
         }
@@ -86,6 +107,9 @@ impl Scene for MainScene {
         if !s.fader.transiting() {
             match self.pages.last_mut().unwrap().next_page() {
                 NextPage::Overlay(sub) => {
+                    if self.pages.len() == 1 {
+                        self.bgm.set_low_pass(LOW_PASS)?;
+                    }
                     self.pages.push(sub);
                     s.fader.sub(s.t);
                 }

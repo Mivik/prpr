@@ -2,7 +2,7 @@ use crate::page::Fader;
 use macroquad::prelude::*;
 use prpr::{
     ext::{semi_black, semi_white, RectExt},
-    ui::{rounded_rect_shadow, DRectButton, RectButton, Scroll, ShadowConfig, Ui},
+    ui::{rounded_rect_shadow, DRectButton, RectButton, Scroll, ShadowConfig, Ui, button_hit},
 };
 
 pub struct Popup {
@@ -149,6 +149,7 @@ impl Popup {
                 } else {
                     for (id, (_, btn)) in self.options.iter_mut().enumerate() {
                         if btn.touch(touch) {
+                            button_hit();
                             if self.selected != id {
                                 self.selected = id;
                                 self.changed = true;

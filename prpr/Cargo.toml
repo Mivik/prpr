@@ -46,7 +46,7 @@ zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
 
 hmac = "0.12.1"
 miniz_oxide = "0.7.1"
-obfstr = "0.4.1"
+obfstr = "=0.4.1"
 sha2 = "0.10.6"
 subtle = "2.4.1"
 cap-std = "1.0.5"
