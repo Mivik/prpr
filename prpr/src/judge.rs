@@ -488,7 +488,7 @@ impl Judge {
             if !(click || flick) {
                 continue;
             }
-            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD);
+            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD, LIMIT_BAD + (X_DIFF_MAX / res.note_width - 1.).max(0.) * DIST_FACTOR);
             for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter_mut()).enumerate() {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
@@ -500,7 +500,7 @@ impl Judge {
                         continue;
                     }
                     let dt = (note.time - t) / spd;
-                    if dt >= closest.2 {
+                    if dt.abs() >= closest.3 {
                         break;
                     }
                     let x = &mut note.object.translation.0;
@@ -523,14 +523,14 @@ impl Judge {
                     } else {
                         dt
                     };
-                    if dt.abs() + (dist / res.note_width - 1.).max(0.) * DIST_FACTOR
-                        < closest.2.abs() + (closest.1 / res.note_width - 1.).max(0.) * DIST_FACTOR
+                    let key = dt.abs() + (dist / res.note_width - 1.).max(0.) * DIST_FACTOR;
+                    if key < closest.3
                     {
-                        closest = (Some((line_id, *id)), dist, dt);
+                        closest = (Some((line_id, *id)), dist, dt, key);
                     }
                 }
             }
-            if let (Some((line_id, id)), _, dt) = closest {
+            if let (Some((line_id, id)), _, dt, _) = closest {
                 let line = &mut chart.lines[line_id];
                 if matches!(line.notes[id as usize].kind, NoteKind::Drag) {
                     continue;
@@ -652,7 +652,7 @@ impl Judge {
                     judgements.push((Judgement::Miss, line_id, *id, None));
                     continue;
                 }
-                if -t > LIMIT_BAD {
+                if -dt > LIMIT_BAD {
                     break;
                 }
                 if !matches!(note.kind, NoteKind::Drag) && (key_down_count == 0 || !matches!(note.kind, NoteKind::Flick)) {
