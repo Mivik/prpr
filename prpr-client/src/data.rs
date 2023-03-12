@@ -23,6 +23,7 @@ pub const THEMES: [(&str, u32, u32); 8] = [
 #[serde(rename_all = "camelCase")]
 pub struct BriefChartInfo {
     pub id: Option<u64>,
+    pub song_id: Option<u64>,
     pub uploader: Option<Ptr<PZUser>>,
     pub name: String,
     pub level: String,
@@ -39,6 +40,7 @@ impl From<ChartInfo> for BriefChartInfo {
     fn from(info: ChartInfo) -> Self {
         Self {
             id: info.id,
+            song_id: info.song_id,
             uploader: None,
             name: info.name,
             level: info.level,

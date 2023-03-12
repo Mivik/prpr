@@ -144,6 +144,10 @@ impl<T: PZObject + 'static> From<RawPZPointer<T>> for Ptr<T> {
 }
 
 impl<T: PZObject + 'static> Ptr<T> {
+    pub fn from_id(id: u64) -> Self {
+        Self::Id(id)
+    }
+
     pub fn id(&self) -> u64 {
         match self {
             Self::Id(id) => *id,

@@ -71,10 +71,11 @@ pub struct LibraryPage {
     online_charts: Option<Vec<ChartItem>>,
 
     icon_back: SafeTexture,
+    icon_play : SafeTexture,
 }
 
 impl LibraryPage {
-    pub fn new(icon_back: SafeTexture) -> Result<Self> {
+    pub fn new(icon_back: SafeTexture, icon_play: SafeTexture) -> Result<Self> {
         Ok(Self {
             btn_local: DRectButton::new(),
             btn_online: DRectButton::new(),
@@ -96,6 +97,7 @@ impl LibraryPage {
             online_charts: None,
 
             icon_back,
+            icon_play,
         })
     }
 }
@@ -224,6 +226,7 @@ impl LibraryPage {
                         ChartItem {
                             info: BriefChartInfo {
                                 id: Some(it.id),
+                                song_id: Some(song.id),
                                 uploader: Some(it.owner),
                                 name: song.name,
                                 level: format!("{} Lv.{}", it.level, it.difficulty as u16),
@@ -339,7 +342,7 @@ impl Page for LibraryPage {
             for (id, (btn, chart)) in self.chart_btns.iter_mut().zip(charts.into_iter().flatten()).enumerate() {
                 if btn.touch(touch, t) {
                     button_hit_large();
-                    let scene = SongScene::new(chart.clone(), self.icon_back.clone());
+                    let scene = SongScene::new(chart.clone(), self.icon_back.clone(), self.icon_play.clone());
                     self.transit = Some(TransitState {
                         id: id as _,
                         rect: None,
@@ -381,6 +384,7 @@ impl Page for LibraryPage {
             }
         }
         if let Some(transit) = &mut self.transit {
+            transit.chart.settle();
             if t > transit.start_time + TRANSIT_TIME {
                 if transit.back {
                     self.back_fade_in = Some((transit.id, t));

@@ -7,7 +7,7 @@ use macroquad::prelude::*;
 use prpr::{
     ext::{semi_black, semi_white, RectExt, SafeTexture, ScaleType},
     scene::show_message,
-    ui::{DRectButton, Ui, button_hit_large},
+    ui::{button_hit_large, DRectButton, Ui},
 };
 
 pub struct HomePage {
@@ -68,7 +68,7 @@ impl Page for HomePage {
         let t = s.t;
         if self.btn_play.touch(touch, t) {
             button_hit_large();
-            self.next_page = Some(NextPage::Overlay(Box::new(LibraryPage::new(self.icon_back.clone())?)));
+            self.next_page = Some(NextPage::Overlay(Box::new(LibraryPage::new(self.icon_back.clone(), self.icon_play.clone())?)));
             return Ok(true);
         }
         if self.btn_event.touch(touch, t) {
