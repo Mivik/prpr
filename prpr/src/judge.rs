@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    core::{BadNote, Chart, NoteKind, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR},
+    core::{BadNote, Chart, NoteKind, Point, Resource, Vector, JUDGE_LINE_GOOD_COLOR, JUDGE_LINE_PERFECT_COLOR, NOTE_WIDTH_RATIO_BASE},
     ext::{get_viewport, NotNanExt},
 };
 use macroquad::prelude::{
@@ -21,7 +21,7 @@ pub const FLICK_SPEED_THRESHOLD: f32 = 1.8;
 pub const LIMIT_PERFECT: f32 = 0.08;
 pub const LIMIT_GOOD: f32 = 0.16;
 pub const LIMIT_BAD: f32 = 0.22;
-pub const UP_TOLERANCE: f32 = 0.01;
+pub const UP_TOLERANCE: f32 = 0.05;
 pub const DIST_FACTOR: f32 = 0.2;
 
 pub fn play_sfx(sfx: &mut Sfx, config: &Config) {
@@ -237,16 +237,16 @@ mod inner;
 #[cfg(feature = "closed")]
 use inner::*;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 enum Phase {
     Started,
     Stationary,
     Moved,
     Ended,
-    Cancelled
+    Cancelled,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 enum Event {
     Touch {
         time: f32,
@@ -431,6 +431,21 @@ impl Judge {
                     },
                     position: (p.x, p.y),
                 });
+                info!(
+                    "{:?}",
+                    Event::Touch {
+                        time: t,
+                        id: id,
+                        phase: match phase {
+                            TouchPhase::Started => Phase::Started,
+                            TouchPhase::Stationary => Phase::Stationary,
+                            TouchPhase::Moved => Phase::Moved,
+                            TouchPhase::Ended => Phase::Ended,
+                            TouchPhase::Cancelled => Phase::Cancelled,
+                        },
+                        position: (p.x, p.y),
+                    }
+                );
                 let p = to_local(p);
                 match phase {
                     TouchPhase::Started => {
@@ -488,7 +503,7 @@ impl Judge {
             if !(click || flick) {
                 continue;
             }
-            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD, LIMIT_BAD + (X_DIFF_MAX / res.note_width - 1.).max(0.) * DIST_FACTOR);
+            let mut closest = (None, X_DIFF_MAX, LIMIT_BAD, LIMIT_BAD + (X_DIFF_MAX / NOTE_WIDTH_RATIO_BASE - 1.).max(0.) * DIST_FACTOR);
             for (line_id, ((line, pos), (idx, st))) in chart.lines.iter_mut().zip(pos.iter()).zip(self.notes.iter_mut()).enumerate() {
                 let Some(pos) = pos[id] else { continue; };
                 for id in &idx[*st..] {
@@ -499,8 +514,8 @@ impl Judge {
                     if !click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. }) {
                         continue;
                     }
-                    let dt = (note.time - t) / spd;
-                    if dt.abs() >= closest.3 {
+                    let dt = ((note.time - t) / spd).abs();
+                    if dt >= closest.3 {
                         break;
                     }
                     let x = &mut note.object.translation.0;
@@ -509,7 +524,7 @@ impl Judge {
                     if dist > X_DIFF_MAX {
                         continue;
                     }
-                    if dt.abs()
+                    if dt
                         > if matches!(note.kind, NoteKind::Click) {
                             LIMIT_BAD - LIMIT_PERFECT * (dist - 0.9).max(0.)
                         } else {
@@ -519,13 +534,12 @@ impl Judge {
                         continue;
                     }
                     let dt = if matches!(note.kind, NoteKind::Flick | NoteKind::Drag) {
-                        dt + 0.05
+                        dt + LIMIT_GOOD
                     } else {
                         dt
                     };
-                    let key = dt.abs() + (dist / res.note_width - 1.).max(0.) * DIST_FACTOR;
-                    if key < closest.3
-                    {
+                    let key = dt.abs() + (dist / NOTE_WIDTH_RATIO_BASE - 1.).max(0.) * DIST_FACTOR;
+                    if key < closest.3 {
                         closest = (Some((line_id, *id)), dist, dt, key);
                     }
                 }
@@ -533,6 +547,7 @@ impl Judge {
             if let (Some((line_id, id)), _, dt, _) = closest {
                 let line = &mut chart.lines[line_id];
                 if matches!(line.notes[id as usize].kind, NoteKind::Drag) {
+                    info!("reject by drag");
                     continue;
                 }
                 if click {
@@ -541,7 +556,6 @@ impl Judge {
                     if matches!(note.kind, NoteKind::Flick) {
                         continue; // to next loop
                     }
-                    let dt = (dt - 0.01).abs();
                     if dt <= LIMIT_GOOD || matches!(note.kind, NoteKind::Hold { .. }) {
                         match note.kind {
                             NoteKind::Click => {
@@ -709,6 +723,16 @@ impl Judge {
                 judgement,
                 time: t,
             });
+            info!(
+                "{:?} {:?}",
+                Event::Judge {
+                    line_id: line_id as _,
+                    note_id: id as _,
+                    judgement,
+                    time: t,
+                },
+                chart.lines[line_id].notes[id as usize].kind
+            );
             let line = &mut chart.lines[line_id];
             let note = &mut line.notes[id as usize];
             line.object.set_time(t);
