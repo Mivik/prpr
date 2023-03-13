@@ -225,8 +225,7 @@ impl LibraryPage {
                     Result::<_>::Ok((
                         ChartItem {
                             info: BriefChartInfo {
-                                id: Some(it.id),
-                                song_id: Some(song.id),
+                                id: Some((it.id, song.id)),
                                 uploader: Some(it.owner),
                                 name: song.name,
                                 level: format!("{} Lv.{}", it.level, it.difficulty as u16),

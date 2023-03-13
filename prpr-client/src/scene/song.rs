@@ -1,23 +1,24 @@
 prpr::tl_file!("song");
 
-use std::ops::DerefMut;
+use super::fs_from_path;
 use crate::{
     get_data,
     page::ChartItem,
-    phizone::{PZSong, Ptr},
+    phizone::{Client, PZChart, PZSong, Ptr},
 };
 use anyhow::Result;
 use macroquad::prelude::*;
 use prpr::{
     ext::{screen_aspect, semi_black, semi_white, RectExt, SafeTexture, ScaleType},
     fs,
-    scene::{GameMode, LoadingScene, NextScene, Scene, show_error},
+    scene::{show_error, GameMode, LoadingScene, NextScene, Scene},
     task::Task,
     time::TimeManager,
-    ui::{button_hit, DRectButton, RectButton, Ui, UI_AUDIO},
+    ui::{button_hit, DRectButton, RectButton, Ui, UI_AUDIO, Scroll},
 };
 use sasa::{AudioClip, Music, MusicParams};
-use super::fs_from_path;
+use serde_json::json;
+use std::ops::DerefMut;
 
 const FADE_IN_TIME: f32 = 0.3;
 
@@ -58,11 +59,20 @@ pub struct SongScene {
 
     preview: Option<Music>,
     preview_task: Option<Task<Result<AudioClip>>>,
+
+    charts: Option<Vec<PZChart>>,
+    charts_task: Option<Task<Result<Vec<PZChart>>>>,
+    charts_scroll: Scroll,
 }
 
 impl SongScene {
     pub fn new(chart: ChartItem, icon_back: SafeTexture, icon_play: SafeTexture) -> Self {
-        let song_ptr = chart.info.song_id.map(|it| Ptr::<PZSong>::from_id(it));
+        let song_ptr = chart.info.id.map(|it| Ptr::<PZSong>::from_id(it.1));
+        let (charts, charts_task) = if let &Some((_, song_id)) = &chart.info.id {
+            (None, Some(Task::new(async move { Client::query::<PZChart>().query("song", song_id.to_string()).send().await.map(|it| it.0) })))
+        } else {
+            (Some(Vec::new()), None)
+        };
         Self {
             chart,
 
@@ -99,6 +109,10 @@ impl SongScene {
                     todo!()
                 }
             })),
+
+            charts,
+            charts_task,
+            charts_scroll: Scroll::new(),
         }
     }
 }
@@ -150,11 +164,27 @@ impl Scene for SongScene {
             // LoadingScene::new(GameMode::Normal, self.chart.info.clone(), get_data().config.clone(), todo!(), None, None, None);
             return Ok(true);
         }
+        if self.charts_scroll.touch(touch, t) {
+            return Ok(true);
+        }
         Ok(false)
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
+        let t = tm.now() as f32;
         self.chart.settle();
+        if let Some(task) = &mut self.charts_task {
+            if let Some(res) = task.take() {
+                match res {
+                    Err(err) => show_error(err.context(tl!("load-charts-failed"))),
+                    Ok(charts) => {
+                        self.charts = Some(charts);
+                    }
+                }
+                self.charts_task = None;
+            }
+        }
+        self.charts_scroll.update(t);
         Ok(())
     }
 
@@ -185,10 +215,35 @@ impl Scene for SongScene {
             .color(Color { a: c.a * 0.8, ..c })
             .draw();
 
+        // charts slide
+        let hh = 0.23;
+        let item_h  = 0.1;
+        let w = 0.5;
+        let r = Rect::new(-1., -hh, w, hh * 2.);
+        self.charts_scroll.size((r.w, r.h));
+        if let Some(charts) = &self.charts {
+            ui.scope(|ui| {
+                ui.dx(r.x);
+                ui.dy(r.y);
+                self.charts_scroll.render(ui, |ui| {
+                    let mut h = hh;
+                    for chart in charts {
+                        ui.text(format!("{} Lv.{}", chart.level, chart.difficulty as u32)).size(0.3).anchor(0., 0.5).no_baseline().draw();
+                        ui.dy(item_h);
+                        h += item_h;
+                    }
+                    h += hh;
+                    (r.w, h)
+                });
+            });
+        }
+
+        // bottom bar
         let h = 0.16;
         let r = Rect::new(-1., ui.top - h, 1.7, h);
         ui.fill_rect(r, (Color::from_hex(0xff283593), (r.x, r.y), Color::default(), (r.right(), r.y)));
 
+        // play button
         let w = 0.26;
         let pad = 0.08;
         let r = Rect::new(1. - pad - w, ui.top - pad - w, w, w);

@@ -13,8 +13,7 @@ pub enum ChartFormat {
 #[serde(default)]
 #[serde(rename_all = "camelCase")]
 pub struct ChartInfo {
-    pub id: Option<u64>,
-    pub song_id: Option<u64>,
+    pub id: Option<(u64, u64)>,
 
     pub name: String,
     pub difficulty: f32,
@@ -47,7 +46,6 @@ impl Default for ChartInfo {
     fn default() -> Self {
         Self {
             id: None,
-            song_id: None,
 
             name: "UK".to_string(),
             difficulty: 10.,
