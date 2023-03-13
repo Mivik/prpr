@@ -14,7 +14,7 @@ use prpr::{
     scene::{show_error, GameMode, LoadingScene, NextScene, Scene},
     task::Task,
     time::TimeManager,
-    ui::{button_hit, DRectButton, RectButton, Ui, UI_AUDIO, Scroll},
+    ui::{button_hit, DRectButton, RectButton, Scroll, Ui, UI_AUDIO},
 };
 use sasa::{AudioClip, Music, MusicParams};
 use serde_json::json;
@@ -216,8 +216,8 @@ impl Scene for SongScene {
             .draw();
 
         // charts slide
-        let hh = 0.23;
-        let item_h  = 0.1;
+        let hh = 0.35;
+        let item_h = 0.1;
         let w = 0.5;
         let r = Rect::new(-1., -hh, w, hh * 2.);
         self.charts_scroll.size((r.w, r.h));
@@ -225,14 +225,26 @@ impl Scene for SongScene {
             ui.scope(|ui| {
                 ui.dx(r.x);
                 ui.dy(r.y);
+                let mut oy = self.charts_scroll.y_scroller.offset();
                 self.charts_scroll.render(ui, |ui| {
                     let mut h = hh;
+                    ui.dy(hh);
                     for chart in charts {
-                        ui.text(format!("{} Lv.{}", chart.level, chart.difficulty as u32)).size(0.3).anchor(0., 0.5).no_baseline().draw();
+                        ui.text(format!("{} Lv.{}", chart.level, chart.difficulty as u32))
+                            .pos(0.1 - (oy * oy) / (hh * 1.5).powi(2) * 0.5, 0.)
+                            .size(1.2 - (oy * oy / (0.23 * 0.23)).min(1.) * 0.6)
+                            .anchor(0., 0.5)
+                            .no_baseline()
+                            .color(Color {
+                                a: c.a * (1. - (oy * oy) / (hh * hh)).max(0.),
+                                ..c
+                            })
+                            .draw();
                         ui.dy(item_h);
                         h += item_h;
+                        oy -= item_h;
                     }
-                    h += hh;
+                    h += hh - item_h;
                     (r.w, h)
                 });
             });
