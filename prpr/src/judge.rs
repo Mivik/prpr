@@ -514,10 +514,11 @@ impl Judge {
                     if !click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. }) {
                         continue;
                     }
-                    let dt = ((note.time - t) / spd).abs();
+                    let dt = (note.time - t) / spd;
                     if dt >= closest.3 {
                         break;
                     }
+                    let dt = dt.abs();
                     let x = &mut note.object.translation.0;
                     x.set_time(t);
                     let dist = (x.now() - pos.x).abs();
