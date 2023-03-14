@@ -42,6 +42,8 @@ pub struct Config {
     pub speed: f32,
     pub volume_music: f32,
     pub volume_sfx: f32,
+
+    pub early_offset: f32,
 }
 
 impl Default for Config {
@@ -71,6 +73,8 @@ impl Default for Config {
             speed: 1.,
             volume_music: 1.,
             volume_sfx: 1.,
+
+            early_offset: 0.05,
         }
     }
 }

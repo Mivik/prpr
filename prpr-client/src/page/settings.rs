@@ -1,7 +1,7 @@
 prpr::tl_file!("settings");
 
 use super::{Page, SharedState};
-use crate::{dir, get_data, get_data_mut, save_data, sync_lang, data::THEMES};
+use crate::{data::THEMES, dir, get_data, get_data_mut, save_data, sync_lang};
 use anyhow::{Context, Result};
 use macroquad::prelude::*;
 use prpr::{
@@ -208,7 +208,9 @@ impl Page for SettingsPage {
                 ui.dy(r.h + s);
                 let r = ui.slider(tl!("music-vol"), 0.0..2.0, 0.05, &mut config.volume_music, None);
                 ui.dy(r.h + s);
-                let r = ui.slider(tl!("sfx-vol"), 0.0..2.0, 0.05, &mut config.volume_sfx, None);
+                // let r = ui.slider(tl!("sfx-vol"), 0.0..2.0, 0.05, &mut config.volume_sfx, None);
+                // ui.dy(r.h + s);
+                let r = ui.slider("!!线前偏移", 0.0..1.0, 0.05, &mut config.early_offset, None);
                 ui.dy(r.h + s);
                 let r = ui.text(tl!("chal-color")).size(0.4).draw();
                 let chosen = config.challenge_color.clone() as usize;

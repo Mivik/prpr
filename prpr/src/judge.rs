@@ -518,7 +518,7 @@ impl Judge {
                     if dt >= closest.3 {
                         break;
                     }
-                    let dt = dt.abs();
+                    let dt = if dt < 0. { (dt + res.config.early_offset).min(0.).abs() } else { dt };
                     let x = &mut note.object.translation.0;
                     x.set_time(t);
                     let dist = (x.now() - pos.x).abs();
@@ -539,7 +539,7 @@ impl Judge {
                     } else {
                         dt
                     };
-                    let key = dt.abs() + (dist / NOTE_WIDTH_RATIO_BASE - 1.).max(0.) * DIST_FACTOR;
+                    let key = dt + (dist / NOTE_WIDTH_RATIO_BASE - 1.).max(0.) * DIST_FACTOR;
                     if key < closest.3 {
                         closest = (Some((line_id, *id)), dist, dt, key);
                     }
