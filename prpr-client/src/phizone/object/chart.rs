@@ -1,4 +1,6 @@
-use super::{LevelType, PZFile, PZObject, Ptr, PZRecord, PZSong, PZUser};
+use crate::data::BriefChartInfo;
+
+use super::{LevelType, PZFile, PZObject, PZRecord, PZSong, PZUser, Ptr};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
@@ -59,5 +61,24 @@ impl PZObject for PZChart {
 
     fn id(&self) -> u64 {
         self.id
+    }
+}
+
+impl PZChart {
+    pub fn to_info(&self, song: &PZSong) -> BriefChartInfo {
+        BriefChartInfo {
+            id: Some((self.id, song.id)),
+            uploader: Some(self.owner.clone()),
+            name: song.name.clone(),
+            level: self.level.clone(),
+            difficulty: self.difficulty,
+            preview_start: song.preview_start.seconds as f32,
+            preview_end: song.preview_end.seconds as f32,
+            intro: self.description.clone().unwrap_or_default(),
+            tags: Vec::new(), // TODO
+            charter: self.charter.clone(),
+            composer: song.composer.clone(),
+            illustrator: song.illustrator.clone(),
+        }
     }
 }

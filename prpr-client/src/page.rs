@@ -11,27 +11,22 @@ use crate::{
     data::BriefChartInfo,
     dir, get_data,
     images::Images,
-    phizone::{PZChart, PZFile},
     scene::{fs_from_path, ChartOrder},
 };
 use anyhow::Result;
 use image::DynamicImage;
-use lyon::{
-    math as lm,
-    path::{builder::BorderRadii, Path, Winding},
-};
 use macroquad::prelude::*;
 use prpr::{
-    ext::{RectExt, SafeTexture, BLACK_TEXTURE},
+    ext::{SafeTexture, BLACK_TEXTURE},
     fs,
     scene::NextScene,
     task::Task,
-    ui::{FontArc, Scroll, TextPainter, Ui},
+    ui::{FontArc, TextPainter, Ui},
 };
 use std::{
     any::Any,
     borrow::Cow,
-    ops::{Deref, DerefMut},
+    ops::DerefMut,
     sync::{atomic::AtomicBool, Arc, Mutex},
 };
 
@@ -102,10 +97,12 @@ pub fn load_local(tex: &SafeTexture, order: &(ChartOrder, bool)) -> Vec<ChartIte
         .iter()
         .map(|it| ChartItem {
             info: it.info.clone(),
-            path: it.path.clone(),
-            illustration: (tex.clone(), tex.clone()),
-            illustration_task: Some(illustration_task(it.path.clone())),
-            loaded_illustration: Arc::default(),
+            local_path: Some(it.local_path.clone()),
+            illu: Illustration {
+                texture: (tex.clone(), tex.clone()),
+                task: Some(illustration_task(it.local_path.clone())),
+                loaded: Arc::default(),
+            },
         })
         .collect();
     order.0.apply(&mut res);
@@ -116,30 +113,35 @@ pub fn load_local(tex: &SafeTexture, order: &(ChartOrder, bool)) -> Vec<ChartIte
 }
 
 #[derive(Clone)]
-pub struct ChartItem {
-    pub info: BriefChartInfo,
-    pub path: String,
-    pub illustration: (SafeTexture, SafeTexture),
-    pub illustration_task: Option<Task<Result<(DynamicImage, Option<DynamicImage>)>>>,
-    pub loaded_illustration: Arc<Mutex<Option<(SafeTexture, SafeTexture)>>>,
+pub struct Illustration {
+    pub texture: (SafeTexture, SafeTexture),
+    pub task: Option<Task<Result<(DynamicImage, Option<DynamicImage>)>>>,
+    pub loaded: Arc<Mutex<Option<(SafeTexture, SafeTexture)>>>,
 }
 
-impl ChartItem {
+impl Illustration {
     pub fn settle(&mut self) {
-        if let Some(task) = &mut self.illustration_task {
+        if let Some(task) = &mut self.task {
             if let Some(illu) = task.take() {
-                self.illustration = if let Ok(illu) = illu {
+                self.texture = if let Ok(illu) = illu {
                     Images::into_texture(illu)
                 } else {
                     (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone())
                 };
-                *self.loaded_illustration.lock().unwrap() = Some(self.illustration.clone());
-                self.illustration_task = None;
-            } else if let Some(loaded) = self.loaded_illustration.lock().unwrap().clone() {
-                self.illustration = loaded;
+                *self.loaded.lock().unwrap() = Some(self.texture.clone());
+                self.task = None;
+            } else if let Some(loaded) = self.loaded.lock().unwrap().clone() {
+                self.texture = loaded;
             }
         }
     }
+}
+
+#[derive(Clone)]
+pub struct ChartItem {
+    pub info: BriefChartInfo,
+    pub local_path: Option<String>,
+    pub illu: Illustration,
 }
 
 // srange name, isn't it?

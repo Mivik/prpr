@@ -20,6 +20,7 @@ pub struct HomePage {
     icon_settings: SafeTexture,
     icon_back: SafeTexture,
     icon_lang: SafeTexture,
+    icon_download: SafeTexture,
 
     btn_play: DRectButton,
     btn_event: DRectButton,
@@ -47,6 +48,7 @@ impl HomePage {
             icon_settings: load_texture("settings.png").await?.into(),
             icon_lang: load_texture("language.png").await?.into(),
             icon_back,
+            icon_download: load_texture("download.png").await?.into(),
 
             btn_play: DRectButton::new().with_delta(-0.01).no_sound(),
             btn_event: DRectButton::new().with_elevation(0.002).no_sound(),
@@ -68,7 +70,7 @@ impl Page for HomePage {
         let t = s.t;
         if self.btn_play.touch(touch, t) {
             button_hit_large();
-            self.next_page = Some(NextPage::Overlay(Box::new(LibraryPage::new(self.icon_back.clone(), self.icon_play.clone())?)));
+            self.next_page = Some(NextPage::Overlay(Box::new(LibraryPage::new(self.icon_back.clone(), self.icon_play.clone(), self.icon_download.clone())?)));
             return Ok(true);
         }
         if self.btn_event.touch(touch, t) {

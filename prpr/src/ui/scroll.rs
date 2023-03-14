@@ -11,7 +11,7 @@ const EXTEND: f32 = 0.33;
 
 pub struct Scroller {
     touch: Option<(u64, f32, f32, bool)>,
-    offset: f32,
+    pub offset: f32,
     bound: f32,
     size: f32,
     speed: f32,
@@ -19,6 +19,8 @@ pub struct Scroller {
     tracker: VelocityTracker,
     pub pulled: bool,
     frame_touched: bool,
+    pub step: f32,
+    pub last_step: usize,
 }
 
 impl Default for Scroller {
@@ -39,6 +41,8 @@ impl Scroller {
             tracker: VelocityTracker::empty(),
             pulled: false,
             frame_touched: true,
+            step: f32::NAN,
+            last_step: 0,
         }
     }
 
@@ -97,27 +101,44 @@ impl Scroller {
         let dt = t - self.last_time;
         self.offset += self.speed * dt;
         const K: f32 = 3.;
-        let unlock = self.touch.map(|it| it.3).unwrap_or_default();
-        if !unlock && self.offset < 0. {
-            self.speed = -self.offset * K;
-        } else if !unlock && self.offset > self.size {
-            self.speed = (self.size - self.offset) * K;
-        } else {
+        let unlock = self.touch.map_or(false, |it| it.3);
+        if unlock {
             self.speed *= (0.5_f32).powf((t - self.last_time) / 0.4);
+        } else {
+            let mut to = None;
+            if self.offset < 0. {
+                to = Some(0.);
+            }
+            if self.offset > self.size {
+                to = Some(self.size);
+            }
+            if !self.step.is_nan() {
+                let lower = (self.offset / self.step).floor() * self.step;
+                let upper = lower + self.step;
+                let range = 0.0..self.size;
+                if range.contains(&lower) && to.map_or(true, |it| (it - self.offset).abs() >= (lower - self.offset).abs()) {
+                    to = Some(lower);
+                }
+                if range.contains(&upper) && to.map_or(true, |it| (it - self.offset).abs() >= (upper - self.offset).abs()) {
+                    to = Some(upper);
+                }
+            }
+            if let Some(to) = to {
+                self.speed = (to - self.offset) * K;
+            }
         }
+        // if !unlock && self.offset < 0. {
+        // self.speed = -self.offset * K;
+        // } else if !unlock && self.offset > self.size {
+        // self.speed = (self.size - self.offset) * K;
+        // } else {
+        // self.speed *= (0.5_f32).powf((t - self.last_time) / 0.4);
+        // }
         self.last_time = t;
         if self.pulled {
             self.pulled = false;
         }
         self.frame_touched = false;
-    }
-
-    pub fn offset(&self) -> f32 {
-        self.offset
-    }
-
-    pub fn set_offset(&mut self, val: f32) {
-        self.offset = val;
     }
 
     pub fn bound(&mut self, bound: f32) {
@@ -153,8 +174,8 @@ impl Scroll {
     }
 
     pub fn set_offset(&mut self, x: f32, y: f32) {
-        self.x_scroller.set_offset(x);
-        self.y_scroller.set_offset(y);
+        self.x_scroller.offset = x;
+        self.y_scroller.offset = y;
     }
 
     pub fn touch(&mut self, touch: &Touch, t: f32) -> bool {
@@ -184,7 +205,7 @@ impl Scroll {
     pub fn render(&mut self, ui: &mut Ui, content: impl FnOnce(&mut Ui) -> (f32, f32)) {
         self.matrix = Some(ui.get_matrix().try_inverse().unwrap());
         ui.scissor(Some(Rect::new(0., 0., self.size.0, self.size.1)));
-        let s = ui.with(Translation2::new(-self.x_scroller.offset(), -self.y_scroller.offset()).to_homogeneous(), content);
+        let s = ui.with(Translation2::new(-self.x_scroller.offset, -self.y_scroller.offset).to_homogeneous(), content);
         ui.scissor(None);
         self.x_scroller.size((s.0 - self.size.0).max(0.));
         self.y_scroller.size((s.1 - self.size.1).max(0.));

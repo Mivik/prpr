@@ -123,14 +123,18 @@ impl FileSystem for ExternalFileSystem {
 }
 
 #[derive(Clone)]
-pub struct PZFileSystem(pub Arc<cap_std::fs::Dir>);
+pub struct PZFileSystem(pub Arc<cap_std::fs::Dir>, pub Arc<String>);
 
 impl PZFileSystem {
-    pub fn map_path(path: &str) -> String {
+    pub fn map_path(&self, path: &str) -> Result<String, String> {
         if let Some(internal) = path.strip_prefix(':') {
-            internal.to_owned()
+            match internal {
+                "music" => Err(self.1.as_ref().clone()),
+                "illustration" => Err(format!("{}.jpg", self.1)),
+                _ => Ok(internal.to_owned()),
+            }
         } else {
-            format!("assets/{path}")
+            Ok(format!("assets/{path}"))
         }
     }
 }
@@ -138,17 +142,25 @@ impl PZFileSystem {
 #[async_trait]
 impl FileSystem for PZFileSystem {
     async fn load_file(&mut self, path: &str) -> Result<Vec<u8>> {
-        let mut file = self.0.open(Self::map_path(path))?;
-        tokio::spawn(async move {
-            let mut res = Vec::new();
-            file.read_to_end(&mut res)?;
-            Ok(res)
-        })
-        .await?
+        match self.map_path(path) {
+            Ok(path) => {
+                let mut file = self.0.open(path)?;
+                tokio::spawn(async move {
+                    let mut res = Vec::new();
+                    file.read_to_end(&mut res)?;
+                    Ok(res)
+                })
+                .await?
+            }
+            Err(path) => Ok(tokio::fs::read(path).await?),
+        }
     }
 
     async fn exists(&mut self, path: &str) -> Result<bool> {
-        Ok(self.0.exists(Self::map_path(path)))
+        Ok(match self.map_path(path) {
+            Ok(path) => self.0.exists(path),
+            Err(path) => tokio::fs::try_exists(path).await?,
+        })
     }
 
     fn list_root(&self) -> Result<Vec<String>> {

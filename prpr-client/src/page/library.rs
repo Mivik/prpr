@@ -2,8 +2,7 @@ prpr::tl_file!("library");
 
 use super::{load_local, ChartItem, Fader, Page, SharedState};
 use crate::{
-    data::BriefChartInfo,
-    phizone::{Client, PZChart, PZFile, PZSong},
+    phizone::{Client, PZChart, PZFile},
     scene::{ChartOrder, SongScene},
 };
 use anyhow::Result;
@@ -71,11 +70,12 @@ pub struct LibraryPage {
     online_charts: Option<Vec<ChartItem>>,
 
     icon_back: SafeTexture,
-    icon_play : SafeTexture,
+    icon_play: SafeTexture,
+    icon_download: SafeTexture,
 }
 
 impl LibraryPage {
-    pub fn new(icon_back: SafeTexture, icon_play: SafeTexture) -> Result<Self> {
+    pub fn new(icon_back: SafeTexture, icon_play: SafeTexture, icon_download: SafeTexture) -> Result<Self> {
         Ok(Self {
             btn_local: DRectButton::new(),
             btn_online: DRectButton::new(),
@@ -98,6 +98,7 @@ impl LibraryPage {
 
             icon_back,
             icon_play,
+            icon_download,
         })
     }
 }
@@ -117,7 +118,7 @@ impl LibraryPage {
     }
 
     fn charts_display_range(&mut self, content_size: (f32, f32)) -> Range<u32> {
-        let sy = self.scroll.y_scroller.offset();
+        let sy = self.scroll.y_scroller.offset;
         let start_line = (sy / CHART_HEIGHT) as u32;
         let end_line = ((sy + content_size.1) / CHART_HEIGHT).ceil() as u32;
         let res = (start_line * ROW_NUM)..((end_line + 1) * ROW_NUM);
@@ -173,7 +174,7 @@ impl LibraryPage {
                             let mut c = Color { a: nc.a * c.a, ..nc };
                             let chart = &charts[id as usize];
                             let (r, path) = self.chart_btns[id as usize]
-                                .render_shadow(ui, r, t, c.a, |r| (*chart.illustration.0, r.feather(0.01), ScaleType::CropCenter, c));
+                                .render_shadow(ui, r, t, c.a, |r| (*chart.illu.texture.0, r.feather(0.01), ScaleType::CropCenter, c));
                             if let Some((that_id, start_time)) = &self.back_fade_in {
                                 if id == *that_id {
                                     let p = ((t - start_time) / BACK_FADE_IN_TIME).max(0.);
@@ -204,7 +205,7 @@ impl LibraryPage {
         if self.online_task.is_some() {
             return;
         }
-        self.scroll.y_scroller.set_offset(0.);
+        self.scroll.y_scroller.offset = 0.;
         self.online_charts = None;
         let page = self.current_page;
         self.online_task = Some(Task::new(async move {
@@ -221,29 +222,19 @@ impl LibraryPage {
                 let tex = BLACK_TEXTURE.clone();
                 async move {
                     // let illu = it.illustration.clone();
-                    let song: PZSong = it.song.load().await?.deref().clone();
+                    let song = it.song.load().await?.deref().clone();
                     Result::<_>::Ok((
                         ChartItem {
-                            info: BriefChartInfo {
-                                id: Some((it.id, song.id)),
-                                uploader: Some(it.owner),
-                                name: song.name,
-                                level: format!("{} Lv.{}", it.level, it.difficulty as u16),
-                                difficulty: it.difficulty,
-                                preview_start: song.preview_start.seconds as f32,
-                                preview_end: song.preview_end.seconds as f32,
-                                intro: it.description.unwrap_or_default(),
-                                tags: Vec::new(), // TODO
-                                composer: song.composer,
-                                illustrator: song.illustrator,
+                            info: it.to_info(&song),
+                            local_path: None,
+                            illu: super::Illustration {
+                                texture: (tex.clone(), tex),
+                                task: Some(Task::new({
+                                    let illu = song.illustration.clone();
+                                    async move { Ok((illu.load_thumbnail().await?, None)) }
+                                })),
+                                loaded: Arc::default(),
                             },
-                            path: it.chart.map(|it| it.url).unwrap_or_default(),
-                            illustration: (tex.clone(), tex),
-                            illustration_task: Some(Task::new({
-                                let illu = song.illustration.clone();
-                                async move { Ok((illu.load_thumbnail().await?, None)) }
-                            })),
-                            loaded_illustration: Arc::default(),
                         },
                         song.illustration,
                     ))
@@ -341,7 +332,7 @@ impl Page for LibraryPage {
             for (id, (btn, chart)) in self.chart_btns.iter_mut().zip(charts.into_iter().flatten()).enumerate() {
                 if btn.touch(touch, t) {
                     button_hit_large();
-                    let scene = SongScene::new(chart.clone(), self.icon_back.clone(), self.icon_play.clone());
+                    let scene = SongScene::new(chart.clone(), self.icon_back.clone(), self.icon_play.clone(), self.icon_download.clone());
                     self.transit = Some(TransitState {
                         id: id as _,
                         rect: None,
@@ -375,15 +366,15 @@ impl Page for LibraryPage {
         }
         self.scroll.update(t);
         for chart in &mut s.charts_local {
-            chart.settle();
+            chart.illu.settle();
         }
         if let Some(charts) = &mut self.online_charts {
             for chart in charts {
-                chart.settle();
+                chart.illu.settle();
             }
         }
         if let Some(transit) = &mut self.transit {
-            transit.chart.settle();
+            transit.chart.illu.settle();
             if t > transit.start_time + TRANSIT_TIME {
                 if transit.back {
                     self.back_fade_in = Some((transit.id, t));
@@ -450,7 +441,7 @@ impl Page for LibraryPage {
                     f32::tween(&fr.h, &(ui.top * 2.), p),
                 );
                 let path = r.rounded(0.02 * (1. - p));
-                ui.fill_path(&path, (*transit.chart.illustration.1, r.feather(0.01 * (1. - p))));
+                ui.fill_path(&path, (*transit.chart.illu.texture.1, r.feather(0.01 * (1. - p))));
                 ui.fill_path(&path, semi_black(0.55));
             }
         }

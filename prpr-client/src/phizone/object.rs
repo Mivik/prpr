@@ -48,8 +48,9 @@ pub trait PZObject: Clone + DeserializeOwned + Send + Sync {
     fn id(&self) -> u64;
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(try_from = "String")]
+#[serde(into = "String")]
 pub struct MusicPosition {
     pub seconds: u32,
 }
@@ -66,6 +67,11 @@ impl TryFrom<String> for MusicPosition {
         }()
         .ok_or("illegal position")?;
         Ok(MusicPosition { seconds })
+    }
+}
+impl From<MusicPosition> for String {
+    fn from(value: MusicPosition) -> Self {
+        format!("00:00:{:02}", value.seconds)
     }
 }
 

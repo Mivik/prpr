@@ -1,8 +1,8 @@
-use super::{MusicPosition, PZFile, PZObject, Ptr, PZUser};
+use super::{MusicPosition, PZFile, PZObject, PZUser, Ptr};
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PZSong {
     pub id: u64,
     pub name: String,

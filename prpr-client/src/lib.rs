@@ -83,6 +83,10 @@ mod dir {
         ensure("data")
     }
 
+    pub fn songs() -> Result<String> {
+        ensure("data/songs")
+    }
+
     pub fn charts() -> Result<String> {
         ensure("data/charts")
     }

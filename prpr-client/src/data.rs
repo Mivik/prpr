@@ -1,6 +1,7 @@
 use crate::{
     dir,
-    page::ChartItem, phizone::{Ptr, PZUser},
+    page::ChartItem,
+    phizone::{PZUser, Ptr},
 };
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -31,6 +32,7 @@ pub struct BriefChartInfo {
     pub preview_end: f32,
     pub intro: String,
     pub tags: Vec<String>,
+    pub charter: String,
     pub composer: String,
     pub illustrator: String,
 }
@@ -47,6 +49,7 @@ impl From<ChartInfo> for BriefChartInfo {
             preview_end: info.preview_end,
             intro: info.intro,
             tags: info.tags,
+            charter: info.charter,
             composer: info.composer,
             illustrator: info.illustrator,
         }
@@ -64,6 +67,7 @@ impl BriefChartInfo {
             preview_end: self.preview_end,
             intro: self.intro,
             tags: self.tags,
+            charter: self.charter,
             composer: self.composer,
             illustrator: self.illustrator,
             ..Default::default()
@@ -75,7 +79,7 @@ impl BriefChartInfo {
 pub struct LocalChart {
     #[serde(flatten)]
     pub info: BriefChartInfo,
-    pub path: String,
+    pub local_path: String,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -92,8 +96,8 @@ pub struct Data {
 impl Data {
     pub async fn init(&mut self) -> Result<()> {
         let charts = dir::charts()?;
-        self.charts.retain(|it| Path::new(&format!("{}/{}", charts, it.path)).exists());
-        let occurred: HashSet<_> = self.charts.iter().map(|it| it.path.clone()).collect();
+        self.charts.retain(|it| Path::new(&format!("{}/{}", charts, it.local_path)).exists());
+        let occurred: HashSet<_> = self.charts.iter().map(|it| it.local_path.clone()).collect();
         for entry in std::fs::read_dir(dir::custom_charts()?)? {
             let entry = entry?;
             let filename = entry.file_name();
@@ -110,7 +114,7 @@ impl Data {
             if let Ok(info) = result {
                 self.charts.push(LocalChart {
                     info: BriefChartInfo { id: None, ..info.into() },
-                    path: filename,
+                    local_path: filename,
                 });
             }
         }
@@ -124,6 +128,9 @@ impl Data {
     }
 
     pub fn find_chart(&self, chart: &ChartItem) -> Option<usize> {
-        self.charts.iter().position(|it| it.path == chart.path)
+        chart
+            .local_path
+            .as_ref()
+            .and_then(|it| self.charts.iter().position(|local| &local.local_path == it))
     }
 }

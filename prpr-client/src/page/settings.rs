@@ -1,10 +1,6 @@
 prpr::tl_file!("settings");
 
-use crate::{
-    get_data, get_data_mut,
-    popup::{ChooseButton, Popup},
-    save_data, sync_data,
-};
+use crate::{get_data, get_data_mut, popup::ChooseButton, save_data, sync_data};
 
 use super::{Page, SharedState};
 use anyhow::Result;
@@ -53,7 +49,7 @@ impl SettingsPage {
     fn switch_to_type(&mut self, ty: SettingListType) {
         if self.chosen != ty {
             self.chosen = ty;
-            self.scroll.y_scroller.set_offset(0.);
+            self.scroll.y_scroller.offset = 0.;
         }
     }
 }

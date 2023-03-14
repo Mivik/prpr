@@ -896,6 +896,7 @@ thread_local! {
     pub static UI_AUDIO: RefCell<AudioManager> = RefCell::new(build_audio());
     pub static UI_BTN_HITSOUND_LARGE: RefCell<Option<Sfx>> = RefCell::new(None);
     pub static UI_BTN_HITSOUND: RefCell<Option<Sfx>> = RefCell::new(None);
+    pub static UI_SWITCH_SOUND: RefCell<Option<Sfx>> = RefCell::new(None);
 }
 
 pub fn button_hit() {
@@ -903,7 +904,7 @@ pub fn button_hit() {
         if let Some(sfx) = it.borrow_mut().as_mut() {
             let _ = sfx.play(PlaySfxParams::default());
         }
-    })
+    });
 }
 
 pub fn button_hit_large() {
@@ -911,5 +912,13 @@ pub fn button_hit_large() {
         if let Some(sfx) = it.borrow_mut().as_mut() {
             let _ = sfx.play(PlaySfxParams::default());
         }
-    })
+    });
+}
+
+pub fn list_switch() {
+    UI_SWITCH_SOUND.with(|it| {
+        if let Some(sfx) = it.borrow_mut().as_mut() {
+            let _ = sfx.play(PlaySfxParams::default());
+        }
+    });
 }

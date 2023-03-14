@@ -37,6 +37,7 @@ impl MainScene {
         }
         load_sfx!(UI_BTN_HITSOUND_LARGE, "button_large.ogg");
         load_sfx!(UI_BTN_HITSOUND, "button.ogg");
+        load_sfx!(UI_SWITCH_SOUND, "switch.ogg");
 
         let bgm_clip = AudioClip::new(load_file("ending.mp3").await?)?;
         let mut bgm = UI_AUDIO.with(|it| {
@@ -50,7 +51,7 @@ impl MainScene {
         })?;
         // bgm.play()?;
 
-        let state = SharedState::new().await?;
+        let mut state = SharedState::new().await?;
 
         let background = load_texture("street.jpg").await?.into();
         let icon_back: SafeTexture = load_texture("back.png").await?.into();
@@ -73,6 +74,11 @@ impl MainScene {
 impl Scene for MainScene {
     fn on_result(&mut self, _tm: &mut TimeManager, result: Box<dyn Any>) -> Result<()> {
         self.pages.last_mut().unwrap().on_result(result, &mut self.state)
+    }
+
+    fn enter(&mut self, _tm: &mut TimeManager, _target: Option<RenderTarget>) -> Result<()> {
+        self.pages.last_mut().unwrap().enter(&mut self.state)?;
+        Ok(())
     }
 
     fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
@@ -106,10 +112,11 @@ impl Scene for MainScene {
         self.pages.last_mut().unwrap().update(s)?;
         if !s.fader.transiting() {
             match self.pages.last_mut().unwrap().next_page() {
-                NextPage::Overlay(sub) => {
+                NextPage::Overlay(mut sub) => {
                     if self.pages.len() == 1 {
                         self.bgm.set_low_pass(LOW_PASS)?;
                     }
+                    sub.enter(s)?;
                     self.pages.push(sub);
                     s.fader.sub(s.t);
                 }
