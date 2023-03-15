@@ -798,11 +798,11 @@ impl<'a> Ui<'a> {
     const LOADING_CHANGE_SPEED: f32 = 3.5;
     const LOADING_ROTATE_SPEED: f32 = 4.1;
 
-    pub fn loading(&mut self, cx: f32, cy: f32, t: f32, shading: impl IntoShading, params: impl Into<LoadingParams>) {
+    pub fn loading<'b>(&mut self, cx: f32, cy: f32, t: f32, shading: impl IntoShading, params: impl Into<LoadingParams<'b>>) {
         use std::f32::consts::PI;
 
         let params = params.into();
-        let (st, len) = if let Some(p) = params.progress {
+        let (mut st, mut len) = if let Some(p) = params.progress {
             (t * Self::LOADING_ROTATE_SPEED, p * PI * 2.)
         } else {
             let ct = t * Self::LOADING_CHANGE_SPEED;
@@ -819,6 +819,13 @@ impl<'a> Ui<'a> {
             let len = (-ct.cos() * Self::LOADING_SCALE / 2. + 0.5) * PI * 2.;
             (st, len)
         };
+        if let Some((last_st, last_len)) = params.last {
+            const FACTOR: f32 = 5.;
+            st = (*last_st * FACTOR + st) / (FACTOR + 1.);
+            len = (*last_len * FACTOR + len) / (FACTOR + 1.);
+            *last_st = st;
+            *last_len = len;
+        }
         self.scope(|ui| {
             ui.dx(cx);
             ui.dy(cy);
@@ -846,29 +853,40 @@ impl<'a> Ui<'a> {
     }
 }
 
-pub struct LoadingParams {
+pub struct LoadingParams<'a> {
     radius: f32,
     width: f32,
     progress: Option<f32>,
+    last: Option<&'a mut (f32, f32)>,
 }
-impl Default for LoadingParams {
+impl Default for LoadingParams<'_> {
     fn default() -> Self {
         Self {
             radius: 0.05,
             width: 0.012,
             progress: None,
+            last: None,
         }
     }
 }
-impl From<()> for LoadingParams {
+impl From<()> for LoadingParams<'_> {
     fn from(_: ()) -> Self {
         Self::default()
     }
 }
-impl From<f32> for LoadingParams {
+impl From<f32> for LoadingParams<'_> {
     fn from(progress: f32) -> Self {
         Self {
             progress: Some(progress),
+            ..Self::default()
+        }
+    }
+}
+impl<'a> From<(Option<f32>, &'a mut (f32, f32))> for LoadingParams<'a> {
+    fn from((progress, last): (Option<f32>, &'a mut (f32, f32))) -> Self {
+        Self {
+            progress: progress,
+            last: Some(last),
             ..Self::default()
         }
     }

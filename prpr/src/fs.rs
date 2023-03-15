@@ -152,14 +152,22 @@ impl FileSystem for PZFileSystem {
                 })
                 .await?
             }
-            Err(path) => Ok(tokio::fs::read(path).await?),
+            Err(path) => {
+                let mut file = std::fs::File::open(path)?;
+                tokio::spawn(async move {
+                    let mut res = Vec::new();
+                    file.read_to_end(&mut res)?;
+                    Ok(res)
+                })
+                .await?
+            }
         }
     }
 
     async fn exists(&mut self, path: &str) -> Result<bool> {
         Ok(match self.map_path(path) {
             Ok(path) => self.0.exists(path),
-            Err(path) => tokio::fs::try_exists(path).await?,
+            Err(path) => std::path::Path::new(&path).exists(),
         })
     }
 

@@ -751,8 +751,7 @@ impl Scene for GameScene {
                     if let Some(upload_fn) = &self.upload_fn {
                         if !self.res.config.offline_mode && !self.res.config.autoplay && self.res.config.speed >= 1.0 - 1e-3 {
                             if let Some(player) = &self.player {
-                                if let Some(chart) = &self.res.info.id {
-                                    use base64::Engine as _;
+                                if let Some((chart, _)) = &self.res.info.id {
                                     record_data = Some(encode_record_pz(self, player.id, *chart));
                                 }
                             }

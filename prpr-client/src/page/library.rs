@@ -332,7 +332,13 @@ impl Page for LibraryPage {
             for (id, (btn, chart)) in self.chart_btns.iter_mut().zip(charts.into_iter().flatten()).enumerate() {
                 if btn.touch(touch, t) {
                     button_hit_large();
-                    let scene = SongScene::new(chart.clone(), self.icon_back.clone(), self.icon_play.clone(), self.icon_download.clone());
+                    let scene = SongScene::new(
+                        chart.clone(),
+                        if matches!(self.chosen, ChartListType::Local) { Some(id) } else { None },
+                        self.icon_back.clone(),
+                        self.icon_play.clone(),
+                        self.icon_download.clone(),
+                    );
                     self.transit = Some(TransitState {
                         id: id as _,
                         rect: None,

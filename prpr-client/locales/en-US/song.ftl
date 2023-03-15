@@ -12,3 +12,11 @@ dl-status-assets = Downloading assets
 dl-status-saving = Saving
 dl-failed = Download failed
 dl-success = Downloaded
+
+guest = Guest
+
+warn-unrated = This play is unrated
+failed-to-play = Failed to start as online mode
+play-cancel = Cancel
+play-switch-to-offline = Switch to offline mode
+switched-to-offline = Switched to offline mode

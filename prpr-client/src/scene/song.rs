@@ -4,7 +4,7 @@ use crate::{
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut,
     page::{ChartItem, Illustration},
-    phizone::{Client, PZChart, PZFile, PZSong, Ptr, CACHE_CLIENT},
+    phizone::{recv_raw, Client, PZChart, PZFile, PZSong, PZUser, Ptr, UserManager, CACHE_CLIENT},
     save_data,
 };
 use anyhow::{anyhow, Context, Result};
@@ -12,14 +12,18 @@ use cap_std::ambient_authority;
 use futures_util::StreamExt;
 use macroquad::prelude::*;
 use prpr::{
-    ext::{screen_aspect, semi_black, semi_white, RectExt, SafeTexture, ScaleType},
+    config::Config,
+    ext::{poll_future, screen_aspect, semi_black, semi_white, LocalTask, RectExt, SafeTexture, ScaleType},
+    fs,
     info::ChartInfo,
-    scene::{show_error, show_message, NextScene, Scene},
+    scene::{show_error, show_message, BasicPlayer, GameMode, LoadingScene, NextScene, RecordUpdateState, Scene},
     task::Task,
     time::TimeManager,
-    ui::{button_hit, list_switch, DRectButton, MessageHandle, RectButton, Scroll, Ui, UI_AUDIO},
+    ui::{button_hit, list_switch, DRectButton, Dialog, MessageHandle, RectButton, Scroll, Ui, UI_AUDIO},
 };
 use sasa::{AudioClip, Music, MusicParams};
+use serde::Deserialize;
+use serde_json::json;
 use std::{
     borrow::Cow,
     fs::File,
@@ -28,6 +32,8 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 use zip::ZipArchive;
+
+use super::fs_from_path;
 
 const FADE_IN_TIME: f32 = 0.3;
 const CHART_ITEM_H: f32 = 0.11;
@@ -57,7 +63,7 @@ fn with_effects(data: Vec<u8>, range: Option<(u32, u32)>) -> Result<AudioClip> {
 struct Downloading {
     index: usize,
     status: Arc<Mutex<Cow<'static, str>>>,
-    prog: Arc<Mutex<f32>>,
+    prog: Arc<Mutex<Option<f32>>>,
     task: Task<Result<LocalChart>>,
 }
 
@@ -92,30 +98,45 @@ pub struct SongScene {
 
     downloading: Option<Downloading>,
     cancel_download_btn: DRectButton,
+    loading_last: (f32, f32),
+
+    scene_task: LocalTask<Result<LoadingScene>>,
 }
 
 impl SongScene {
-    pub fn new(chart: ChartItem, icon_back: SafeTexture, icon_play: SafeTexture, icon_download: SafeTexture) -> Self {
+    pub fn new(chart: ChartItem, local_index: Option<usize>, icon_back: SafeTexture, icon_play: SafeTexture, icon_download: SafeTexture) -> Self {
         let song_ptr = chart.info.id.map(|it| Ptr::<PZSong>::from_id(it.1));
-        let charts_task = if let &Some((_, song_id)) = &chart.info.id {
-            Some(Task::new(async move {
-                let charts = Client::query::<PZChart>().query("song", song_id.to_string()).send().await?;
-                let mut entries = Vec::new();
-                let local_charts = &get_data().charts;
-                for chart in charts.0 {
-                    let song = chart.song.load().await?;
-                    let info = chart.to_info(&song);
-                    entries.push(ChartEntry {
-                        file: chart.chart,
-                        assets: chart.assets,
-                        info,
-                        local_index: local_charts.iter().position(|local| local.info.id.map_or(false, |id| id.0 == chart.id)),
-                    })
-                }
-                Ok(entries)
-            }))
+        let cur_chart = chart.info.id.map_or(0, |it| it.0 as _);
+        let (charts, charts_task) = if let &Some((_, song_id)) = &chart.info.id {
+            (
+                Vec::new(),
+                Some(Task::new(async move {
+                    let charts = Client::query::<PZChart>().query("song", song_id.to_string()).send().await?;
+                    let mut entries = Vec::new();
+                    let local_charts = &get_data().charts;
+                    for chart in charts.0 {
+                        let song = chart.song.load().await?;
+                        let info = chart.to_info(&song);
+                        entries.push(ChartEntry {
+                            file: chart.chart,
+                            assets: chart.assets,
+                            info,
+                            local_index: local_charts.iter().position(|local| local.info.id.map_or(false, |id| id.0 == chart.id)),
+                        })
+                    }
+                    Ok(entries)
+                })),
+            )
         } else {
-            None
+            (
+                vec![ChartEntry {
+                    file: None,
+                    assets: None,
+                    info: chart.info,
+                    local_index,
+                }],
+                None,
+            )
         };
         let mut charts_scroll = Scroll::new();
         charts_scroll.y_scroller.step = CHART_ITEM_H;
@@ -164,13 +185,16 @@ impl SongScene {
                 }
             })),
 
-            charts: Vec::new(),
-            cur_chart: chart.info.id.map_or(0, |it| it.0 as _),
+            charts,
+            cur_chart,
             charts_task,
             charts_scroll,
 
             downloading: None,
             cancel_download_btn: DRectButton::new(),
+            loading_last: (0., 0.),
+
+            scene_task: None,
         }
     }
 
@@ -182,10 +206,11 @@ impl SongScene {
             return Ok(());
         };
         let assets = entry.assets.clone();
-        let progress = Arc::new(Mutex::new(0.));
+        let progress = Arc::new(Mutex::new(None));
         let prog_wk = Arc::downgrade(&progress);
         let status = Arc::new(Mutex::new(tl!("dl-status-fetch")));
         let status_shared = Arc::clone(&status);
+        self.loading_last = (0., 0.);
         self.downloading = Some(Downloading {
             index: self.cur_chart,
             prog: progress,
@@ -203,20 +228,20 @@ impl SongScene {
                     }
                     let dir = cap_std::fs::Dir::open_ambient_dir(&path, ambient_authority())?;
 
-                    async fn download(mut file: impl Write, url: &str, prog_wk: &Weak<Mutex<f32>>) -> Result<()> {
+                    async fn download(mut file: impl Write, url: &str, prog_wk: &Weak<Mutex<Option<f32>>>) -> Result<()> {
                         let Some(prog) = prog_wk.upgrade() else { return Ok(()) };
+                        *prog.lock().unwrap() = None;
                         // let mut file = dir.create(name)?;
-                        let res = CACHE_CLIENT.get(url).send().await.with_context(|| tl!("request-failed"))?;
+                        let res = reqwest::get(url).await.with_context(|| tl!("request-failed"))?;
                         let size = res.content_length();
                         let mut stream = res.bytes_stream();
                         let mut count = 0;
-                        *prog.lock().unwrap() = 0.;
                         while let Some(chunk) = stream.next().await {
                             let chunk = chunk?;
                             file.write_all(&chunk)?;
                             count += chunk.len() as u64;
                             if let Some(size) = size {
-                                *prog.lock().unwrap() = count.min(size) as f32 / size as f32;
+                                *prog.lock().unwrap() = Some(count.min(size) as f32 / size as f32);
                             }
                             if prog_wk.strong_count() == 1 {
                                 // cancelled
@@ -237,8 +262,10 @@ impl SongScene {
                         tokio::fs::write(format!("{song_path}.yml"), serde_yaml::to_string(&song).unwrap()).await?;
                     }
 
+                    *status.lock().unwrap() = tl!("dl-status-chart");
                     download(dir.create("chart")?, &url, &prog_wk).await?;
                     if let Some(assets) = &assets {
+                        *status.lock().unwrap() = tl!("dl-status-assets");
                         download(dir.create("assets.zip")?, &assets.url, &prog_wk).await?;
                         if prog_wk.strong_count() != 0 {
                             dir.create_dir("assets")?;
@@ -256,6 +283,10 @@ impl SongScene {
                             drop(zip);
                             dir.remove_file("assets.zip")?;
                         }
+                    }
+                    *status.lock().unwrap() = tl!("dl-status-saving");
+                    if let Some(prog) = prog_wk.upgrade() {
+                        *prog.lock().unwrap() = None;
                     }
                     dir.create("song")?.write_all(song.id.to_string().as_bytes())?;
                     // if let Some(preview) = &song.preview {
@@ -316,6 +347,9 @@ impl Scene for SongScene {
 
     fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
         let t = tm.now() as f32;
+        if self.scene_task.is_some() {
+            return Ok(false);
+        }
         if self.downloading.is_some() {
             if self.cancel_download_btn.touch(touch, t) {
                 self.downloading = None;
@@ -329,15 +363,101 @@ impl Scene for SongScene {
             return Ok(true);
         }
         if self.play_btn.touch(touch, t) {
-            // LoadingScene::new(GameMode::Normal, self.chart.info.clone(), get_data().config.clone(), todo!(), None, None, None);
             if let Some(entry) = self.charts.get(self.cur_chart) {
                 if let Some(index) = entry.local_index {
-                    todo!()
+                    let mut fs = fs_from_path(&get_data().charts[index].local_path)?;
+                    #[cfg(feature = "closed")]
+                    let rated = {
+                        let config = &get_data().config;
+                        !config.offline_mode && entry.info.id.is_some() && !config.autoplay && config.speed >= 1.0 - 1e-3
+                    };
+                    #[cfg(not(feature = "closed"))]
+                    let rated = false;
+                    if !rated && entry.info.id.is_some() && !get_data().config.offline_mode {
+                        show_message(tl!("warn-unrated")).warn();
+                    }
+                    // LoadingScene::new(GameMode::Normal, entry.info.clone(), get_data().config.clone(), todo!(), None, None, None);
+                    self.scene_task = Some(Box::pin(async move {
+                        #[derive(Deserialize)]
+                        struct Resp {
+                            play_token: Option<String>,
+                        }
+                        let info = fs::load_info(fs.as_mut()).await?;
+                        let mut play_token: Option<String> = None;
+                        if rated {
+                            let resp: Resp = recv_raw(Client::get("/player/play/").await.query(&json!({
+                                "chart": info.id.clone().unwrap().0,
+                                "config": 1,
+                            })))
+                            .await?
+                            .json()
+                            .await?;
+                            play_token = Some(resp.play_token.ok_or_else(|| anyhow!("didn't receive play token"))?);
+                        }
+                        LoadingScene::new(
+                            GameMode::Normal,
+                            info,
+                            Config {
+                                player_name: get_data()
+                                    .me
+                                    .as_ref()
+                                    .map(|it| it.name.clone())
+                                    .unwrap_or_else(|| tl!("guest").to_string()),
+                                res_pack_path: get_data()
+                                    .config
+                                    .res_pack_path
+                                    .as_ref()
+                                    .map(|it| format!("{}/{it}", dir::root().unwrap())),
+                                ..get_data().config.clone()
+                            },
+                            fs,
+                            get_data().me.as_ref().map(|it| BasicPlayer {
+                                avatar: UserManager::get_avatar(it.id),
+                                id: it.id,
+                                rks: it.rks,
+                            }),
+                            None,
+                            Some(Arc::new(move |mut data| {
+                                let Some(play_token) = play_token.clone() else { unreachable!() };
+                                data["play_token"] = play_token.into();
+                                data["app"] = 3.into();
+                                Task::new(async move {
+                                    #[derive(Deserialize)]
+                                    struct Resp {
+                                        exp_delta: f64,
+                                        former_rks: f64,
+                                        player: PZUser,
+                                        new_best: Option<bool>,
+                                        improvement: Option<u32>,
+                                    }
+                                    let resp: Resp = recv_raw(Client::post("/records/", &data).await).await?.json().await?;
+                                    Ok(RecordUpdateState {
+                                        best: resp.new_best.unwrap_or_default(),
+                                        improvement: resp.improvement.unwrap_or_default(),
+                                        gain_exp: resp.exp_delta as f32,
+                                        new_rks: resp.player.rks,
+                                    })
+                                    // let resp = Client::post(
+                                    // "/functions/uploadRecord",
+                                    // json!({
+                                    // "data": data,
+                                    // }),
+                                    // )
+                                    // .send()
+                                    // .await?;
+                                    // let resp: LCFunctionResult<RecordUpdateState> = serde_json::from_str(&resp.text().await?)?;
+                                    // if let Some(err) = resp.error {
+                                    // tl!(bail "ldb-upload-error", "code" => resp.code, "error" => format!("{err:?}"));
+                                    // }
+                                    // resp.result.ok_or_else(|| tl!(err "ldb-server-no-resp"))
+                                })
+                            })),
+                        )
+                        .await
+                    }));
                 } else {
                     self.start_download()?;
                 }
-            } else {
-                todo!()
             }
             return Ok(true);
         }
@@ -415,6 +535,27 @@ impl Scene for SongScene {
                     }
                 }
                 self.downloading = None;
+            }
+        }
+        if let Some(task) = &mut self.scene_task {
+            if let Some(result) = poll_future(task.as_mut()) {
+                match result {
+                    Err(err) => {
+                        let error = format!("{err:?}");
+                        Dialog::plain(tl!("failed-to-play"), error)
+                            .buttons(vec![tl!("play-cancel").to_string(), tl!("play-switch-to-offline").to_string()])
+                            .listener(move |pos| {
+                                if pos == 1 {
+                                    get_data_mut().config.offline_mode = true;
+                                    let _ = save_data();
+                                    show_message(tl!("switched-to-offline")).ok();
+                                }
+                            })
+                            .show();
+                    }
+                    Ok(scene) => self.next_scene = Some(NextScene::Overlay(Box::new(scene))),
+                }
+                self.scene_task = None;
             }
         }
         Ok(())
@@ -503,10 +644,10 @@ impl Scene for SongScene {
 
         if let Some(dl) = &self.downloading {
             ui.fill_rect(ui.screen_rect(), semi_black(0.6));
-            ui.loading(0., -0.04, t, WHITE, *dl.prog.lock().unwrap());
-            ui.text(dl.status.lock().unwrap().clone()).pos(0., 0.03).anchor(0.5, 0.).size(0.6).draw();
+            ui.loading(0., -0.06, t, WHITE, (*dl.prog.lock().unwrap(), &mut self.loading_last));
+            ui.text(dl.status.lock().unwrap().clone()).pos(0., 0.02).anchor(0.5, 0.).size(0.6).draw();
             let size = 0.7;
-            let r = ui.text(tl!("dl-cancel")).pos(0., 0.14).anchor(0.5, 0.).size(size).measure().feather(0.02);
+            let r = ui.text(tl!("dl-cancel")).pos(0., 0.12).anchor(0.5, 0.).size(size).measure().feather(0.02);
             self.cancel_download_btn.render_text(ui, r, t, 1., tl!("dl-cancel"), 0.6, true);
         }
 
