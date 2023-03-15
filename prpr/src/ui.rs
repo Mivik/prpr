@@ -802,7 +802,7 @@ impl<'a> Ui<'a> {
         use std::f32::consts::PI;
 
         let params = params.into();
-        let (mut st, mut len) = if let Some(p) = params.progress {
+        let (st, mut len) = if let Some(p) = params.progress {
             (t * Self::LOADING_ROTATE_SPEED, p * PI * 2.)
         } else {
             let ct = t * Self::LOADING_CHANGE_SPEED;
@@ -819,12 +819,8 @@ impl<'a> Ui<'a> {
             let len = (-ct.cos() * Self::LOADING_SCALE / 2. + 0.5) * PI * 2.;
             (st, len)
         };
-        if let Some((last_st, last_len)) = params.last {
-            const FACTOR: f32 = 5.;
-            st = (*last_st * FACTOR + st) / (FACTOR + 1.);
-            len = (*last_len * FACTOR + len) / (FACTOR + 1.);
-            *last_st = st;
-            *last_len = len;
+        if let Some(last) = params.last {
+            len = (*last * 5. + len) / 6.;
         }
         self.scope(|ui| {
             ui.dx(cx);
@@ -857,7 +853,7 @@ pub struct LoadingParams<'a> {
     radius: f32,
     width: f32,
     progress: Option<f32>,
-    last: Option<&'a mut (f32, f32)>,
+    last: Option<&'a mut f32>,
 }
 impl Default for LoadingParams<'_> {
     fn default() -> Self {
@@ -882,8 +878,8 @@ impl From<f32> for LoadingParams<'_> {
         }
     }
 }
-impl<'a> From<(Option<f32>, &'a mut (f32, f32))> for LoadingParams<'a> {
-    fn from((progress, last): (Option<f32>, &'a mut (f32, f32))) -> Self {
+impl<'a> From<(Option<f32>, &'a mut f32)> for LoadingParams<'a> {
+    fn from((progress, last): (Option<f32>, &'a mut f32)) -> Self {
         Self {
             progress: progress,
             last: Some(last),

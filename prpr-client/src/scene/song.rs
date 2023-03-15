@@ -4,7 +4,7 @@ use crate::{
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut,
     page::{ChartItem, Illustration},
-    phizone::{recv_raw, Client, PZChart, PZFile, PZSong, PZUser, Ptr, UserManager, CACHE_CLIENT},
+    phizone::{recv_raw, Client, PZChart, PZFile, PZSong, PZUser, Ptr, UserManager},
     save_data,
 };
 use anyhow::{anyhow, Context, Result};
@@ -19,7 +19,7 @@ use prpr::{
     scene::{show_error, show_message, BasicPlayer, GameMode, LoadingScene, NextScene, RecordUpdateState, Scene},
     task::Task,
     time::TimeManager,
-    ui::{button_hit, list_switch, DRectButton, Dialog, MessageHandle, RectButton, Scroll, Ui, UI_AUDIO},
+    ui::{button_hit, list_switch, DRectButton, Dialog, RectButton, Scroll, Ui, UI_AUDIO},
 };
 use sasa::{AudioClip, Music, MusicParams};
 use serde::Deserialize;
@@ -98,7 +98,7 @@ pub struct SongScene {
 
     downloading: Option<Downloading>,
     cancel_download_btn: DRectButton,
-    loading_last: (f32, f32),
+    loading_last: f32,
 
     scene_task: LocalTask<Result<LoadingScene>>,
 }
@@ -192,7 +192,7 @@ impl SongScene {
 
             downloading: None,
             cancel_download_btn: DRectButton::new(),
-            loading_last: (0., 0.),
+            loading_last: 0.,
 
             scene_task: None,
         }
@@ -210,7 +210,7 @@ impl SongScene {
         let prog_wk = Arc::downgrade(&progress);
         let status = Arc::new(Mutex::new(tl!("dl-status-fetch")));
         let status_shared = Arc::clone(&status);
-        self.loading_last = (0., 0.);
+        self.loading_last = 0.;
         self.downloading = Some(Downloading {
             index: self.cur_chart,
             prog: progress,
