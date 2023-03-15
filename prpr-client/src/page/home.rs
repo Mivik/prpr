@@ -102,7 +102,7 @@ impl Page for HomePage {
 
         s.render_fader(ui, |ui, c| {
             let r = Rect::new(-0.8, -ui.top + 0.1, 0.7, 1.3);
-            // ui.fill_rect(r, (*self.character, r, ScaleType::CropCenter, c));
+            ui.fill_rect(r, (*self.character, r, ScaleType::CropCenter, c));
         });
 
         // play button
