@@ -437,19 +437,6 @@ impl Scene for SongScene {
                                         gain_exp: resp.exp_delta as f32,
                                         new_rks: resp.player.rks,
                                     })
-                                    // let resp = Client::post(
-                                    // "/functions/uploadRecord",
-                                    // json!({
-                                    // "data": data,
-                                    // }),
-                                    // )
-                                    // .send()
-                                    // .await?;
-                                    // let resp: LCFunctionResult<RecordUpdateState> = serde_json::from_str(&resp.text().await?)?;
-                                    // if let Some(err) = resp.error {
-                                    // tl!(bail "ldb-upload-error", "code" => resp.code, "error" => format!("{err:?}"));
-                                    // }
-                                    // resp.result.ok_or_else(|| tl!(err "ldb-server-no-resp"))
                                 })
                             })),
                         )

@@ -15,7 +15,7 @@ use crate::{
     time::TimeManager,
     ui::{BillBoard, Dialog, Message, MessageHandle, MessageKind, Ui},
 };
-use anyhow::{bail, Error, Result};
+use anyhow::{Error, Result};
 use cfg_if::cfg_if;
 use macroquad::prelude::*;
 use std::{any::Any, cell::RefCell, sync::Mutex};
@@ -365,39 +365,39 @@ impl Main {
         if self.paused {
             return Ok(());
         }
-            match self.scenes.last_mut().unwrap().next_scene(&mut self.tm) {
-                NextScene::None => {}
-                NextScene::Pop => {
-                    self.scenes.pop();
-                    self.tm.seek_to(self.times.pop().unwrap());
-                    self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
-                }
-                NextScene::PopN(num) => {
-                    for _ in 0..num {
-                        self.scenes.pop();
-                        self.tm.seek_to(self.times.pop().unwrap());
-                    }
-                    self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
-                }
-                NextScene::PopWithResult(result) => {
-                    self.scenes.pop();
-                    self.tm.seek_to(self.times.pop().unwrap());
-                    self.scenes.last_mut().unwrap().on_result(&mut self.tm, result)?;
-                    self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
-                }
-                NextScene::Exit => {
-                    self.should_exit = true;
-                }
-                NextScene::Overlay(mut scene) => {
-                    self.times.push(self.tm.now());
-                    scene.enter(&mut self.tm, self.target_chooser.choose())?;
-                    self.scenes.push(scene);
-                }
-                NextScene::Replace(mut scene) => {
-                    scene.enter(&mut self.tm, self.target_chooser.choose())?;
-                    *self.scenes.last_mut().unwrap() = scene;
-                }
+        match self.scenes.last_mut().unwrap().next_scene(&mut self.tm) {
+            NextScene::None => {}
+            NextScene::Pop => {
+                self.scenes.pop();
+                self.tm.seek_to(self.times.pop().unwrap());
+                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
             }
+            NextScene::PopN(num) => {
+                for _ in 0..num {
+                    self.scenes.pop();
+                    self.tm.seek_to(self.times.pop().unwrap());
+                }
+                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
+            }
+            NextScene::PopWithResult(result) => {
+                self.scenes.pop();
+                self.tm.seek_to(self.times.pop().unwrap());
+                self.scenes.last_mut().unwrap().on_result(&mut self.tm, result)?;
+                self.scenes.last_mut().unwrap().enter(&mut self.tm, self.target_chooser.choose())?;
+            }
+            NextScene::Exit => {
+                self.should_exit = true;
+            }
+            NextScene::Overlay(mut scene) => {
+                self.times.push(self.tm.now());
+                scene.enter(&mut self.tm, self.target_chooser.choose())?;
+                self.scenes.push(scene);
+            }
+            NextScene::Replace(mut scene) => {
+                scene.enter(&mut self.tm, self.target_chooser.choose())?;
+                *self.scenes.last_mut().unwrap() = scene;
+            }
+        }
         Judge::on_new_frame();
         let mut touches = Judge::get_touches();
         touches.iter_mut().for_each(f);
@@ -445,7 +445,7 @@ impl Main {
                 dialog.update(self.last_update_time as _);
             }
         });
-            self.scenes.last_mut().unwrap().update(&mut self.tm)
+        self.scenes.last_mut().unwrap().update(&mut self.tm)
     }
 
     pub fn render(&mut self, ui: &mut Ui) -> Result<()> {
