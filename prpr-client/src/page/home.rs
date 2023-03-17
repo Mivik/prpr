@@ -80,7 +80,7 @@ impl Page for HomePage {
 
     fn touch(&mut self, touch: &Touch, s: &mut SharedState) -> Result<bool> {
         let t = s.t;
-        if self.login.touch(touch, t) {
+        if self.login.touch(touch, s.t) {
             return Ok(true);
         }
         if self.btn_play.touch(touch, t) {

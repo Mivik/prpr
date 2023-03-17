@@ -36,4 +36,4 @@ Cargo.lock
 
 # Test
 
-log*
+/log*
