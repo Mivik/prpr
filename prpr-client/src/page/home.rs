@@ -1,12 +1,12 @@
 prpr::tl_file!("home");
 
-use super::{LibraryPage, NextPage, Page, SettingsPage, SharedState};
-use crate::{get_data, phizone::UserManager};
+use super::{LibraryPage, NextPage, Page, SFader, SettingsPage, SharedState};
+use crate::{get_data, login::Login, phizone::UserManager, scene::ProfileScene};
 use anyhow::Result;
 use macroquad::prelude::*;
 use prpr::{
     ext::{semi_black, semi_white, RectExt, SafeTexture, ScaleType},
-    scene::show_message,
+    scene::{show_message, NextScene},
     ui::{button_hit_large, DRectButton, Ui},
 };
 
@@ -21,14 +21,20 @@ pub struct HomePage {
     icon_back: SafeTexture,
     icon_lang: SafeTexture,
     icon_download: SafeTexture,
+    icon_user: SafeTexture,
 
     btn_play: DRectButton,
     btn_event: DRectButton,
     btn_respack: DRectButton,
     btn_msg: DRectButton,
     btn_settings: DRectButton,
+    btn_user: DRectButton,
 
     next_page: Option<NextPage>,
+
+    login: Login,
+
+    sf: SFader,
 }
 
 impl HomePage {
@@ -49,14 +55,20 @@ impl HomePage {
             icon_lang: load_texture("language.png").await?.into(),
             icon_back,
             icon_download: load_texture("download.png").await?.into(),
+            icon_user: load_texture("user.png").await?.into(),
 
             btn_play: DRectButton::new().with_delta(-0.01).no_sound(),
             btn_event: DRectButton::new().with_elevation(0.002).no_sound(),
             btn_respack: DRectButton::new().with_elevation(0.002).no_sound(),
             btn_msg: DRectButton::new().with_radius(0.03).with_delta(-0.003).with_elevation(0.002),
             btn_settings: DRectButton::new().with_radius(0.03).with_delta(-0.003).with_elevation(0.002),
+            btn_user: DRectButton::new().with_delta(-0.003),
 
             next_page: None,
+
+            login: Login::new(),
+
+            sf: SFader::new(),
         })
     }
 }
@@ -68,9 +80,13 @@ impl Page for HomePage {
 
     fn touch(&mut self, touch: &Touch, s: &mut SharedState) -> Result<bool> {
         let t = s.t;
+        if self.login.touch(touch, t) {
+            return Ok(true);
+        }
         if self.btn_play.touch(touch, t) {
             button_hit_large();
-            self.next_page = Some(NextPage::Overlay(Box::new(LibraryPage::new(self.icon_back.clone(), self.icon_play.clone(), self.icon_download.clone())?)));
+            self.next_page =
+                Some(NextPage::Overlay(Box::new(LibraryPage::new(self.icon_back.clone(), self.icon_play.clone(), self.icon_download.clone())?)));
             return Ok(true);
         }
         if self.btn_event.touch(touch, t) {
@@ -89,10 +105,20 @@ impl Page for HomePage {
             self.next_page = Some(NextPage::Overlay(Box::new(SettingsPage::new(self.icon_lang.clone()))));
             return Ok(true);
         }
+        if self.btn_user.touch(touch, t) {
+            if let Some(me) = &get_data().me {
+                self.sf.goto(t, ProfileScene::new(me.id));
+            } else {
+                self.login.enter(t);
+            }
+            return Ok(true);
+        }
         Ok(false)
     }
 
     fn update(&mut self, s: &mut SharedState) -> Result<()> {
+        let t = s.t;
+        self.login.update(t)?;
         Ok(())
     }
 
@@ -160,15 +186,54 @@ impl Page for HomePage {
             ui.fill_rect(r, (*self.icon_settings, r, ScaleType::Fit, c));
         });
 
-        if let Some(u) = &get_data().me {
-            s.render_fader(ui, |ui, c| {
-                ui.avatar(0.92, -ui.top + 0.08, 0.05, c, t, UserManager::get_avatar(u.id));
-            });
-        }
+        s.fader.roll_back();
+        s.render_fader(ui, |ui, c| {
+            let rad = 0.05;
+            let ct = (0.9, -ui.top + 0.1);
+            self.btn_user.config.radius = rad;
+            let r = Rect::new(ct.0, ct.1, 0., 0.).feather(rad);
+            let (r, _) = self.btn_user.build(ui, t, r);
+            ui.avatar(
+                ct.0,
+                ct.1,
+                r.w / 2.,
+                c,
+                t,
+                get_data()
+                    .me
+                    .as_ref()
+                    .map(|user| Ok(UserManager::get_avatar(user.id)))
+                    .unwrap_or(Err(self.icon_user.clone())),
+            );
+            let rt = ct.0 - rad - 0.02;
+            if let Some(me) = &get_data().me {
+                ui.text(&me.name).pos(rt, r.center().y + 0.002).anchor(1., 1.).size(0.6).color(c).draw();
+                ui.text(format!("RKS {:.2}", me.rks))
+                    .pos(rt, r.center().y + 0.008)
+                    .anchor(1., 0.)
+                    .size(0.4)
+                    .color(Color { a: c.a * 0.6, ..c })
+                    .draw();
+            } else {
+                ui.text(tl!("not-logged-in"))
+                    .pos(rt, r.center().y)
+                    .anchor(1., 0.5)
+                    .no_baseline()
+                    .size(0.6)
+                    .color(c)
+                    .draw();
+            }
+        });
+        self.login.render(ui, t);
+        self.sf.render(ui, t);
         Ok(())
     }
 
     fn next_page(&mut self) -> NextPage {
         self.next_page.take().unwrap_or_default()
+    }
+
+    fn next_scene(&mut self, s: &mut SharedState) -> NextScene {
+        self.sf.next_scene(s.t).unwrap_or_default()
     }
 }

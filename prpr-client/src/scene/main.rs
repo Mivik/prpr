@@ -177,6 +177,6 @@ impl Scene for MainScene {
     }
 
     fn next_scene(&mut self, _tm: &mut TimeManager) -> NextScene {
-        self.pages.last_mut().unwrap().next_scene()
+        self.pages.last_mut().unwrap().next_scene(&mut self.state)
     }
 }

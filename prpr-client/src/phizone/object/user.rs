@@ -113,7 +113,7 @@ impl UserManager {
                         guard.remove(&id);
                     }
                     Ok(image) => {
-                        RESULTS.blocking_lock().get_mut(&id).unwrap().1 = Some(image.into());
+                        RESULTS.blocking_lock().get_mut(&id).unwrap().1 = Some(SafeTexture::from(image).with_mipmap());
                     }
                 }
             }

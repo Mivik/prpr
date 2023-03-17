@@ -456,7 +456,7 @@ impl Scene for SongScene {
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
         let t = tm.now() as f32;
-        self.illu.settle();
+        self.illu.settle(t);
         if let Some(task) = &mut self.charts_task {
             if let Some(res) = task.take() {
                 match res {

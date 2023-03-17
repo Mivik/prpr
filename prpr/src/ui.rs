@@ -186,7 +186,7 @@ pub struct DRectButton {
     inner: RectButton,
     last_touching: bool,
     start_time: Option<f32>,
-    config: ShadowConfig,
+    pub config: ShadowConfig,
     delta: f32,
     play_sound: bool,
 }
@@ -204,7 +204,7 @@ impl DRectButton {
         }
     }
 
-    fn build(&mut self, ui: &mut Ui, t: f32, r: Rect) -> (Rect, Path) {
+    pub fn build(&mut self, ui: &mut Ui, t: f32, r: Rect) -> (Rect, Path) {
         let r = r.feather((1. - self.progress(t)) * self.delta);
         self.inner.set(ui, r);
         (r, r.rounded(self.config.radius))
@@ -253,6 +253,39 @@ impl DRectButton {
             .color(if chosen { Color::new(0.3, 0.3, 0.3, alpha) } else { semi_white(alpha) })
             .draw();
         (r, path)
+    }
+
+    pub fn render_text_left<'a>(
+        &mut self,
+        ui: &mut Ui,
+        r: Rect,
+        t: f32,
+        alpha: f32,
+        text: impl Into<Cow<'a, str>>,
+        size: f32,
+    ) -> (Rect, Path) {
+        let oh = r.h;
+        let (r, path) = self.build(ui, t, r);
+        ui.fill_path(&path, semi_black(alpha * 0.4));
+        ui.text(text)
+            .pos(r.x + 0.02, r.center().y)
+            .anchor(0., 0.5)
+            .max_width(r.w - 0.04)
+            .no_baseline()
+            .size(size * r.h / oh)
+            .color(semi_white(alpha))
+            .draw();
+        (r, path)
+    }
+
+    #[inline]
+    pub fn render_input<'a>(&mut self, ui: &mut Ui, r: Rect, t: f32, alpha: f32, text: impl Into<Cow<'a, str>>, hint: impl Into<Cow<'a, str>>, size: f32) {
+        let text = text.into();
+        if text.trim().is_empty() {
+            self.render_text_left(ui, r, t, alpha * 0.7, hint, size);
+        } else {
+            self.render_text_left(ui, r, t, alpha, text, size);
+        }
     }
 
     #[inline]
@@ -756,30 +789,41 @@ impl<'a> Ui<'a> {
         (width, sh)
     }
 
-    pub fn avatar(&mut self, cx: f32, cy: f32, r: f32, c: Color, t: f32, avatar: Option<SafeTexture>) {
+    pub fn avatar(&mut self, cx: f32, cy: f32, r: f32, c: Color, t: f32, avatar: Result<Option<SafeTexture>, SafeTexture>) -> Rect {
         rounded_rect_shadow(
             self,
             Rect::new(cx - r, cy - r, r * 2., r * 2.),
             &ShadowConfig {
                 radius: r,
+                base: c.a,
                 ..Default::default()
             },
         );
-        if let Some(avatar) = avatar {
-            self.fill_circle(cx, cy, r, (*avatar, Rect::new(cx - r, cy - r, r * 2., r * 2.)));
-        } else {
-            self.loading(
-                cx,
-                cy,
-                t,
-                c,
-                LoadingParams {
-                    radius: r,
-                    ..Default::default()
-                },
-            );
+        let rect = Rect::new(cx - r, cy - r, r * 2., r * 2.);
+        match avatar {
+            Ok(Some(avatar)) => {
+                self.fill_circle(cx, cy, r, (*avatar, rect, ScaleType::CropCenter, c));
+            }
+            Ok(None) => {
+                self.loading(
+                    cx,
+                    cy,
+                    t,
+                    c,
+                    LoadingParams {
+                        radius: r * 0.6,
+                        width: 0.008,
+                        ..Default::default()
+                    },
+                );
+            }
+            Err(icon) => {
+                self.fill_circle(cx, cy, r, semi_black(c.a * 0.2));
+                self.fill_circle(cx, cy, r, (*icon, rect.feather(-0.025), ScaleType::CropCenter, c));
+            }
         }
-        self.stroke_circle(cx, cy, r, 0.004, WHITE);
+        self.stroke_circle(cx, cy, r, 0.004, c);
+        rect
     }
 
     pub fn loading_path(start: f32, len: f32, r: f32) -> Path {
@@ -821,6 +865,7 @@ impl<'a> Ui<'a> {
         };
         if let Some(last) = params.last {
             len = (*last * 5. + len) / 6.;
+            *last = len;
         }
         self.scope(|ui| {
             ui.dx(cx);

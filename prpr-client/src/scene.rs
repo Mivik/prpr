@@ -1,7 +1,4 @@
 mod chart_order;
-use std::{io::Read, sync::Arc};
-
-use cap_std::ambient_authority;
 pub use chart_order::{ChartOrder, ChartOrderBox};
 
 mod main;
@@ -10,14 +7,14 @@ pub use main::MainScene;
 mod song;
 pub use song::SongScene;
 
+mod profile;
+pub use profile::ProfileScene;
+
 use crate::dir;
 use anyhow::Result;
-use macroquad::prelude::{Color, Rect};
-use prpr::{
-    fs::{self, FileSystem},
-    scene::{NextScene, Scene},
-    ui::{TextPainter, Ui},
-};
+use cap_std::ambient_authority;
+use prpr::fs::{self, FileSystem};
+use std::{io::Read, sync::Arc};
 
 pub fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
     if let Some(name) = path.strip_prefix(':') {

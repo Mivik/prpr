@@ -173,8 +173,19 @@ impl LibraryPage {
                         f.render(ui, t, |ui, nc| {
                             let mut c = Color { a: nc.a * c.a, ..nc };
                             let chart = &charts[id as usize];
-                            let (r, path) = self.chart_btns[id as usize]
-                                .render_shadow(ui, r, t, c.a, |r| (*chart.illu.texture.0, r.feather(0.01), ScaleType::CropCenter, c));
+                            let (r, path) = self.chart_btns[id as usize].render_shadow(ui, r, t, c.a, |_| semi_black(c.a));
+                            ui.fill_path(
+                                &path,
+                                (
+                                    *chart.illu.texture.0,
+                                    r.feather(0.01),
+                                    ScaleType::CropCenter,
+                                    Color {
+                                        a: c.a * chart.illu.alpha(t),
+                                        ..c
+                                    },
+                                ),
+                            );
                             if let Some((that_id, start_time)) = &self.back_fade_in {
                                 if id == *that_id {
                                     let p = ((t - start_time) / BACK_FADE_IN_TIME).max(0.);
@@ -219,7 +230,6 @@ impl LibraryPage {
             let total_page = (count - 1) / PAGE_NUM + 1;
             let pz_charts = charts.iter().map(|it| Arc::new(it.clone())).collect();
             let charts: Vec<_> = join_all(charts.into_iter().map(|it| {
-                let tex = BLACK_TEXTURE.clone();
                 async move {
                     // let illu = it.illustration.clone();
                     let song = it.song.load().await?.deref().clone();
@@ -228,12 +238,13 @@ impl LibraryPage {
                             info: it.to_info(&song),
                             local_path: None,
                             illu: super::Illustration {
-                                texture: (tex.clone(), tex),
+                                texture: (BLACK_TEXTURE.clone(), BLACK_TEXTURE.clone()),
                                 task: Some(Task::new({
                                     let illu = song.illustration.clone();
                                     async move { Ok((illu.load_thumbnail().await?, None)) }
                                 })),
                                 loaded: Arc::default(),
+                                load_time: f32::NAN,
                             },
                         },
                         song.illustration,
@@ -253,6 +264,7 @@ impl LibraryPage {
             self.chosen = ty;
             self.chart_btns.clear();
             self.current_page = 0;
+            self.scroll.y_scroller.offset = 0.;
         }
     }
 }
@@ -372,15 +384,15 @@ impl Page for LibraryPage {
         }
         self.scroll.update(t);
         for chart in &mut s.charts_local {
-            chart.illu.settle();
+            chart.illu.settle(t);
         }
         if let Some(charts) = &mut self.online_charts {
             for chart in charts {
-                chart.illu.settle();
+                chart.illu.settle(t);
             }
         }
         if let Some(transit) = &mut self.transit {
-            transit.chart.illu.settle();
+            transit.chart.illu.settle(t);
             if t > transit.start_time + TRANSIT_TIME {
                 if transit.back {
                     self.back_fade_in = Some((transit.id, t));
@@ -454,7 +466,7 @@ impl Page for LibraryPage {
         Ok(())
     }
 
-    fn next_scene(&mut self) -> NextScene {
+    fn next_scene(&mut self, _s: &mut SharedState) -> NextScene {
         if let Some(transit) = &mut self.transit {
             if transit.done {
                 return transit.next_scene.take().unwrap_or_default();

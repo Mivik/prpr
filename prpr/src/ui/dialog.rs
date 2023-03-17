@@ -171,11 +171,11 @@ impl Dialog {
         ui.scope(|ui| {
             let bw = (wr.w - pad * (self.buttons.len() + 1) as f32) / self.buttons.len() as f32;
             let mut r = Rect::new(wr.x + pad, wr.bottom() - s - bh, bw, bh);
-            for (btn, rbtn) in self.buttons.iter().zip(self.rect_buttons.iter_mut()) {
-                rbtn.set(ui, r);
-                ui.fill_rect(r, if rbtn.touching() { Color::new(1., 1., 1., 0.5) } else { WHITE });
+            for (text, btn) in self.buttons.iter().zip(self.rect_buttons.iter_mut()) {
+                btn.set(ui, r);
+                ui.fill_rect(r, if btn.touching() { Color::new(1., 1., 1., 0.5) } else { WHITE });
                 let ct = r.center();
-                ui.text(btn).pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.5).no_baseline().color(BLACK).draw();
+                ui.text(text).pos(ct.x, ct.y).anchor(0.5, 0.5).size(0.5).no_baseline().color(BLACK).draw();
                 r.x += bw + pad;
             }
         });

@@ -17,9 +17,9 @@ use anyhow::Result;
 use image::DynamicImage;
 use macroquad::prelude::*;
 use prpr::{
-    ext::{SafeTexture, BLACK_TEXTURE},
+    ext::{semi_black, SafeTexture, BLACK_TEXTURE},
     fs,
-    scene::NextScene,
+    scene::{NextScene, Scene},
     task::Task,
     ui::{FontArc, TextPainter, Ui},
 };
@@ -102,6 +102,7 @@ pub fn load_local(tex: &SafeTexture, order: &(ChartOrder, bool)) -> Vec<ChartIte
                 texture: (tex.clone(), tex.clone()),
                 task: Some(illustration_task(it.local_path.clone())),
                 loaded: Arc::default(),
+                load_time: f32::NAN,
             },
         })
         .collect();
@@ -117,10 +118,13 @@ pub struct Illustration {
     pub texture: (SafeTexture, SafeTexture),
     pub task: Option<Task<Result<(DynamicImage, Option<DynamicImage>)>>>,
     pub loaded: Arc<Mutex<Option<(SafeTexture, SafeTexture)>>>,
+    pub load_time: f32,
 }
 
 impl Illustration {
-    pub fn settle(&mut self) {
+    const TIME: f32 = 0.4;
+
+    pub fn settle(&mut self, t: f32) {
         if let Some(task) = &mut self.task {
             if let Some(illu) = task.take() {
                 self.texture = if let Ok(illu) = illu {
@@ -130,9 +134,23 @@ impl Illustration {
                 };
                 *self.loaded.lock().unwrap() = Some(self.texture.clone());
                 self.task = None;
+                self.load_time = t;
             } else if let Some(loaded) = self.loaded.lock().unwrap().clone() {
                 self.texture = loaded;
+                self.load_time = t;
             }
+        }
+    }
+
+    pub fn ready(&self) -> bool {
+        self.load_time.is_nan()
+    }
+
+    pub fn alpha(&self, t: f32) -> f32 {
+        if self.load_time.is_nan() {
+            0.
+        } else {
+            ((t - self.load_time) / Self::TIME).min(1.)
         }
     }
 }
@@ -148,7 +166,7 @@ pub struct ChartItem {
 pub struct Fader {
     pub distance: f32,
     start_time: f32,
-    time: f32,
+    pub time: f32,
     index: usize,
     back: bool,
     pub sub: bool,
@@ -220,6 +238,10 @@ impl Fader {
         }
     }
 
+    pub fn roll_back(&mut self) {
+        self.index = self.index.saturating_sub(1);
+    }
+
     pub fn render<R>(&mut self, ui: &mut Ui, t: f32, f: impl FnOnce(&mut Ui, Color) -> R) -> R {
         let p = self.progress(t - self.index as f32 * Self::DELTA);
         let (dy, alpha) = (p * self.distance, 1. - p.abs());
@@ -259,6 +281,51 @@ impl Fader {
                 .draw_with_font(Some(painter));
         }
         ui.scissor(None);
+    }
+}
+
+pub struct SFader {
+    time: f32,
+    next_scene: Option<NextScene>,
+}
+
+impl SFader {
+    const TIME: f32 = 0.35;
+
+    pub fn new() -> Self {
+        Self {
+            time: f32::NAN,
+            next_scene: None,
+        }
+    }
+
+    pub fn goto(&mut self, t: f32, scene: impl Scene + 'static) {
+        self.time = t;
+        self.next_scene = Some(NextScene::Overlay(Box::new(scene)));
+    }
+
+    pub fn enter(&mut self, t: f32) {
+        self.time = t;
+    }
+
+    pub fn render(&mut self, ui: &mut Ui, t: f32) {
+        if self.time.is_nan() {
+            return;
+        }
+        let p = ((t - self.time) / Self::TIME).min(1.);
+        if p >= 1. && self.next_scene.is_none() {
+            self.time = f32::NAN;
+        } else {
+            ui.fill_rect(ui.screen_rect(), semi_black(if self.next_scene.is_some() { p } else { 1. - p }));
+        }
+    }
+
+    pub fn next_scene(&mut self, t: f32) -> Option<NextScene> {
+        if t >= self.time + Self::TIME {
+            self.next_scene.take()
+        } else {
+            None
+        }
     }
 }
 
@@ -315,7 +382,7 @@ pub trait Page {
     fn next_page(&mut self) -> NextPage {
         NextPage::None
     }
-    fn next_scene(&mut self) -> NextScene {
+    fn next_scene(&mut self, _s: &mut SharedState) -> NextScene {
         NextScene::None
     }
 }
