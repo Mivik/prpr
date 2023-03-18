@@ -244,12 +244,14 @@ pub struct Judge {
     pub trackers: HashMap<u64, VelocityTracker>,
     pub last_time: f32,
 
+    key_down_count: u32,
+
     pub(crate) inner: JudgeInner,
 }
 
 static SUBSCRIBER_ID: Lazy<usize> = Lazy::new(register_input_subscriber);
 thread_local! {
-    static TOUCHES: RefCell<(Vec<Touch>, u32, u32)> = RefCell::default();
+    static TOUCHES: RefCell<(Vec<Touch>, i32, u32)> = RefCell::default();
 }
 
 impl Judge {
@@ -267,6 +269,8 @@ impl Judge {
             notes,
             trackers: HashMap::new(),
             last_time: 0.,
+
+            key_down_count: 0,
 
             inner: JudgeInner::new(chart.lines.iter().map(|it| it.notes.iter().filter(|it| !it.fake).count() as u32).sum()),
         }
@@ -293,12 +297,11 @@ impl Judge {
     }
 
     pub(crate) fn on_new_frame() {
-        let mut key_down_count = TOUCHES.with(|it| it.borrow().1);
-        let mut handler = Handler(Vec::new(), &mut key_down_count, 0);
+        let mut handler = Handler(Vec::new(), 0, 0);
         repeat_all_miniquad_input(&mut handler, *SUBSCRIBER_ID);
         handler.finalize();
         TOUCHES.with(|it| {
-            *it.borrow_mut() = (handler.0, *handler.1, handler.2);
+            *it.borrow_mut() = (handler.0, handler.1, handler.2);
         });
     }
 
@@ -375,7 +378,7 @@ impl Judge {
             let guard = it.borrow();
             (guard.0.clone(), guard.2)
         });
-        let key_down_count = TOUCHES.with(|it| it.borrow().1);
+        self.key_down_count = self.key_down_count.saturating_add_signed(TOUCHES.with(|it| it.borrow().1));
         {
             fn to_local(Vec2 { x, y }: Vec2) -> Point {
                 Point::new(x / screen_width() * 2. - 1., y / screen_height() * 2. - 1.)
@@ -583,7 +586,7 @@ impl Judge {
                         let x = &mut note.object.translation.0;
                         x.set_time(t);
                         let x = x.now();
-                        if key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX)) {
+                        if self.key_down_count == 0 && !pos.iter().any(|it| it.map_or(false, |it| (it.x - x).abs() <= X_DIFF_MAX)) {
                             if t > *up_time + UP_TOLERANCE {
                                 note.judge = JudgeStatus::Judged;
                                 judgements.push((Judgement::Miss, line_id, *id, None));
@@ -606,17 +609,17 @@ impl Judge {
                     judgements.push((Judgement::Miss, line_id, *id, None));
                     continue;
                 }
-                if -t > LIMIT_BAD {
+                if -dt > LIMIT_BAD {
                     break;
                 }
-                if !matches!(note.kind, NoteKind::Drag) && (key_down_count == 0 || !matches!(note.kind, NoteKind::Flick)) {
+                if !matches!(note.kind, NoteKind::Drag) && (self.key_down_count == 0 || !matches!(note.kind, NoteKind::Flick)) {
                     continue;
                 }
                 let dt = dt.abs();
                 let x = &mut note.object.translation.0;
                 x.set_time(t);
                 let x = x.now();
-                if key_down_count != 0
+                if self.key_down_count != 0
                     || pos.iter().any(|it| {
                         it.map_or(false, |it| {
                             let dx = (it.x - x).abs();
@@ -808,8 +811,8 @@ impl Judge {
     }
 }
 
-struct Handler<'a>(Vec<Touch>, &'a mut u32, u32);
-impl<'a> Handler<'a> {
+struct Handler(Vec<Touch>, i32, u32);
+impl Handler {
     fn finalize(&mut self) {
         if is_mouse_button_down(MouseButton::Left) {
             self.0.push(Touch {
@@ -831,7 +834,7 @@ fn button_to_id(button: MouseButton) -> u64 {
         }
 }
 
-impl<'a> EventHandler for Handler<'a> {
+impl EventHandler for Handler {
     fn update(&mut self, _: &mut miniquad::Context) {}
     fn draw(&mut self, _: &mut miniquad::Context) {}
     fn touch_event(&mut self, _: &mut miniquad::Context, phase: miniquad::TouchPhase, id: u64, x: f32, y: f32) {
@@ -860,13 +863,13 @@ impl<'a> EventHandler for Handler<'a> {
 
     fn key_down_event(&mut self, _ctx: &mut miniquad::Context, _keycode: KeyCode, _keymods: miniquad::KeyMods, repeat: bool) {
         if !repeat {
-            *self.1 = self.1.wrapping_add(1);
-            self.2 = self.2.wrapping_add(1);
+            self.1 += 1;
+            self.2 += 1;
         }
     }
 
     fn key_up_event(&mut self, _ctx: &mut miniquad::Context, _keycode: KeyCode, _keymods: miniquad::KeyMods) {
-        *self.1 = self.1.wrapping_sub(1);
+        self.1 -= 1;
     }
 }
 
