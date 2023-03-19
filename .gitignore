@@ -34,3 +34,4 @@ Cargo.lock
 # Test
 
 log*
+.vscode/launch.json
