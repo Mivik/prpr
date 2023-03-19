@@ -34,6 +34,7 @@ pub struct HomePage {
 
     login: Login,
 
+    need_back: bool,
     sf: SFader,
 }
 
@@ -68,6 +69,7 @@ impl HomePage {
 
             login: Login::new(),
 
+            need_back: false,
             sf: SFader::new(),
         })
     }
@@ -78,7 +80,18 @@ impl Page for HomePage {
         "PHIRA".into()
     }
 
+    fn enter(&mut self, s: &mut SharedState) -> Result<()> {
+        if self.need_back {
+            self.sf.enter(s.t);
+            self.need_back = false;
+        }
+        Ok(())
+    }
+
     fn touch(&mut self, touch: &Touch, s: &mut SharedState) -> Result<bool> {
+        if self.sf.transiting() {
+            return Ok(true);
+        }
         let t = s.t;
         if self.login.touch(touch, s.t) {
             return Ok(true);
@@ -107,7 +120,8 @@ impl Page for HomePage {
         }
         if self.btn_user.touch(touch, t) {
             if let Some(me) = &get_data().me {
-                self.sf.goto(t, ProfileScene::new(me.id));
+                self.need_back = true;
+                self.sf.goto(t, ProfileScene::new(me.id, self.icon_back.clone()));
             } else {
                 self.login.enter(t);
             }

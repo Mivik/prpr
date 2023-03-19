@@ -299,9 +299,18 @@ impl SFader {
         }
     }
 
+    pub fn transiting(&self) -> bool {
+        !self.time.is_nan()
+    }
+
     pub fn goto(&mut self, t: f32, scene: impl Scene + 'static) {
         self.time = t;
         self.next_scene = Some(NextScene::Overlay(Box::new(scene)));
+    }
+
+    pub fn next(&mut self, t: f32, next: NextScene) {
+        self.time = t;
+        self.next_scene = Some(next);
     }
 
     pub fn enter(&mut self, t: f32) {
