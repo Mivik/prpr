@@ -226,7 +226,7 @@ impl SongScene {
                     } else {
                         tokio::fs::create_dir(path).await?;
                     }
-                    let dir = cap_std::fs::Dir::open_ambient_dir(&path, ambient_authority())?;
+                    let dir = cap_std::fs::Dir::open_ambient_dir(path, ambient_authority())?;
 
                     async fn download(mut file: impl Write, url: &str, prog_wk: &Weak<Mutex<Option<f32>>>) -> Result<()> {
                         let Some(prog) = prog_wk.upgrade() else { return Ok(()) };
@@ -386,7 +386,7 @@ impl Scene for SongScene {
                         let mut play_token: Option<String> = None;
                         if rated {
                             let resp: Resp = recv_raw(Client::get("/player/play/").await.query(&json!({
-                                "chart": info.id.clone().unwrap().0,
+                                "chart": info.id.unwrap().0,
                                 "config": 1,
                             })))
                             .await?

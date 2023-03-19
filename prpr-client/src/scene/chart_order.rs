@@ -2,10 +2,7 @@ prpr::tl_file!("chart_order");
 
 use crate::page::ChartItem;
 use macroquad::prelude::*;
-use prpr::{
-    ext::{RectExt, SafeTexture},
-    ui::{RectButton, Ui},
-};
+use prpr::{ext::SafeTexture, ui::RectButton};
 
 pub enum ChartOrder {
     Default,

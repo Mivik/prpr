@@ -139,7 +139,7 @@ impl<'a, 's, 'ui> DrawText<'a, 's, 'ui> {
             painter.brush.queue(section);
             return;
         }
-        let extras = section.text.iter().map(|it| it.extra.clone()).collect();
+        let extras = section.text.iter().map(|it| it.extra).collect();
         let bounds = section.bounds;
         let bounds = Rect {
             min: Point { x: 0., y: 0. },
@@ -186,7 +186,7 @@ impl<'a, 's, 'ui> DrawText<'a, 's, 'ui> {
         if let Some(painter) = &mut painter {
             Self::paint_on(painter, section, scale, self.multiline);
         } else {
-            Self::paint_on(&mut self.ui.text_painter, section, scale, self.multiline);
+            Self::paint_on(self.ui.text_painter, section, scale, self.multiline);
         }
         self.ui
             .with((Matrix::new_scaling(1. / s) * self.scale).append_translation(&Vector::new(rect.x, rect.y)), |ui| {

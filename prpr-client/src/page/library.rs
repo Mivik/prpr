@@ -289,7 +289,7 @@ impl Page for LibraryPage {
     }
 
     fn enter(&mut self, s: &mut SharedState) -> Result<()> {
-        s.charts_local = load_local(&*BLACK_TEXTURE, &(ChartOrder::Default, false));
+        s.charts_local = load_local(&BLACK_TEXTURE, &(ChartOrder::Default, false));
         Ok(())
     }
 

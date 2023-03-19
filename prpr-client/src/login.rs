@@ -125,7 +125,7 @@ impl Login {
             Client::register(&email, &name, &pwd).await?;
             Ok(None)
         });
-        return None;
+        None
     }
 
     pub fn touch(&mut self, touch: &Touch, t: f32) -> bool {

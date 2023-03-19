@@ -239,19 +239,19 @@ impl PZFile {
     pub async fn load_thumbnail(&self) -> Result<DynamicImage> {
         if self.url.starts_with("https://res.phi.zone/") {
             if let Some(index) = self.url.rfind('.') {
-                return Ok(PZFile {
+                return PZFile {
                     url: format!("{}.comp.webp", &self.url[..index]),
                 }
                 .load_image()
-                .await?);
+                .await;
             }
         }
         if self.url.starts_with("http://phizone.mivik.cn/") {
-            return Ok(PZFile {
+            return PZFile {
                 url: format!("{}?imageView/0/w/{THUMBNAIL_WIDTH}/h/{THUMBNAIL_HEIGHT}", self.url),
             }
             .load_image()
-            .await?);
+            .await;
         }
         self.load_image().await
     }

@@ -540,7 +540,7 @@ pub async fn parse_rpe(source: &str, fs: &mut dyn FileSystem, extra: ChartExtra)
         lines.push(
             parse_judge_line(&mut r, rpe, max_time, fs, &bezier_map)
                 .await
-                .with_context(move || format!("In judge line #{id} ({})", name))?,
+                .with_context(move || format!("In judge line #{id} ({name})"))?,
         );
     }
     process_lines(&mut lines);

@@ -8,7 +8,6 @@ mod dialog;
 pub use dialog::Dialog;
 
 mod scroll;
-use sasa::{AudioManager, PlaySfxParams, Sfx};
 pub use scroll::Scroll;
 
 mod shading;
@@ -38,6 +37,7 @@ use lyon::{
 };
 use macroquad::prelude::*;
 use miniquad::PassAction;
+use sasa::{AudioManager, PlaySfxParams, Sfx};
 use std::{borrow::Cow, cell::RefCell, collections::HashMap, ops::Range};
 
 #[derive(Default, Clone, Copy)]
@@ -190,6 +190,11 @@ pub struct DRectButton {
     delta: f32,
     play_sound: bool,
 }
+impl Default for DRectButton {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl DRectButton {
     pub const TIME: f32 = 0.2;
 
@@ -255,15 +260,7 @@ impl DRectButton {
         (r, path)
     }
 
-    pub fn render_text_left<'a>(
-        &mut self,
-        ui: &mut Ui,
-        r: Rect,
-        t: f32,
-        alpha: f32,
-        text: impl Into<Cow<'a, str>>,
-        size: f32,
-    ) -> (Rect, Path) {
+    pub fn render_text_left<'a>(&mut self, ui: &mut Ui, r: Rect, t: f32, alpha: f32, text: impl Into<Cow<'a, str>>, size: f32) -> (Rect, Path) {
         let oh = r.h;
         let (r, path) = self.build(ui, t, r);
         ui.fill_path(&path, semi_black(alpha * 0.4));
@@ -279,7 +276,16 @@ impl DRectButton {
     }
 
     #[inline]
-    pub fn render_input<'a>(&mut self, ui: &mut Ui, r: Rect, t: f32, alpha: f32, text: impl Into<Cow<'a, str>>, hint: impl Into<Cow<'a, str>>, size: f32) {
+    pub fn render_input<'a>(
+        &mut self,
+        ui: &mut Ui,
+        r: Rect,
+        t: f32,
+        alpha: f32,
+        text: impl Into<Cow<'a, str>>,
+        hint: impl Into<Cow<'a, str>>,
+        size: f32,
+    ) {
         let text = text.into();
         if text.trim().is_empty() {
             self.render_text_left(ui, r, t, alpha * 0.7, hint, size);
@@ -926,7 +932,7 @@ impl From<f32> for LoadingParams<'_> {
 impl<'a> From<(Option<f32>, &'a mut f32)> for LoadingParams<'a> {
     fn from((progress, last): (Option<f32>, &'a mut f32)) -> Self {
         Self {
-            progress: progress,
+            progress,
             last: Some(last),
             ..Self::default()
         }

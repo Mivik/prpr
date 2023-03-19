@@ -178,7 +178,7 @@ fn render_title<'a>(ui: &mut Ui, c: Color, title: impl Into<Cow<'a, str>>, subti
 }
 
 #[inline]
-fn render_switch<'a>(ui: &mut Ui, r: Rect, t: f32, c: Color, btn: &mut DRectButton, on: bool) {
+fn render_switch(ui: &mut Ui, r: Rect, t: f32, c: Color, btn: &mut DRectButton, on: bool) {
     btn.render_text(ui, r, t, c.a, if on { tl!("switch-on") } else { tl!("switch-off") }, 0.5, on);
 }
 

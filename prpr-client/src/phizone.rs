@@ -27,7 +27,7 @@ pub fn set_access_token_sync(access_token: Option<&str>) -> Result<()> {
     let mut headers = header::HeaderMap::new();
     headers.append(header::ACCEPT_LANGUAGE, header::HeaderValue::from_str(&get_data().language.clone().unwrap_or(LANG_IDENTS[0].to_string()))?);
     if let Some(access_token) = access_token {
-        let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {}", access_token))?;
+        let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {access_token}"))?;
         auth_value.set_sensitive(true);
         headers.insert(header::AUTHORIZATION, auth_value);
     }
