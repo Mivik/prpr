@@ -512,7 +512,7 @@ impl Judge {
                             _ => unreachable!(),
                         };
                     } else {
-                        // prevent extra bad animations
+                        // prevent extra judgements
                         if matches!(note.judge, JudgeStatus::NotJudged) {
                             // keep the note after bad judgement
                             line.notes[id as usize].judge = JudgeStatus::PreJudge;
@@ -658,8 +658,8 @@ impl Judge {
                     } else {
                         None
                     };
-                    // to be adjusted: 't + LIMIT_GOOD'
-                    if matches!(note.kind, NoteKind::Click) && t + LIMIT_GOOD < note.time {
+                    // TODO adjust: t + LIMIT_GOOD
+                    if matches!(note.kind, NoteKind::Click) && t + LIMIT_GOOD >= note.time {
                         note.judge = JudgeStatus::Judged;
                     }else {
                         note.judge = JudgeStatus::Judged;
