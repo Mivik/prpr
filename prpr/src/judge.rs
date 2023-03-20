@@ -724,10 +724,8 @@ impl Judge {
                     } else {
                         None
                     };
-                    if matches!(note.kind, NoteKind::Click) {
-                        note.judge = JudgeStatus::Judged;
-                    }else {
-                        note.judge = JudgeStatus::Judged;
+                    note.judge = JudgeStatus::Judged;
+                    if !matches!(note.kind, NoteKind::Click) {
                         judgements.push((Judgement::Perfect, line_id, *id, diff));
                     }
                 }
