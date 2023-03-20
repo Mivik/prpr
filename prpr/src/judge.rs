@@ -713,10 +713,8 @@ impl Judge {
                     if ghost_t < note.time {
                         break;
                     }
-                }else {
-                    if t < note.time {
-                        continue;
-                    }
+                }else if t < note.time {
+                    continue;
                 }
                 if matches!(note.judge, JudgeStatus::PreJudge) {
                     let diff = if let JudgeStatus::Hold(.., diff, _, _) = note.judge {
