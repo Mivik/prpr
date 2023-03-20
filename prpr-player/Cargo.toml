@@ -10,7 +10,7 @@ image = "*"
 macroquad = { git = "https://github.com/Mivik/prpr-macroquad", default-features = false }
 prpr = { path = "../prpr" }
 serde_yaml = "0.9"
-tokio = "*"
+tokio = { version = "1.26", default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = "*"

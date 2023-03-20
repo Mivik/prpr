@@ -24,6 +24,7 @@ impl UserManager {
         tasks.insert(
             user.id.clone(),
             Task::new(async move {
+                RESULTS.lock().unwrap().insert(user.id, (user.name.clone(), None));
                 let image = if let Some(avatar) = user.avatar {
                     Images::load_lc(&avatar).await?
                 } else {

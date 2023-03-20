@@ -274,7 +274,7 @@ impl SongScene {
                         "chart": Pointer::from(id.to_owned()).with_class_name("Chart"),
                         "best": true,
                     }))
-                    .include("_User")
+                    .include("player")
                     .order("-score")
                     .limit(10)
                     .send(),
