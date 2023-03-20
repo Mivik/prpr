@@ -91,6 +91,7 @@ pub struct QueryBuilder<T: LCObject> {
     skip: Option<usize>,
     order: Option<String>,
     count: usize,
+    include: Option<String>,
     #[serde(skip)]
     phantom: PhantomData<T>,
 }
@@ -103,6 +104,11 @@ impl<T: LCObject> QueryBuilder<T> {
 
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = Some(limit);
+        self
+    }
+
+    pub fn include(mut self, include: impl Into<String>) -> Self {
+        self.include = Some(include.into());
         self
     }
 
@@ -167,6 +173,7 @@ impl Client {
             limit: None,
             skip: None,
             order: None,
+            include: None,
             count: 0,
             phantom: PhantomData::default(),
         }

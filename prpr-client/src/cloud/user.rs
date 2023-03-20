@@ -16,6 +16,26 @@ impl UserManager {
         RESULTS.lock().unwrap().remove(user_id);
     }
 
+    pub fn cache(user: User) {
+        let mut tasks = TASKS.lock().unwrap();
+        if tasks.contains_key(&user.id) {
+            return;
+        }
+        tasks.insert(
+            user.id.clone(),
+            Task::new(async move {
+                let image = if let Some(avatar) = user.avatar {
+                    Images::load_lc(&avatar).await?
+                } else {
+                    let mut image = image::DynamicImage::new_rgba8(1, 1);
+                    image.put_pixel(0, 0, Rgba([0, 0, 0, 255]));
+                    image
+                };
+                Ok(image)
+            }),
+        );
+    }
+
     pub fn request(user_id: &str) {
         let mut tasks = TASKS.lock().unwrap();
         if tasks.contains_key(user_id) {

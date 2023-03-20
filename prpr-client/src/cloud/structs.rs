@@ -123,11 +123,11 @@ impl From<LCDate> for DateTime<Utc> {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LCRecord {
     pub chart: Pointer,
-    pub player: Pointer,
+    pub player: User,
     pub score: u32,
     pub accuracy: f32,
     pub max_combo: u32,

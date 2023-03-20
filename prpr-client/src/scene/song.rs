@@ -168,6 +168,7 @@ pub struct SongScene {
     leaderboard_task: Option<Task<Result<QueryResult<LCRecord>>>>,
     leaderboard_scroll: Scroll,
     leaderboards: Option<Vec<LCRecord>>,
+    need_reload_leaderboard: bool,
     online: bool,
 }
 
@@ -256,6 +257,7 @@ impl SongScene {
             leaderboard_task: None,
             leaderboard_scroll: Scroll::new(),
             leaderboards: None,
+            need_reload_leaderboard: true,
             online,
         }
     }
@@ -272,6 +274,7 @@ impl SongScene {
                         "chart": Pointer::from(id.to_owned()).with_class_name("Chart"),
                         "best": true,
                     }))
+                    .include("_User")
                     .order("-score")
                     .limit(10)
                     .send(),
@@ -724,7 +727,7 @@ impl Scene for SongScene {
             self.first_in = false;
             tm.seek_to(-FADEIN_TIME as _);
         }
-        self.fetch_leaderboard();
+        self.need_reload_leaderboard = true;
         Ok(())
     }
 
@@ -740,6 +743,10 @@ impl Scene for SongScene {
             if self.side_enter_time.is_infinite() {
                 let rt = tm.real_time() as f32;
                 if self.get_id().is_some() && self.leaderboard_button.touch(touch) {
+                    if self.need_reload_leaderboard {
+                        self.fetch_leaderboard();
+                        self.need_reload_leaderboard = false;
+                    }
                     self.side_content = SideContent::Leaderboard;
                     self.side_width = 0.8;
                     self.side_enter_time = rt;
@@ -863,7 +870,7 @@ impl Scene for SongScene {
                     }
                     Ok(records) => {
                         for rec in &records.results {
-                            UserManager::request(&rec.player.id);
+                            UserManager::cache(rec.player.clone());
                         }
                         self.leaderboards = Some(records.results);
                     }
