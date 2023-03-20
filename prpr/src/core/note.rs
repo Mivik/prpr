@@ -170,6 +170,10 @@ impl Note {
         if matches!(self.judge, JudgeStatus::Judged) && !matches!(self.kind, NoteKind::Hold { .. }) {
             return;
         }
+        // do not render clicks judged as bad
+        if matches!(self.judge, JudgeStatus::PreJudge) && matches!(self.kind, NoteKind::Click) {
+            return;
+        }
         if config.appear_before.is_finite() {
             // TODO optimize
             let beat = bpm_list.beat(self.time);

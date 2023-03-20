@@ -570,8 +570,12 @@ impl Judge {
                             _ => unreachable!(),
                         };
                     } else {
-                        line.notes[id as usize].judge = JudgeStatus::Judged;
-                        judgements.push((Judgement::Bad, line_id, id, None));
+                        // prevent extra judgements
+                        if matches!(note.judge, JudgeStatus::NotJudged) {
+                            // keep the note after bad judgement
+                            line.notes[id as usize].judge = JudgeStatus::PreJudge;
+                            judgements.push((Judgement::Bad, line_id, id, None));
+                        }
                     }
                 } else {
                     // flick
@@ -712,8 +716,13 @@ impl Judge {
                     } else {
                         None
                     };
-                    note.judge = JudgeStatus::Judged;
-                    judgements.push((Judgement::Perfect, line_id, *id, diff));
+                    // TODO adjust: t + LIMIT_GOOD
+                    if matches!(note.kind, NoteKind::Click) && t + LIMIT_GOOD >= note.time {
+                        note.judge = JudgeStatus::Judged;
+                    }else {
+                        note.judge = JudgeStatus::Judged;
+                        judgements.push((Judgement::Perfect, line_id, *id, diff));
+                    }
                 }
             }
         }
