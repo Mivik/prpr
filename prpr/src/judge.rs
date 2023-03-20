@@ -707,8 +707,16 @@ impl Judge {
                         }
                     }
                 }
-                if t < note.time {
-                    break;
+                // TODO adjust
+                let ghost_t = t + LIMIT_GOOD;
+                if matches!(note.kind, NoteKind::Click) {
+                    if ghost_t < note.time {
+                        break;
+                    }
+                }else {
+                    if t < note.time {
+                        continue;
+                    }
                 }
                 if matches!(note.judge, JudgeStatus::PreJudge) {
                     let diff = if let JudgeStatus::Hold(.., diff, _, _) = note.judge {
@@ -716,8 +724,7 @@ impl Judge {
                     } else {
                         None
                     };
-                    // TODO adjust: t + LIMIT_GOOD
-                    if matches!(note.kind, NoteKind::Click) && t + LIMIT_GOOD >= note.time {
+                    if matches!(note.kind, NoteKind::Click) {
                         note.judge = JudgeStatus::Judged;
                     }else {
                         note.judge = JudgeStatus::Judged;
