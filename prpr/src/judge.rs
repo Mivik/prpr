@@ -713,7 +713,7 @@ impl Judge {
                     if ghost_t < note.time {
                         break;
                     }
-                }else if t < note.time {
+                } else if t < note.time {
                     continue;
                 }
                 if matches!(note.judge, JudgeStatus::PreJudge) {
