@@ -154,10 +154,10 @@ impl Scene for MainScene {
             let mut r = ui.back_rect();
             self.btn_back.set(ui, r);
             ui.scissor(Some(r));
-            r.y += if self.pages.len() == 2 {
-                s.fader.for_sub(|f| f.progress(s.t))
-            } else {
-                1.
+            r.y += match self.pages.len() {
+                1 => 1.,
+                2 => s.fader.for_sub(|f| f.progress(s.t)),
+                _ => 0.,
             } * r.h;
             ui.fill_rect(r, (*self.icon_back, r));
             ui.scissor(None);

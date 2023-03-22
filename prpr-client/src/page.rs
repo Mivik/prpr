@@ -4,6 +4,9 @@ pub use home::HomePage;
 mod library;
 pub use library::LibraryPage;
 
+mod offset;
+pub use offset::OffsetPage;
+
 mod settings;
 pub use settings::SettingsPage;
 

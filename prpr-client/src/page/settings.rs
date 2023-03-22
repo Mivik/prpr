@@ -2,16 +2,18 @@ prpr::tl_file!("settings");
 
 use crate::{get_data, get_data_mut, popup::ChooseButton, save_data, sync_data};
 
-use super::{Page, SharedState};
+use super::{NextPage, OffsetPage, Page, SharedState};
 use anyhow::Result;
-use lyon::path::{LineCap, Path};
 use macroquad::prelude::*;
 use prpr::{
-    ext::{semi_black, RectExt, SafeTexture, ScaleType},
+    ext::{poll_future, semi_black, LocalTask, RectExt, SafeTexture, ScaleType},
     l10n::{LanguageIdentifier, LANG_IDENTS, LANG_NAMES},
-    ui::{rounded_rect_shadow, DRectButton, Scroll, ShadowConfig, Ui},
+    scene::show_error,
+    task::Task,
+    ui::{DRectButton, Scroll, Slider, Ui},
 };
-use std::{borrow::Cow, ops::Range};
+use sasa::AudioClip;
+use std::borrow::Cow;
 
 const ITEM_HEIGHT: f32 = 0.15;
 
@@ -165,6 +167,13 @@ impl Page for SettingsPage {
         });
         Ok(())
     }
+
+    fn next_page(&mut self) -> NextPage {
+        if matches!(self.chosen, SettingListType::Audio) {
+            return self.list_audio.next_page().unwrap_or_default();
+        }
+        NextPage::None
+    }
 }
 
 fn render_title<'a>(ui: &mut Ui, c: Color, title: impl Into<Cow<'a, str>>, subtitle: Option<Cow<'a, str>>) -> f32 {
@@ -216,139 +225,6 @@ fn render_title<'a>(ui: &mut Ui, c: Color, title: impl Into<Cow<'a, str>>, subti
 #[inline]
 fn render_switch(ui: &mut Ui, r: Rect, t: f32, c: Color, btn: &mut DRectButton, on: bool) {
     btn.render_text(ui, r, t, c.a, if on { tl!("switch-on") } else { tl!("switch-off") }, 0.5, on);
-}
-
-struct Slider {
-    range: Range<f32>,
-    step: f32,
-
-    btn_dec: DRectButton,
-    btn_inc: DRectButton,
-
-    touch: Option<(u64, f32, bool)>,
-    rect: Rect,
-    pos: f32,
-}
-
-impl Slider {
-    const RADIUS: f32 = 0.028;
-    const THRESHOLD: f32 = 0.1;
-
-    pub fn new(range: Range<f32>, step: f32) -> Self {
-        Self {
-            range,
-            step,
-
-            btn_dec: DRectButton::new().with_delta(-0.002),
-            btn_inc: DRectButton::new().with_delta(-0.002),
-
-            touch: None,
-            rect: Rect::default(),
-            pos: f32::INFINITY,
-        }
-    }
-
-    pub fn touch(&mut self, touch: &Touch, t: f32, dst: &mut f32) -> Option<bool> {
-        if self.btn_dec.touch(touch, t) {
-            *dst = (*dst - self.step).max(self.range.start);
-            return Some(true);
-        }
-        if self.btn_inc.touch(touch, t) {
-            *dst = (*dst + self.step).min(self.range.end);
-            return Some(true);
-        }
-        if let Some((id, start_pos, unlocked)) = &mut self.touch {
-            if touch.id == *id {
-                match touch.phase {
-                    TouchPhase::Started | TouchPhase::Moved | TouchPhase::Stationary => {
-                        if (touch.position.x - *start_pos).abs() >= Self::THRESHOLD {
-                            *unlocked = true;
-                        }
-                        if *unlocked {
-                            let p = (touch.position.x - self.rect.x) / self.rect.w;
-                            let p = p.clamp(0., 1.);
-                            let p = self.range.start + (self.range.end - self.range.start) * p;
-                            *dst = (p / self.step).round() * self.step;
-                            return Some(true);
-                        }
-                    }
-                    TouchPhase::Cancelled | TouchPhase::Ended => {
-                        self.touch = None;
-                    }
-                }
-                return Some(false);
-            }
-        } else if touch.phase == TouchPhase::Started {
-            let pos = (self.pos, self.rect.center().y);
-            if (touch.position.x - pos.0).hypot(touch.position.y - pos.1) <= Self::RADIUS {
-                self.touch = Some((touch.id, touch.position.x, false));
-                return Some(false);
-            }
-        }
-        None
-    }
-
-    pub fn render(&mut self, ui: &mut Ui, mut r: Rect, t: f32, c: Color, p: f32) {
-        r.x -= 0.1;
-        r.x -= r.w * 0.2;
-        r.w *= 1.2;
-        let pad = 0.04;
-        let size = 0.026;
-        let cy = r.center().y;
-        self.btn_dec
-            .render_text(ui, Rect::new(r.x - pad - size, cy, 0., 0.).feather(size), t, c.a, "-", 0.7, true);
-        self.btn_inc
-            .render_text(ui, Rect::new(r.right() + pad + size, cy, 0., 0.).feather(size), t, c.a, "+", 0.7, true);
-        self.rect = ui.rect_to_global(r);
-        ui.text(format!("{:.3}", p))
-            .pos(r.x - (pad + size) * 2., cy)
-            .anchor(1., 0.5)
-            .no_baseline()
-            .color(c)
-            .size(0.6)
-            .draw();
-        let p = (p - self.range.start) / (self.range.end - self.range.start);
-        let pos = (r.x + r.w * p, cy);
-        self.pos = ui.to_global(pos).0;
-        use lyon::math::point;
-        ui.stroke_options = ui.stroke_options.with_line_cap(LineCap::Round);
-        ui.stroke_path(
-            &{
-                let mut p = Path::builder();
-                p.begin(point(r.x, cy));
-                p.line_to(point(pos.0, cy));
-                p.end(false);
-                p.build()
-            },
-            0.02,
-            Color {
-                a: c.a * 0.8,
-                ..Color::from_hex(0xff546e7a)
-            },
-        );
-        ui.stroke_path(
-            &{
-                let mut p = Path::builder();
-                p.begin(point(pos.0, cy));
-                p.line_to(point(r.right(), cy));
-                p.end(false);
-                p.build()
-            },
-            0.02,
-            Color { a: c.a * 0.8, ..c },
-        );
-        ui.stroke_options = ui.stroke_options.with_line_cap(LineCap::Square);
-        rounded_rect_shadow(
-            ui,
-            Rect::new(pos.0, pos.1, 0., 0.).feather(Self::RADIUS),
-            &ShadowConfig {
-                radius: Self::RADIUS,
-                base: 0.7 * c.a,
-                ..Default::default()
-            },
-        );
-        ui.fill_circle(pos.0, pos.1, Self::RADIUS, c);
-    }
 }
 
 #[inline]
@@ -448,6 +324,10 @@ struct AudioList {
     adjust_btn: DRectButton,
     music_slider: Slider,
     sfx_slider: Slider,
+    cali_btn: DRectButton,
+
+    cali_task: LocalTask<Result<OffsetPage>>,
+    next_page: Option<NextPage>,
 }
 
 impl AudioList {
@@ -456,6 +336,10 @@ impl AudioList {
             adjust_btn: DRectButton::new(),
             music_slider: Slider::new(0.0..2.0, 0.05),
             sfx_slider: Slider::new(0.0..2.0, 0.05),
+            cali_btn: DRectButton::new(),
+
+            cali_task: None,
+            next_page: None,
         }
     }
 
@@ -476,10 +360,25 @@ impl AudioList {
         if let wt @ Some(_) = self.sfx_slider.touch(touch, t, &mut config.volume_sfx) {
             return Ok(wt);
         }
+        if self.cali_btn.touch(touch, t) {
+            self.cali_task = Some(Box::pin(OffsetPage::new()));
+            return Ok(Some(false));
+        }
         Ok(None)
     }
 
     pub fn update(&mut self, t: f32) -> Result<bool> {
+        if let Some(task) = &mut self.cali_task {
+            if let Some(res) = poll_future(task.as_mut()) {
+                match res {
+                    Err(err) => show_error(err.context(tl!("load-cali-failed"))),
+                    Ok(page) => {
+                        self.next_page = Some(NextPage::Overlay(Box::new(page)));
+                    }
+                }
+                self.cali_task = None;
+            }
+        }
         Ok(false)
     }
 
@@ -503,13 +402,21 @@ impl AudioList {
         }
         item! {
             render_title(ui, c, tl!("item-music"), None);
-            self.music_slider.render(ui, rr, t,c, config.volume_music);
+            self.music_slider.render(ui, rr, t,c, config.volume_music, format!("{:.2}", config.volume_music));
         }
         item! {
             render_title(ui, c, tl!("item-sfx"), None);
-            self.sfx_slider.render(ui, rr, t,c, config.volume_sfx);
+            self.sfx_slider.render(ui, rr, t, c, config.volume_sfx, format!("{:.2}", config.volume_sfx));
+        }
+        item! {
+            render_title(ui, c, tl!("item-cali"), None);
+            self.cali_btn.render_text(ui, rr, t, c.a, format!("{:.0}ms", config.offset * 1000.), 0.5, true);
         }
         (w, h)
+    }
+
+    pub fn next_page(&mut self) -> Option<NextPage> {
+        self.next_page.take()
     }
 }
 

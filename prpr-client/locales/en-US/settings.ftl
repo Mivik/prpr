@@ -16,6 +16,7 @@ item-adjust = Automatic time adjustment
 item-adjust-sub = Adjusts time dynamically to sync the music and beatmap
 item-music = Music volume
 item-sfx = Sound effect volume
+item-cali = Adjust offset
 
 item-autoplay = Autoplay
 item-autoplay-sub = Enabling this would disable record uploading
@@ -23,3 +24,5 @@ item-dhint = Double hint
 item-dhint-sub = Notes that touch line simutaneously will be highlighted
 item-opt = Aggressive optimization
 item-opt-sub = Improves performance, but can cause incorrect behavior
+
+load-cali-failed = Failed to load audio
