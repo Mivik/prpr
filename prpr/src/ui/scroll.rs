@@ -46,6 +46,10 @@ impl Scroller {
         }
     }
 
+    pub fn halt(&mut self) {
+        self.touch = None;
+    }
+
     pub fn touch(&mut self, id: u64, phase: TouchPhase, val: f32, t: f32) -> bool {
         match phase {
             TouchPhase::Started => {

@@ -2,6 +2,7 @@
 label = 设置
 
 general = 通用
+audio = 音频
 chart = 谱面
 
 switch-on = 开
@@ -10,6 +11,12 @@ switch-off = 关
 item-lang = 语言
 item-lowq = 低画质模式
 item-lowq-sub = 建议在画面卡顿时启用
+
+item-adjust = 自动对齐时间
+item-adjust-sub = 自动调整延迟以同步音乐和谱面
+item-music = 音乐音量
+item-sfx = 音效音量
+
 item-autoplay = 自动游玩
 item-autoplay-sub = 启用后将无法上传成绩
 item-dhint = 双押提示

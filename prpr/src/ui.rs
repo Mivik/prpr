@@ -396,7 +396,7 @@ pub struct Ui<'a> {
     fill_tess: FillTessellator,
     fill_options: FillOptions,
     stroke_tess: StrokeTessellator,
-    stroke_options: StrokeOptions,
+    pub stroke_options: StrokeOptions,
 }
 
 impl<'a> Ui<'a> {

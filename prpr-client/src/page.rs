@@ -394,4 +394,7 @@ pub trait Page {
     fn next_scene(&mut self, _s: &mut SharedState) -> NextScene {
         NextScene::None
     }
+    fn exit(&mut self) -> Result<()> {
+        Ok(())
+    }
 }

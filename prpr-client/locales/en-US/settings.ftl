@@ -2,6 +2,7 @@
 label = Settings
 
 general = General
+audio = Audio
 chart = Beatmap
 
 switch-on = On
@@ -10,6 +11,12 @@ switch-off = Off
 item-lang = Language
 item-lowq = Low quality mode
 item-lowq-sub = Enable this if the UI is laggy
+
+item-adjust = Automatic time adjustment
+item-adjust-sub = Adjusts time dynamically to sync the music and beatmap
+item-music = Music volume
+item-sfx = Sound effect volume
+
 item-autoplay = Autoplay
 item-autoplay-sub = Enabling this would disable record uploading
 item-dhint = Double hint

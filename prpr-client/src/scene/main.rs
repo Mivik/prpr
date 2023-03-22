@@ -126,7 +126,7 @@ impl Scene for MainScene {
                 NextPage::None => {}
             }
         } else if let Some(true) = s.fader.done(s.t) {
-            self.pages.pop();
+            self.pages.pop().unwrap().exit()?;
         }
         Ok(())
     }
