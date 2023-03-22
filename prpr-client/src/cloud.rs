@@ -92,6 +92,8 @@ pub struct QueryBuilder<T: LCObject> {
     order: Option<String>,
     count: usize,
     include: Option<String>,
+    #[serde(rename = "returnACL")]
+    return_acl: bool,
     #[serde(skip)]
     phantom: PhantomData<T>,
 }
@@ -124,6 +126,11 @@ impl<T: LCObject> QueryBuilder<T> {
 
     pub fn with_count(mut self) -> Self {
         self.count = 1;
+        self
+    }
+
+    pub fn return_acl(mut self) -> Self {
+        self.return_acl = true;
         self
     }
 
@@ -175,6 +182,7 @@ impl Client {
             order: None,
             include: None,
             count: 0,
+            return_acl: false,
             phantom: PhantomData::default(),
         }
     }

@@ -29,8 +29,8 @@ pub struct OnlinePage {
     page: usize,
     total_page: usize,
 
-    task_load: Task<Result<(Vec<(ChartItem, LCFile)>, usize)>>,
-    illu_files: Vec<LCFile>,
+    task_load: Task<Result<(Vec<(ChartItem, (LCFile, bool))>, usize)>>,
+    extra: Vec<(LCFile, bool)>,
     first_time: bool,
     loading: Option<MessageHandle>,
 }
@@ -49,7 +49,7 @@ impl OnlinePage {
             total_page: 0,
 
             task_load: Task::pending(),
-            illu_files: Vec::new(),
+            extra: Vec::new(),
             first_time: true,
             loading: None,
         }
@@ -76,6 +76,7 @@ impl OnlinePage {
                     .limit(PAGE_NUM)
                     .skip(page * PAGE_NUM)
                     .with_count()
+                    .return_acl()
                     .send()
                     .await?;
                 let total_page = (result.count.unwrap() - 1) / PAGE_NUM + 1;
@@ -97,7 +98,8 @@ impl OnlinePage {
                                     Ok((image, None))
                                 })),
                             },
-                            it.illustration,
+                            (it.illustration,
+                            it.acl.contains_key("*")),
                         )
                     })
                     .collect::<Vec<_>>();
@@ -131,7 +133,7 @@ impl Page for OnlinePage {
                 Ok((charts, total_page)) => {
                     show_message(tl!("loaded")).ok().duration(1.);
                     self.total_page = total_page;
-                    (state.charts_online, self.illu_files) = charts.into_iter().unzip();
+                    (state.charts_online, self.extra) = charts.into_iter().unzip();
                 }
                 Err(err) => {
                     self.first_time = true;
@@ -165,7 +167,7 @@ impl Page for OnlinePage {
                             state.charts_online[id].illustration.1 = that.clone();
                         }
                     }
-                    state.transit = Some((Some(self.illu_files[id].clone()), id as u32, t, Rect::default(), false));
+                    state.transit = Some((Some(self.extra[id].0.clone()), id as u32, t, Rect::default(), false, self.extra[id].1));
                     return Ok(true);
                 }
             }
@@ -205,8 +207,8 @@ impl Page for OnlinePage {
         });
         ui.dy(r.h);
         let content_size = (state.content_size.0, state.content_size.1 - CHARTS_BAR_HEIGHT);
-        SharedState::render_charts(ui, content_size, &mut self.scroll, &mut state.charts_online);
-        if let Some((Some(_), id, _, rect, _)) = &mut state.transit {
+        SharedState::render_charts(ui, content_size, &mut self.scroll, &mut state.charts_online, Some(&self.extra));
+        if let Some((Some(_), id, _, rect, ..)) = &mut state.transit {
             let width = content_size.0;
             *rect = ui.rect_to_global(Rect::new(
                 (*id % ROW_NUM) as f32 * width / ROW_NUM as f32,

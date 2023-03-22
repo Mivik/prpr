@@ -74,3 +74,10 @@ upload-saving = 保存中…
 upload-save-failed = 上传失败
 upload-success = 上传成功，请等待审核！
 upload-failed = 上传失败
+
+review-del = 审核：删除
+review-deny = 审核：拒绝
+review-approve = 审核：通过
+review-exec = 执行中
+review-suc = 执行成功
+review-wait = 请等待上一次操作完成

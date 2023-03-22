@@ -8,7 +8,7 @@ use crate::{
     page::{illustration_task, ChartItem, SHOULD_UPDATE},
     save_data,
 };
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use futures_util::StreamExt;
 use image::DynamicImage;
 use macroquad::prelude::*;
@@ -19,15 +19,19 @@ use prpr::{
     ext::{poll_future, screen_aspect, JoinToString, LocalTask, RectExt, SafeTexture, ScaleType, BLACK_TEXTURE},
     fs::{self, update_zip, FileSystem, ZipFileSystem},
     info::ChartInfo,
-    scene::{show_error, show_message, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene},
+    scene::{
+        request_input, return_input, show_error, show_message, take_input, GameMode, GameScene, LoadingScene, NextScene, RecordUpdateState, Scene,
+    },
     task::Task,
     time::TimeManager,
     ui::{render_chart_info, ChartInfoEdit, Dialog, MessageHandle, RectButton, Scroll, Ui},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
     borrow::Cow,
+    collections::HashMap,
     ops::DerefMut,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -170,6 +174,9 @@ pub struct SongScene {
     leaderboards: Option<Vec<LCRecord>>,
     need_reload_leaderboard: bool,
     online: bool,
+    public: bool,
+
+    review_task: Option<Task<Result<()>>>,
 }
 
 fn create_info_task(path: String, brief: BriefChartInfo) -> Task<ChartInfo> {
@@ -196,6 +203,7 @@ fn create_info_task(path: String, brief: BriefChartInfo) -> Task<ChartInfo> {
 impl SongScene {
     pub fn new(
         chart: ChartItem,
+        public: bool,
         illustration: SafeTexture,
         icon_leaderboard: SafeTexture,
         icon_tool: SafeTexture,
@@ -259,6 +267,9 @@ impl SongScene {
             leaderboards: None,
             need_reload_leaderboard: true,
             online,
+            public,
+
+            review_task: None,
         }
     }
 
@@ -318,7 +329,7 @@ impl SongScene {
             ui.fill_rect(r, (*self.icon_edit, r, ScaleType::Fit, c));
             self.edit_button.set(ui, r);
             r.x -= s + 0.02;
-            ui.fill_rect(r, (*self.icon_tool, r, ScaleType::Fit, c));
+            ui.fill_rect(r, (*self.icon_tool, r, ScaleType::Fit, if self.public { c } else { color }));
             self.tool_button.set(ui, r);
             r.x -= s + 0.02;
             let c = if self.get_id().is_none() {
@@ -474,6 +485,48 @@ impl SongScene {
         });
     }
 
+    fn review_do(&mut self, action: &'static str, reason: Option<String>) {
+        #[derive(Deserialize)]
+        struct Resp {
+            success: bool,
+            error: Option<String>,
+        }
+        #[derive(Serialize)]
+        struct Req {
+            user: String,
+            name: String,
+            reason: Option<String>,
+        }
+        if self.review_task.is_some() {
+            show_message(tl!("review-wait")).error();
+            return;
+        }
+        show_message(tl!("review-exec"));
+        let id = self.get_id().unwrap().to_owned();
+        self.review_task = Some(Task::new(async move {
+            let resp: Resp = serde_json::from_str(
+                &reqwest::Client::new()
+                    .get(format!("https://mivik.cn/reviewApi/{action}/{id}"))
+                    .query(&{
+                        let user = get_data().me.as_ref().unwrap();
+                        Req {
+                            user: user.session_token.clone().unwrap(),
+                            name: user.name.clone(),
+                            reason,
+                        }
+                    })
+                    .send()
+                    .await?
+                    .text()
+                    .await?,
+            )?;
+            if !resp.success {
+                bail!("Error: {:?}", resp.error);
+            }
+            Ok(())
+        }));
+    }
+
     fn side_tools(&mut self, ui: &mut Ui) {
         let pad = 0.03;
         let width = self.side_width - pad;
@@ -481,12 +534,29 @@ impl SongScene {
         let r = ui.text(tl!("tools")).size(0.7).draw();
         ui.dy(r.h + 0.03);
         let r = Rect::new(0., 0., width, 0.07);
-        if ui.button("tweak_offset", r, tl!("adjust-offset")) {
-            self.play_chart(GameMode::TweakOffset).unwrap();
+        if !self.online && self.chart_info.is_some() {
+            if ui.button("tweak_offset", r, tl!("adjust-offset")) {
+                self.play_chart(GameMode::TweakOffset).unwrap();
+            }
+            ui.dy(r.h + 0.01);
+            if ui.button("exercise", r, tl!("exercise-mode")) {
+                self.play_chart(GameMode::Exercise).unwrap();
+            }
+            ui.dy(r.h + 0.01);
         }
-        ui.dy(r.h + 0.01);
-        if ui.button("exercise", r, tl!("exercise-mode")) {
-            self.play_chart(GameMode::Exercise).unwrap();
+        if !self.public {
+            if ui.button("rev_del", r, tl!("review-del")) {
+                self.review_do("del", None);
+            }
+            ui.dy(r.h + 0.01);
+            if ui.button("rev_deny", r, tl!("review-deny")) {
+                request_input("deny", "");
+            }
+            ui.dy(r.h + 0.01);
+            if ui.button("rev_approve", r, tl!("review-approve")) {
+                self.review_do("approve", None);
+            }
+            ui.dy(r.h + 0.01);
         }
     }
 
@@ -756,16 +826,18 @@ impl Scene for SongScene {
                     if self.bin.touch(touch, tm.now() as _) {
                         return Ok(true);
                     }
-                    if self.tool_button.touch(touch) {
-                        self.side_content = SideContent::Tool;
-                        self.side_width = 0.5;
-                        self.side_enter_time = rt;
-                        return Ok(true);
-                    }
                     if self.edit_button.touch(touch) {
                         self.info_edit = Some(ChartInfoEdit::new(self.chart_info.clone().unwrap()));
                         self.side_content = SideContent::Edit;
                         self.side_width = 0.8;
+                        self.side_enter_time = rt;
+                        return Ok(true);
+                    }
+                }
+                if (loaded && !self.online) || !self.public {
+                    if self.tool_button.touch(touch) {
+                        self.side_content = SideContent::Tool;
+                        self.side_width = 0.5;
                         self.side_enter_time = rt;
                         return Ok(true);
                     }
@@ -947,6 +1019,7 @@ impl Scene for SongScene {
                     .with_context(|| tl!("upload-illu-failed"))?;
                 *UPLOAD_STATUS.lock().unwrap() = Some(tl!("upload-saving"));
                 let item = LCChartItem {
+                    acl: HashMap::default(),
                     id: None,
                     info: BriefChartInfo {
                         uploader: Some(Pointer::from(user_id).with_class_name("_User")),
@@ -979,6 +1052,26 @@ impl Scene for SongScene {
                     }
                 }
                 self.downloading = None;
+            }
+        }
+        if let Some(task) = &mut self.review_task {
+            if let Some(res) = task.take() {
+                match res {
+                    Err(err) => {
+                        show_error(err);
+                    }
+                    Ok(_) => {
+                        show_message(tl!("review-suc")).ok();
+                    }
+                }
+                self.review_task = None;
+            }
+        }
+        if let Some((id, text)) = take_input() {
+            if id == "deny" {
+                self.review_do("deny", Some(text));
+            } else {
+                return_input(id, text);
             }
         }
         Ok(())

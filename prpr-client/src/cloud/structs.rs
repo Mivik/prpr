@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use super::LCObject;
 use crate::data::BriefChartInfo;
-use chrono::{Utc, DateTime};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -89,6 +91,9 @@ pub struct LCChartItem {
 
     #[serde(flatten)]
     pub info: BriefChartInfo,
+
+    #[serde(rename = "ACL")]
+    pub acl: HashMap<String, serde_json::Value>,
 
     pub file: LCFile,
     pub illustration: LCFile,

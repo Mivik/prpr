@@ -156,7 +156,7 @@ impl MainScene {
         });
     }
 
-    pub fn song_scene(&self, chart: &ChartItem, file: Option<LCFile>, online: bool) -> Option<NextScene> {
+    pub fn song_scene(&self, chart: &ChartItem, file: Option<LCFile>, online: bool, public: bool) -> Option<NextScene> {
         Some(NextScene::Overlay(Box::new(SongScene::new(
             ChartItem {
                 info: chart.info.clone(),
@@ -164,6 +164,7 @@ impl MainScene {
                 illustration: chart.illustration.clone(),
                 illustration_task: None,
             },
+            public,
             chart.illustration.1.clone(),
             self.icon_leaderboard.clone(),
             self.icon_tool.clone(),
@@ -196,7 +197,7 @@ impl Scene for MainScene {
     fn enter(&mut self, tm: &mut TimeManager, target: Option<RenderTarget>) -> Result<()> {
         self.switch_start_time = f32::NEG_INFINITY;
         self.target = target;
-        if let Some((.., st, _, true)) = &mut self.shared_state.transit {
+        if let Some((.., st, _, true, _)) = &mut self.shared_state.transit {
             *st = tm.now() as _;
         } else {
             tm.seek_to(rand::gen_range(1., 10.));
@@ -270,8 +271,9 @@ impl Scene for MainScene {
         ui.fill_rect(ui.screen_rect(), (Color::from_hex(theme.1), dir, Color::from_hex(theme.2), (-dir.0, -dir.1)));
         ui.fill_rect(ui.screen_rect(), Color::new(0., 0., 0., 0.3));
         ui.scope(|ui| self.ui(ui, tm.now() as _, tm.real_time() as _));
-        if let Some((file, id, st, rect, back)) = &mut self.shared_state.transit {
+        if let Some((file, id, st, rect, back, public)) = &mut self.shared_state.transit {
             let online = file.is_some();
+            let public = *public;
             let id = *id as usize;
             let t = tm.now() as f32;
             let p = ((t - *st) / TRANSIT_TIME).min(1.);
@@ -342,7 +344,7 @@ impl Scene for MainScene {
                     let path = format!("download/{}", self.shared_state.charts_online[id].info.id.as_ref().unwrap());
                     if let Some(index) = self.shared_state.charts_local.iter().position(|it| it.path == path) {
                         self.shared_state.charts_local[index].illustration = self.shared_state.charts_online[id].illustration.clone();
-                        self.song_scene(&self.shared_state.charts_local[index], None, false)
+                        self.song_scene(&self.shared_state.charts_local[index], None, false, public)
                     } else {
                         let chart = &self.shared_state.charts_online[id];
                         let file = if chart.illustration.0 == chart.illustration.1 {
@@ -350,10 +352,10 @@ impl Scene for MainScene {
                         } else {
                             None
                         };
-                        self.song_scene(chart, file, true)
+                        self.song_scene(chart, file, true, public)
                     }
                 } else {
-                    self.song_scene(&self.shared_state.charts_local[id], None, false)
+                    self.song_scene(&self.shared_state.charts_local[id], None, false, public)
                 };
             }
         }

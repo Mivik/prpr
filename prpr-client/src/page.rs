@@ -131,7 +131,7 @@ pub struct SharedState {
     pub charts_local: Vec<ChartItem>,
     pub charts_online: Vec<ChartItem>,
 
-    pub transit: Option<(Option<LCFile>, u32, f32, Rect, bool)>, // online, id, start_time, rect, delete
+    pub transit: Option<(Option<LCFile>, u32, f32, Rect, bool, bool)>, // online, id, start_time, rect, delete, public
 }
 
 impl SharedState {
@@ -165,7 +165,7 @@ impl SharedState {
         }
     }
 
-    fn render_charts(ui: &mut Ui, content_size: (f32, f32), scroll: &mut Scroll, charts: &mut [ChartItem]) {
+    fn render_charts(ui: &mut Ui, content_size: (f32, f32), scroll: &mut Scroll, charts: &mut [ChartItem], extra: Option<&[(LCFile, bool)]>) {
         scroll.size(content_size);
         let sy = scroll.y_scroller.offset();
         scroll.render(ui, |ui| {
@@ -193,6 +193,9 @@ impl SharedState {
                     .anchor(0., 1.)
                     .size(0.6)
                     .draw();
+                if extra.map_or(false, |it| !it[id as usize].1) {
+                    ui.text("*").pos(cw - p, p).anchor(1., 0.).draw();
+                }
             })
         });
     }

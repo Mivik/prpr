@@ -74,3 +74,10 @@ upload-saving = Saving…
 upload-save-failed = Failed to upload
 upload-success = Uploaded successfully, please wait for review!
 upload-failed = Upload failed
+
+review-del = Review: Delete
+review-deny = Review: Deny
+review-approve = Review: Approve
+review-exec = Executing
+review-suc = Executed successfully
+review-wait = Please wait until the last task is done
