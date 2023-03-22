@@ -6,6 +6,8 @@
 
 测试 QQ 群：660488396
 
+[Apple Testflight Link](https://testflight.apple.com/join/1ABHkbR8)
+
 ## Usage
 
 To begin with, clone the repo:
