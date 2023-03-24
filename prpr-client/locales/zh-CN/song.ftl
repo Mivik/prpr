@@ -81,3 +81,4 @@ review-approve = 审核：通过
 review-exec = 执行中
 review-suc = 执行成功
 review-wait = 请等待上一次操作完成
+review-del-confirm = 你确定吗？

@@ -177,6 +177,7 @@ pub struct SongScene {
     public: bool,
 
     review_task: Option<Task<Result<()>>>,
+    del_confirm: f32,
 }
 
 fn create_info_task(path: String, brief: BriefChartInfo) -> Task<ChartInfo> {
@@ -270,6 +271,7 @@ impl SongScene {
             public,
 
             review_task: None,
+            del_confirm: f32::INFINITY,
         }
     }
 
@@ -329,7 +331,7 @@ impl SongScene {
             ui.fill_rect(r, (*self.icon_edit, r, ScaleType::Fit, c));
             self.edit_button.set(ui, r);
             r.x -= s + 0.02;
-            ui.fill_rect(r, (*self.icon_tool, r, ScaleType::Fit, if self.public { c } else { color }));
+            ui.fill_rect(r, (*self.icon_tool, r, ScaleType::Fit, if self.public && self.get_id().is_none() { c } else { color }));
             self.tool_button.set(ui, r);
             r.x -= s + 0.02;
             let c = if self.get_id().is_none() {
@@ -417,7 +419,7 @@ impl SongScene {
 
                 match self.side_content {
                     SideContent::Edit => self.side_chart_info(ui, rt),
-                    SideContent::Tool => self.side_tools(ui),
+                    SideContent::Tool => self.side_tools(ui, rt),
                     SideContent::Leaderboard => self.side_leaderboard(ui),
                 }
             });
@@ -527,7 +529,7 @@ impl SongScene {
         }));
     }
 
-    fn side_tools(&mut self, ui: &mut Ui) {
+    fn side_tools(&mut self, ui: &mut Ui, rt: f32) {
         let pad = 0.03;
         let width = self.side_width - pad;
         ui.dy(0.02);
@@ -544,11 +546,26 @@ impl SongScene {
             }
             ui.dy(r.h + 0.01);
         }
-        if !self.public {
-            if ui.button("rev_del", r, tl!("review-del")) {
-                self.review_do("del", None);
+        if self.get_id().is_some() {
+            if ui.button(
+                "rev_del",
+                r,
+                if self.del_confirm.is_finite() {
+                    tl!("review-del-confirm")
+                } else {
+                    tl!("review-del")
+                },
+            ) {
+                if self.del_confirm.is_finite() {
+                    self.del_confirm = f32::INFINITY;
+                    self.review_do("del", None);
+                } else {
+                    self.del_confirm = rt;
+                }
             }
             ui.dy(r.h + 0.01);
+        }
+        if !self.public {
             if ui.button("rev_deny", r, tl!("review-deny")) {
                 request_input("deny", "");
             }
@@ -834,7 +851,7 @@ impl Scene for SongScene {
                         return Ok(true);
                     }
                 }
-                if (loaded && !self.online) || !self.public {
+                if (loaded && !self.online) || !self.public || self.get_id().is_some() {
                     if self.tool_button.touch(touch) {
                         self.side_content = SideContent::Tool;
                         self.side_width = 0.5;
@@ -1066,6 +1083,9 @@ impl Scene for SongScene {
                 }
                 self.review_task = None;
             }
+        }
+        if tm.real_time() as f32 > self.del_confirm + 1. {
+            self.del_confirm = f32::INFINITY;
         }
         if let Some((id, text)) = take_input() {
             if id == "deny" {

@@ -81,3 +81,4 @@ review-approve = Review: Approve
 review-exec = Executing
 review-suc = Executed successfully
 review-wait = Please wait until the last task is done
+review-del-confirm = Are you sure?

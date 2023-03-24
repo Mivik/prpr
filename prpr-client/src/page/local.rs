@@ -110,7 +110,7 @@ impl Page for LocalPage {
                 let id = id.unwrap();
                 if let Some(chart) = state.charts_local.get(id as usize) {
                     if chart.illustration_task.is_none() {
-                        state.transit = Some((None, id, t, Rect::default(), false, false));
+                        state.transit = Some((None, id, t, Rect::default(), false, true));
                     } else {
                         show_message(tl!("not-loaded"));
                     }
