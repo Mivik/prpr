@@ -1,7 +1,12 @@
 prpr::tl_file!("home");
 
 use super::{LibraryPage, NextPage, Page, SFader, SettingsPage, SharedState};
-use crate::{get_data, login::Login, phizone::UserManager, scene::ProfileScene};
+use crate::{
+    get_data,
+    login::Login,
+    phizone::UserManager,
+    scene::{ProfileScene, TEX_BACKGROUND, TEX_ICON_BACK},
+};
 use anyhow::Result;
 use macroquad::prelude::*;
 use prpr::{
@@ -40,14 +45,14 @@ pub struct HomePage {
 }
 
 impl HomePage {
-    pub async fn new(background: SafeTexture, icon_back: SafeTexture) -> Result<Self> {
+    pub async fn new() -> Result<Self> {
         let character = SafeTexture::from(load_texture("char.png").await?).with_mipmap();
         let song = SafeTexture::from(load_texture("player.jpg").await?).with_mipmap();
         if let Some(u) = &get_data().me {
             UserManager::request(u.id);
         }
         Ok(Self {
-            background,
+            background: TEX_BACKGROUND.with(|it| it.borrow().clone().unwrap()),
             character,
             song,
             icon_play: load_texture("resume.png").await?.into(),
@@ -56,7 +61,7 @@ impl HomePage {
             icon_msg: load_texture("message.png").await?.into(),
             icon_settings: load_texture("settings.png").await?.into(),
             icon_lang: load_texture("language.png").await?.into(),
-            icon_back,
+            icon_back: TEX_ICON_BACK.with(|it| it.borrow().clone().unwrap()),
             icon_download: load_texture("download.png").await?.into(),
             icon_user: load_texture("user.png").await?.into(),
 
@@ -123,7 +128,7 @@ impl Page for HomePage {
         if self.btn_user.touch(touch, t) {
             if let Some(me) = &get_data().me {
                 self.need_back = true;
-                self.sf.goto(t, ProfileScene::new(me.id, self.background.clone(), self.icon_back.clone()));
+                self.sf.goto(t, ProfileScene::new(me.id));
             } else {
                 self.login.enter(t);
             }

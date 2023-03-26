@@ -13,8 +13,16 @@ pub use profile::ProfileScene;
 use crate::dir;
 use anyhow::Result;
 use cap_std::ambient_authority;
-use prpr::fs::{self, FileSystem};
-use std::{io::Read, sync::Arc};
+use prpr::{
+    ext::SafeTexture,
+    fs::{self, FileSystem},
+};
+use std::{cell::RefCell, io::Read, sync::Arc};
+
+thread_local! {
+    pub static TEX_BACKGROUND: RefCell<Option<SafeTexture>> = RefCell::new(None);
+    pub static TEX_ICON_BACK: RefCell<Option<SafeTexture>> = RefCell::new(None);
+}
 
 pub fn fs_from_path(path: &str) -> Result<Box<dyn FileSystem>> {
     if let Some(name) = path.strip_prefix(':') {

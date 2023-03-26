@@ -9,10 +9,8 @@ use prpr::{
     ext::{poll_future, semi_black, LocalTask, RectExt, SafeTexture, ScaleType},
     l10n::{LanguageIdentifier, LANG_IDENTS, LANG_NAMES},
     scene::show_error,
-    task::Task,
     ui::{DRectButton, Scroll, Slider, Ui},
 };
-use sasa::AudioClip;
 use std::borrow::Cow;
 
 const ITEM_HEIGHT: f32 = 0.15;
@@ -343,7 +341,7 @@ impl AudioList {
         }
     }
 
-    pub fn top_touch(&mut self, touch: &Touch, t: f32) -> bool {
+    pub fn top_touch(&mut self, _touch: &Touch, _t: f32) -> bool {
         false
     }
 
@@ -435,7 +433,7 @@ impl ChartList {
         }
     }
 
-    pub fn top_touch(&mut self, touch: &Touch, t: f32) -> bool {
+    pub fn top_touch(&mut self, _touch: &Touch, _t: f32) -> bool {
         false
     }
 
@@ -457,7 +455,7 @@ impl ChartList {
         Ok(None)
     }
 
-    pub fn update(&mut self, t: f32) -> Result<bool> {
+    pub fn update(&mut self, _t: f32) -> Result<bool> {
         Ok(false)
     }
 

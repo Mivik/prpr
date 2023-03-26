@@ -77,7 +77,7 @@ impl Page for OffsetPage {
     }
 
     fn exit(&mut self) -> Result<()> {
-    	save_data()?;
+        save_data()?;
         Ok(())
     }
 
@@ -182,7 +182,10 @@ impl Page for OffsetPage {
                     self.touch = None;
                 } else {
                     let p = p.max(0.);
-                    let c = semi_white(if p <= 0.5 { 1. } else { (1. - p) * 2. });
+                    let c = Color {
+                        a: (if p <= 0.5 { 1. } else { (1. - p) * 2. }) * c.a,
+                        ..JUDGE_LINE_PERFECT_COLOR
+                    };
                     ui.fill_rect(Rect::new(ct.0 - hw, pos - hh, hw * 2., hh * 2.), c);
                 }
             }

@@ -1,6 +1,9 @@
 use std::any::Any;
 
-use crate::page::{HomePage, NextPage, Page, SharedState};
+use crate::{
+    page::{HomePage, NextPage, Page, SharedState},
+    scene::{TEX_BACKGROUND, TEX_ICON_BACK},
+};
 use anyhow::Result;
 use macroquad::prelude::*;
 use prpr::{
@@ -16,7 +19,7 @@ const LOW_PASS: f32 = 0.95;
 pub struct MainScene {
     state: SharedState,
 
-    bgm: Music,
+    bgm: Option<Music>,
 
     background: SafeTexture,
     btn_back: RectButton,
@@ -26,18 +29,9 @@ pub struct MainScene {
 }
 
 impl MainScene {
+    // shall be call exactly once
     pub async fn new() -> Result<Self> {
-        // init button hitsound
-        macro_rules! load_sfx {
-            ($name:ident, $path:literal) => {{
-                let clip = AudioClip::new(load_file($path).await?)?;
-                let sound = UI_AUDIO.with(|it| it.borrow_mut().create_sfx(clip, None))?;
-                prpr::ui::$name.with(|it| *it.borrow_mut() = Some(sound));
-            }};
-        }
-        load_sfx!(UI_BTN_HITSOUND_LARGE, "button_large.ogg");
-        load_sfx!(UI_BTN_HITSOUND, "button.ogg");
-        load_sfx!(UI_SWITCH_SOUND, "switch.ogg");
+        Self::init().await?;
 
         let bgm_clip = AudioClip::new(load_file("ending.mp3").await?)?;
         let mut bgm = UI_AUDIO.with(|it| {
@@ -51,22 +45,51 @@ impl MainScene {
         })?;
         // bgm.play()?;
 
-        let mut state = SharedState::new().await?;
+        let mut sf = Self::new_inner(Some(bgm)).await?;
+        sf.pages.push(Box::new(HomePage::new().await?));
+        Ok(sf)
+    }
+
+    pub async fn new_with(page: impl Page + 'static) -> Result<Self> {
+        let mut sf = Self::new_inner(None).await?;
+        sf.pages.push(Box::new(page));
+        Ok(sf)
+    }
+
+    async fn init() -> Result<()> {
+        // init button hitsound
+        macro_rules! load_sfx {
+            ($name:ident, $path:literal) => {{
+                let clip = AudioClip::new(load_file($path).await?)?;
+                let sound = UI_AUDIO.with(|it| it.borrow_mut().create_sfx(clip, None))?;
+                prpr::ui::$name.with(|it| *it.borrow_mut() = Some(sound));
+            }};
+        }
+        load_sfx!(UI_BTN_HITSOUND_LARGE, "button_large.ogg");
+        load_sfx!(UI_BTN_HITSOUND, "button.ogg");
+        load_sfx!(UI_SWITCH_SOUND, "switch.ogg");
 
         let background: SafeTexture = load_texture("street.jpg").await?.into();
         let icon_back: SafeTexture = load_texture("back.png").await?.into();
 
-        let pages: Vec<Box<dyn Page>> = vec![Box::new(HomePage::new(background.clone(), icon_back.clone()).await?)];
+        TEX_BACKGROUND.with(|it| *it.borrow_mut() = Some(background));
+        TEX_ICON_BACK.with(|it| *it.borrow_mut() = Some(icon_back));
+
+        Ok(())
+    }
+
+    async fn new_inner(bgm: Option<Music>) -> Result<Self> {
+        let state = SharedState::new().await?;
         Ok(Self {
             state,
 
             bgm,
 
-            background,
+            background: TEX_BACKGROUND.with(|it| it.borrow().clone().unwrap()),
             btn_back: RectButton::new(),
-            icon_back,
+            icon_back: TEX_ICON_BACK.with(|it| it.borrow().clone().unwrap()),
 
-            pages,
+            pages: Vec::new(),
         })
     }
 }
@@ -90,7 +113,9 @@ impl Scene for MainScene {
         if self.btn_back.touch(touch) {
             button_hit();
             if self.pages.len() == 2 {
-                self.bgm.set_low_pass(0.)?;
+                if let Some(bgm) = &mut self.bgm {
+                    bgm.set_low_pass(0.)?;
+                }
             }
             s.fader.back(s.t);
             return Ok(true);
@@ -114,7 +139,9 @@ impl Scene for MainScene {
             match self.pages.last_mut().unwrap().next_page() {
                 NextPage::Overlay(mut sub) => {
                     if self.pages.len() == 1 {
-                        self.bgm.set_low_pass(LOW_PASS)?;
+                        if let Some(bgm) = &mut self.bgm {
+                            bgm.set_low_pass(LOW_PASS)?;
+                        }
                     }
                     sub.enter(s)?;
                     self.pages.push(sub);

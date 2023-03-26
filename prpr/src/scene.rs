@@ -10,7 +10,7 @@ mod loading;
 pub use loading::{BasicPlayer, LoadingScene};
 
 use crate::{
-    ext::{draw_image, screen_aspect, SafeTexture, ScaleType},
+    ext::{draw_image, poll_future, screen_aspect, LocalTask, SafeTexture, ScaleType},
     judge::Judge,
     time::TimeManager,
     ui::{BillBoard, Dialog, Message, MessageHandle, MessageKind, Ui},
@@ -18,7 +18,7 @@ use crate::{
 use anyhow::{Error, Result};
 use cfg_if::cfg_if;
 use macroquad::prelude::*;
-use std::{any::Any, cell::RefCell, sync::Mutex};
+use std::{any::Any, cell::RefCell, future::Future, sync::Mutex};
 
 #[derive(Default)]
 pub enum NextScene {
@@ -513,4 +513,20 @@ fn draw_illustration(tex: Texture2D, x: f32, y: f32, w: f32, h: f32, color: Colo
     };
     crate::ext::draw_parallelogram(r, Some((tex, tr)), color, true);
     r
+}
+
+thread_local! {
+    static LOAD_SCENE_TASK: RefCell<LocalTask<Result<NextScene>>> = RefCell::new(None);
+}
+
+pub fn load_scene<T: Scene + 'static>(future: impl Future<Output = Result<T>> + 'static) {
+    LOAD_SCENE_TASK.with(|it| *it.borrow_mut() = Some(Box::pin(async move { future.await.map(|scene| NextScene::Overlay(Box::new(scene))) })));
+}
+
+pub fn loading_scene() -> bool {
+    LOAD_SCENE_TASK.with(|it| it.borrow().is_some())
+}
+
+pub fn take_loaded_scene() -> Option<Result<NextScene>> {
+    LOAD_SCENE_TASK.with(|it| it.borrow_mut().as_mut().and_then(|future| poll_future(future.as_mut())))
 }

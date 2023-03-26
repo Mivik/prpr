@@ -16,7 +16,10 @@ use prpr::{
     ext::{poll_future, screen_aspect, semi_black, semi_white, LocalTask, RectExt, SafeTexture, ScaleType},
     fs,
     info::ChartInfo,
-    scene::{show_error, show_message, BasicPlayer, GameMode, LoadingScene, NextScene, RecordUpdateState, Scene},
+    scene::{
+        load_scene, loading_scene, show_error, show_message, take_loaded_scene, BasicPlayer, GameMode, LoadingScene, NextScene, RecordUpdateState,
+        Scene,
+    },
     task::Task,
     time::TimeManager,
     ui::{button_hit, list_switch, DRectButton, Dialog, RectButton, Scroll, Ui, UI_AUDIO},
@@ -99,8 +102,6 @@ pub struct SongScene {
     downloading: Option<Downloading>,
     cancel_download_btn: DRectButton,
     loading_last: f32,
-
-    scene_task: LocalTask<Result<LoadingScene>>,
 }
 
 impl SongScene {
@@ -193,8 +194,6 @@ impl SongScene {
             downloading: None,
             cancel_download_btn: DRectButton::new(),
             loading_last: 0.,
-
-            scene_task: None,
         }
     }
 
@@ -347,7 +346,7 @@ impl Scene for SongScene {
 
     fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
         let t = tm.now() as f32;
-        if self.scene_task.is_some() {
+        if loading_scene() {
             return Ok(false);
         }
         if self.downloading.is_some() {
@@ -377,7 +376,7 @@ impl Scene for SongScene {
                         show_message(tl!("warn-unrated")).warn();
                     }
                     // LoadingScene::new(GameMode::Normal, entry.info.clone(), get_data().config.clone(), todo!(), None, None, None);
-                    self.scene_task = Some(Box::pin(async move {
+                    load_scene(async move {
                         #[derive(Deserialize)]
                         struct Resp {
                             play_token: Option<String>,
@@ -441,7 +440,7 @@ impl Scene for SongScene {
                             })),
                         )
                         .await
-                    }));
+                    });
                 } else {
                     self.start_download()?;
                 }
@@ -524,25 +523,22 @@ impl Scene for SongScene {
                 self.downloading = None;
             }
         }
-        if let Some(task) = &mut self.scene_task {
-            if let Some(result) = poll_future(task.as_mut()) {
-                match result {
-                    Err(err) => {
-                        let error = format!("{err:?}");
-                        Dialog::plain(tl!("failed-to-play"), error)
-                            .buttons(vec![tl!("play-cancel").to_string(), tl!("play-switch-to-offline").to_string()])
-                            .listener(move |pos| {
-                                if pos == 1 {
-                                    get_data_mut().config.offline_mode = true;
-                                    let _ = save_data();
-                                    show_message(tl!("switched-to-offline")).ok();
-                                }
-                            })
-                            .show();
-                    }
-                    Ok(scene) => self.next_scene = Some(NextScene::Overlay(Box::new(scene))),
+        if let Some(res) = take_loaded_scene() {
+            match res {
+                Err(err) => {
+                    let error = format!("{err:?}");
+                    Dialog::plain(tl!("failed-to-play"), error)
+                        .buttons(vec![tl!("play-cancel").to_string(), tl!("play-switch-to-offline").to_string()])
+                        .listener(move |pos| {
+                            if pos == 1 {
+                                get_data_mut().config.offline_mode = true;
+                                let _ = save_data();
+                                show_message(tl!("switched-to-offline")).ok();
+                            }
+                        })
+                        .show();
                 }
-                self.scene_task = None;
+                Ok(scene) => self.next_scene = Some(scene),
             }
         }
         Ok(())

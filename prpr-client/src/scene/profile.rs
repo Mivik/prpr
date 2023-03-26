@@ -4,17 +4,21 @@ use anyhow::Result;
 use macroquad::prelude::*;
 use prpr::{
     ext::{screen_aspect, RectExt, SafeTexture},
-    scene::{show_error, NextScene, Scene},
+    scene::{show_error, show_message, NextScene, Scene},
     task::Task,
     time::TimeManager,
-    ui::{button_hit, rounded_rect_shadow, RectButton, ShadowConfig, Ui},
+    ui::{button_hit, rounded_rect_shadow, DRectButton, RectButton, ShadowConfig, Ui},
 };
 use std::{borrow::Cow, sync::Arc};
 
 use crate::{
+    get_data, get_data_mut,
     page::SFader,
     phizone::{Client, PZUser, UserManager},
+    save_data, sync_data,
 };
+
+use super::{TEX_BACKGROUND, TEX_ICON_BACK};
 
 pub struct ProfileScene {
     id: u64,
@@ -25,13 +29,15 @@ pub struct ProfileScene {
     icon_back: SafeTexture,
     btn_back: RectButton,
 
+    btn_logout: DRectButton,
+
     load_task: Option<Task<Result<Arc<PZUser>>>>,
 
     sf: SFader,
 }
 
 impl ProfileScene {
-    pub fn new(id: u64, background: SafeTexture, icon_back: SafeTexture) -> Self {
+    pub fn new(id: u64) -> Self {
         UserManager::request(id);
 
         let load_task = Some(Task::new(Client::load(id)));
@@ -40,10 +46,12 @@ impl ProfileScene {
             id,
             user: None,
 
-            background,
+            background: TEX_BACKGROUND.with(|it| it.borrow().clone().unwrap()),
 
-            icon_back,
+            icon_back: TEX_ICON_BACK.with(|it| it.borrow().clone().unwrap()),
             btn_back: RectButton::new(),
+
+            btn_logout: DRectButton::new(),
 
             load_task,
 
@@ -77,6 +85,15 @@ impl Scene for ProfileScene {
         let t = tm.now() as f32;
         if self.btn_back.touch(touch) {
             button_hit();
+            self.sf.next(t, NextScene::Pop);
+            return Ok(true);
+        }
+        if self.btn_logout.touch(touch, t) {
+            get_data_mut().me = None;
+            get_data_mut().tokens = None;
+            let _ = save_data();
+            sync_data();
+            show_message(tl!("logged-out")).ok();
             self.sf.next(t, NextScene::Pop);
             return Ok(true);
         }
@@ -115,11 +132,16 @@ impl Scene for ProfileScene {
             let lf = r.x + pad;
             let cx = r.center().x;
             let radius = 0.12;
-            let r = ui.avatar(cx, r.y + radius + 0.05, radius, WHITE, t, Ok(UserManager::get_avatar(self.id)));
+            let mut r = ui.avatar(cx, r.y + radius + 0.05, radius, WHITE, t, Ok(UserManager::get_avatar(self.id)));
+            if get_data().me.as_ref().map_or(false, |it| it.id == self.id) {
+                let hw = 0.2;
+                r = Rect::new(r.center().x - hw, r.bottom() + 0.02, hw * 2., 0.1);
+                self.btn_logout.render_text(ui, r, t, 1., tl!("logout"), 0.6, false);
+            }
             let r = ui
                 .text(&user.name)
                 .size(0.74)
-                .pos(cx, r.bottom() + 0.02)
+                .pos(cx, r.bottom() + 0.03)
                 .anchor(0.5, 0.)
                 .max_width(mw)
                 .draw();
@@ -129,7 +151,8 @@ impl Scene for ProfileScene {
                 .pos(cx, r.bottom() + 0.01)
                 .anchor(0.5, 0.)
                 .draw();
-            let r = ui.text(user.bio.as_deref().unwrap_or(""))
+            let r = ui
+                .text(user.bio.as_deref().unwrap_or(""))
                 .pos(lf, r.y + 0.1)
                 .multiline()
                 .max_width(mw)
