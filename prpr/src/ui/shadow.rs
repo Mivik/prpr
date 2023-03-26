@@ -89,7 +89,7 @@ void main() {
 
     pub const FRAGMENT: &str = r#"#version 100
 // Adapted from https://madebyevan.com/shaders/fast-rounded-rectangle-shadows/
-precision lowp float;
+precision highp float;
 
 varying lowp vec4 color;
 varying lowp vec2 uv;
@@ -159,10 +159,10 @@ float roundedBoxShadow(vec2 lower, vec2 upper, vec2 point, float sigma, float co
   return value * factor;
 }
 
-uniform lowp vec4 rect;
-uniform lowp float elevation;
-uniform lowp float radius;
-uniform lowp float base;
+uniform highp vec4 rect;
+uniform highp float elevation;
+uniform highp float radius;
+uniform highp float base;
 
 void main() {
     gl_FragColor = vec4(0.0, 0.0, 0.0, roundedBoxShadow(rect.xy, rect.zw, uv, elevation, radius) * base);

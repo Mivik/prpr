@@ -228,7 +228,7 @@ impl DRectButton {
             &ShadowConfig {
                 elevation: self.config.elevation * p,
                 base: self.config.base * alpha,
-                radius: self.config.radius * p,
+                radius: self.config.radius,
                 ..self.config
             },
         );

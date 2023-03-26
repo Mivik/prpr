@@ -3,6 +3,7 @@ use crate::{
     core::{Matrix, Point},
     judge::VelocityTracker,
 };
+use macroquad::prelude::info;
 use macroquad::prelude::{Rect, Touch, TouchPhase, Vec2};
 use nalgebra::Translation2;
 
@@ -57,6 +58,7 @@ impl Scroller {
                     self.tracker.reset();
                     self.tracker.push(t, Point::new(val, 0.));
                     self.speed = 0.;
+                    info!("TRIGGERED BY {id}");
                     self.touch = Some((id, val, self.offset, false));
                     self.frame_touched = true;
                 }
@@ -99,7 +101,7 @@ impl Scroller {
     pub fn update(&mut self, t: f32) {
         if !self.frame_touched {
             if let Some((id, ..)) = self.touch {
-                self.touch(id, TouchPhase::Cancelled, 0., 0.);
+                // self.touch(id, TouchPhase::Cancelled, 0., 0.);
             }
         }
         let dt = t - self.last_time;

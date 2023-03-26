@@ -18,7 +18,6 @@ use prpr::{
 pub struct HomePage {
     background: SafeTexture,
     character: SafeTexture,
-    song: SafeTexture,
     icon_play: SafeTexture,
     icon_medal: SafeTexture,
     icon_respack: SafeTexture,
@@ -47,14 +46,12 @@ pub struct HomePage {
 impl HomePage {
     pub async fn new() -> Result<Self> {
         let character = SafeTexture::from(load_texture("char.png").await?).with_mipmap();
-        let song = SafeTexture::from(load_texture("player.jpg").await?).with_mipmap();
         if let Some(u) = &get_data().me {
             UserManager::request(u.id);
         }
         Ok(Self {
             background: TEX_BACKGROUND.with(|it| it.borrow().clone().unwrap()),
             character,
-            song,
             icon_play: load_texture("resume.png").await?.into(),
             icon_medal: load_texture("medal.png").await?.into(),
             icon_respack: load_texture("respack.png").await?.into(),
@@ -154,12 +151,10 @@ impl Page for HomePage {
 
         // play button
         let top = s.render_fader(ui, |ui, c| {
-            let r = Rect::new(0., -0.25, 0.8, 0.43);
+            let r = Rect::new(0., -0.28, 0.8, 0.43);
             let top = r.bottom() + 0.02;
-            let (r, path) = self
-                .btn_play
-                .render_shadow(ui, r, t, c.a, |_| (*self.song, r.feather(0.05), ScaleType::CropCenter, c));
-            ui.fill_path(&path, (semi_black(0.7 * c.a), (r.x, r.y), Color::default(), (r.x + 0.6, r.y)));
+            let (r, path) = self.btn_play.render_shadow(ui, r, t, c.a, |_| semi_black(0.4 * c.a));
+            // ui.fill_path(&path, (semi_black(0.7 * c.a), (r.x, r.y), Color::default(), (r.x + 0.6, r.y)));
             ui.text(tl!("play")).pos(r.x + pad, r.y + pad).color(c).draw();
             let r = Rect::new(r.x + 0.02, r.bottom() - 0.18, 0.17, 0.17);
             ui.fill_rect(r, (*self.icon_play, r, ScaleType::Fit, semi_white(0.6 * c.a)));
