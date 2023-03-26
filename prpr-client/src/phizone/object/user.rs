@@ -86,7 +86,7 @@ impl UserManager {
         tasks.insert(
             id,
             Task::new(async move {
-                let user: Arc<PZUser> = Client::load(id).await?.unwrap();
+                let user: Arc<PZUser> = Client::load(id).await?;
                 RESULTS.lock().await.insert(id, (user.name.clone(), None));
                 let image = user.avatar.fetch().await?;
                 let image = image::load_from_memory(&image)?;

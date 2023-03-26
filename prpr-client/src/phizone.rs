@@ -21,7 +21,7 @@ static CLIENT: Lazy<RwLock<reqwest::Client>> = Lazy::new(|| RwLock::new(reqwest:
 pub struct Client;
 
 // const API_URL: &str = "http://mivik.info:3000";
-const API_URL: &str = "https://devapi.phi.zone";
+const API_URL: &str = "https://api.phi.zone";
 
 pub fn set_access_token_sync(access_token: Option<&str>) -> Result<()> {
     let mut headers = header::HeaderMap::new();
@@ -83,13 +83,13 @@ impl Client {
         CLIENT.read().await.request(method, API_URL.to_string() + path.as_ref())
     }
 
-    pub async fn load<T: PZObject + 'static>(id: u64) -> Result<Option<Arc<T>>> {
+    pub async fn load<T: PZObject + 'static>(id: u64) -> Result<Arc<T>> {
         {
             let map = obtain_map_cache::<T>();
             let mut guard = map.lock().unwrap();
             let Some(actual_map) = guard.downcast_mut::<ObjectMap::<T>>() else { unreachable!() };
             if let Some(value) = actual_map.get(&id) {
-                return Ok(Some(Arc::clone(value)));
+                return Ok(Arc::clone(value));
             }
             drop(guard);
             drop(map);
@@ -97,14 +97,14 @@ impl Client {
         Self::fetch(id).await
     }
 
-    pub async fn fetch<T: PZObject + 'static>(id: u64) -> Result<Option<Arc<T>>> {
+    pub async fn fetch<T: PZObject + 'static>(id: u64) -> Result<Arc<T>> {
         let value = Arc::new(Client::fetch_inner::<T>(id).await?.ok_or_else(|| anyhow!("entry not found"))?);
         let map = obtain_map_cache::<T>();
         let mut guard = map.lock().unwrap();
         let Some(actual_map) = guard.downcast_mut::<ObjectMap::<T>>() else {
             unreachable!()
         };
-        Ok(Some(Arc::clone(actual_map.get_or_insert(id, || value))))
+        Ok(Arc::clone(actual_map.get_or_insert(id, || value)))
     }
 
     async fn fetch_inner<T: PZObject>(id: u64) -> Result<Option<T>> {

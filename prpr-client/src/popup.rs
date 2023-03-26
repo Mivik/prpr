@@ -2,7 +2,7 @@ use crate::page::Fader;
 use macroquad::prelude::*;
 use prpr::{
     ext::{semi_black, semi_white, RectExt},
-    ui::{rounded_rect_shadow, DRectButton, RectButton, Scroll, ShadowConfig, Ui, button_hit},
+    ui::{button_hit, rounded_rect_shadow, DRectButton, RectButton, Scroll, ShadowConfig, Ui},
 };
 
 pub struct Popup {
@@ -112,13 +112,7 @@ impl Popup {
                             btn.set(ui, r);
                             let chosen = id == self.selected;
                             if chosen {
-                                ui.fill_rect(
-                                    r.feather(-0.005),
-                                    Color {
-                                        a: alpha,
-                                        ..Color::from_hex(0xff546e7a)
-                                    },
-                                );
+                                ui.fill_rect(r.feather(-0.005), Color { a: alpha, ..ui.background() });
                             }
                             ui.text(opt.as_str())
                                 .pos(self.left, self.height / 2.)

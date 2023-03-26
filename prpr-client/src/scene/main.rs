@@ -53,10 +53,10 @@ impl MainScene {
 
         let mut state = SharedState::new().await?;
 
-        let background = load_texture("street.jpg").await?.into();
+        let background: SafeTexture = load_texture("street.jpg").await?.into();
         let icon_back: SafeTexture = load_texture("back.png").await?.into();
 
-        let pages: Vec<Box<dyn Page>> = vec![Box::new(HomePage::new(icon_back.clone()).await?)];
+        let pages: Vec<Box<dyn Page>> = vec![Box::new(HomePage::new(background.clone(), icon_back.clone()).await?)];
         Ok(Self {
             state,
 

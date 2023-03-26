@@ -459,7 +459,7 @@ impl Slider {
             0.02,
             Color {
                 a: c.a * 0.8,
-                ..Color::from_hex(0xff546e7a)
+                ..ui.background()
             },
         );
         ui.stroke_path(
@@ -781,7 +781,11 @@ impl<'a> Ui<'a> {
     }
 
     pub fn accent(&self) -> Color {
-        Color::from_rgba(0x21, 0x96, 0xf3, 0xff)
+        Color::from_hex(0xff2196f3)
+    }
+
+    pub fn background(&self) -> Color {
+        Color::from_hex(0xff546e7a)
     }
 
     pub fn button(&mut self, id: &str, rect: Rect, text: impl Into<String>) -> bool {

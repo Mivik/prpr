@@ -245,13 +245,7 @@ impl Login {
             self.fader.for_sub(|f| {
                 f.render(ui, t, |ui, c| {
                     let wr = Self::dialog_rect();
-                    ui.fill_path(
-                        &wr.rounded(0.02),
-                        Color {
-                            a: c.a,
-                            ..Color::from_hex(0xff546e7a)
-                        },
-                    );
+                    ui.fill_path(&wr.rounded(0.02), Color { a: c.a, ..ui.background() });
                     ui.scissor(Some(wr));
 
                     let p = (if self.start_time.is_nan() {

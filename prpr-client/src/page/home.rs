@@ -11,6 +11,7 @@ use prpr::{
 };
 
 pub struct HomePage {
+    background: SafeTexture,
     character: SafeTexture,
     song: SafeTexture,
     icon_play: SafeTexture,
@@ -39,13 +40,14 @@ pub struct HomePage {
 }
 
 impl HomePage {
-    pub async fn new(icon_back: SafeTexture) -> Result<Self> {
+    pub async fn new(background: SafeTexture, icon_back: SafeTexture) -> Result<Self> {
         let character = SafeTexture::from(load_texture("char.png").await?).with_mipmap();
         let song = SafeTexture::from(load_texture("player.jpg").await?).with_mipmap();
         if let Some(u) = &get_data().me {
             UserManager::request(u.id);
         }
         Ok(Self {
+            background,
             character,
             song,
             icon_play: load_texture("resume.png").await?.into(),
@@ -121,7 +123,7 @@ impl Page for HomePage {
         if self.btn_user.touch(touch, t) {
             if let Some(me) = &get_data().me {
                 self.need_back = true;
-                self.sf.goto(t, ProfileScene::new(me.id, self.icon_back.clone()));
+                self.sf.goto(t, ProfileScene::new(me.id, self.background.clone(), self.icon_back.clone()));
             } else {
                 self.login.enter(t);
             }
@@ -141,7 +143,7 @@ impl Page for HomePage {
         let pad = 0.04;
 
         s.render_fader(ui, |ui, c| {
-            let r = Rect::new(-0.8, -ui.top + 0.1, 0.7, 1.3);
+            let r = Rect::new(-1., -ui.top + 0.1, 1., 1.7);
             ui.fill_rect(r, (*self.character, r, ScaleType::CropCenter, c));
         });
 

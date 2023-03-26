@@ -163,7 +163,7 @@ impl<T: PZObject + 'static> Ptr<T> {
 
     #[inline]
     pub async fn fetch(&self) -> Result<Arc<T>> {
-        Client::fetch(self.id()).await.map(|it| it.unwrap())
+        Client::fetch(self.id()).await
     }
 
     pub async fn load(&self) -> Result<Arc<T>> {
