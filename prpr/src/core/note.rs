@@ -163,7 +163,7 @@ impl Note {
         tr.y += base;
         let mut scale = self.object.scale.now_with_def(1., 1.);
         scale.x *= ctrl_obj.size.now_opt().unwrap_or(1.);
-        self.object.now_rotation().append_translation(&tr).append_nonuniform_scaling(&scale)
+        self.object.now_rotation().append_nonuniform_scaling(&scale).append_translation(&tr)
     }
 
     pub fn render(&self, res: &mut Resource, config: &mut RenderConfig, bpm_list: &mut BpmList) {
