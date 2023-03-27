@@ -38,7 +38,7 @@ impl<'a, T: Iterator<Item = &'a str>> Take for T {
             .ok_or_else(|| anyhow!("Unexpected end of line"))
             .and_then(|it| -> Result<u8> {
                 let t = it.parse::<u8>()?;
-                Ok(*RPE_TWEEN_MAP.get(t as usize).ok_or_else(|| anyhow!("Unknown tween id {t}"))?)
+                Ok(RPE_TWEEN_MAP.get(t as usize).copied().unwrap_or(RPE_TWEEN_MAP[0]))
             })
             .context("Expected tween")
     }
@@ -205,8 +205,8 @@ pub fn parse_pec(source: &str, extra: ChartExtra) -> Result<Chart> {
     macro_rules! last_note {
         () => {{
             let Some(last_line) = last_line else {
-                                                                bail!("No note has been inserted yet");
-                                                            };
+                bail!("No note has been inserted yet");
+            };
             lines[last_line].notes.last_mut().unwrap()
         }};
     }
