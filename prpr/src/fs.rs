@@ -216,7 +216,7 @@ impl FileSystem for ZipFileSystem {
     }
 
     async fn exists(&mut self, path: &str) -> Result<bool> {
-        Ok(self.0.lock().unwrap().by_name(path).is_ok())
+        Ok(self.0.lock().unwrap().by_name(&concat_string!(self.1, path)).is_ok())
     }
 
     fn list_root(&self) -> Result<Vec<String>> {
@@ -225,7 +225,7 @@ impl FileSystem for ZipFileSystem {
             .lock()
             .unwrap()
             .file_names()
-            .filter(|it| !it.contains('/'))
+            .filter(|it| it.strip_prefix(&self.1).map_or(false, |it| !it.contains('/')))
             .map(str::to_owned)
             .collect())
     }
