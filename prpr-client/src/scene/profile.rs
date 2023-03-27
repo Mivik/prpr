@@ -9,7 +9,7 @@ use prpr::{
     time::TimeManager,
     ui::{button_hit, rounded_rect_shadow, DRectButton, RectButton, ShadowConfig, Ui},
 };
-use std::{borrow::Cow, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     get_data, get_data_mut,

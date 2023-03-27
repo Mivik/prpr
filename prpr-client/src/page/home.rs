@@ -2,16 +2,19 @@ prpr::tl_file!("home");
 
 use super::{LibraryPage, NextPage, Page, SFader, SettingsPage, SharedState};
 use crate::{
-    get_data,
+    get_data, get_data_mut,
     login::Login,
-    phizone::UserManager,
+    phizone::{Client, PZUser, UserManager},
+    save_data,
     scene::{ProfileScene, TEX_BACKGROUND, TEX_ICON_BACK},
+    sync_data,
 };
 use anyhow::Result;
 use macroquad::prelude::*;
 use prpr::{
     ext::{semi_black, semi_white, RectExt, SafeTexture, ScaleType},
-    scene::{show_message, NextScene},
+    scene::{show_error, show_message, NextScene},
+    task::Task,
     ui::{button_hit_large, DRectButton, Ui},
 };
 
@@ -38,6 +41,7 @@ pub struct HomePage {
     next_page: Option<NextPage>,
 
     login: Login,
+    update_task: Option<Task<Result<PZUser>>>,
 
     need_back: bool,
     sf: SFader,
@@ -46,9 +50,15 @@ pub struct HomePage {
 impl HomePage {
     pub async fn new() -> Result<Self> {
         let character = SafeTexture::from(load_texture("char.png").await?).with_mipmap();
-        if let Some(u) = &get_data().me {
+        let update_task = if let Some(u) = &get_data().me {
             UserManager::request(u.id);
-        }
+            Some(Task::new(async {
+                Client::refresh(&get_data().tokens.as_ref().unwrap().1).await?;
+                Client::get_me().await
+            }))
+        } else {
+            None
+        };
         Ok(Self {
             background: TEX_BACKGROUND.with(|it| it.borrow().clone().unwrap()),
             character,
@@ -72,6 +82,7 @@ impl HomePage {
             next_page: None,
 
             login: Login::new(),
+            update_task,
 
             need_back: false,
             sf: SFader::new(),
@@ -137,6 +148,21 @@ impl Page for HomePage {
     fn update(&mut self, s: &mut SharedState) -> Result<()> {
         let t = s.t;
         self.login.update(t)?;
+        if let Some(task) = &mut self.update_task {
+            if let Some(res) = task.take() {
+                if let Err(err) = res {
+                    // wtf bro
+                    if format!("{err:?}").contains("invalid access token") {
+                        get_data_mut().me = None;
+                        get_data_mut().tokens = None;
+                        let _ = save_data();
+                        sync_data();
+                    }
+                    show_error(err.context(tl!("failed-to-update")));
+                }
+                self.update_task = None;
+            }
+        }
         Ok(())
     }
 

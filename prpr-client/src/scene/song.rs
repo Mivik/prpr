@@ -13,7 +13,7 @@ use futures_util::StreamExt;
 use macroquad::prelude::*;
 use prpr::{
     config::Config,
-    ext::{poll_future, screen_aspect, semi_black, semi_white, LocalTask, RectExt, SafeTexture, ScaleType},
+    ext::{screen_aspect, semi_black, semi_white, RectExt, SafeTexture, ScaleType},
     fs,
     info::ChartInfo,
     scene::{
@@ -372,7 +372,7 @@ impl Scene for SongScene {
                     };
                     #[cfg(not(feature = "closed"))]
                     let rated = false;
-                    if !rated && entry.info.id.is_some() && !get_data().config.offline_mode {
+                    if !rated && entry.info.id.is_some() {
                         show_message(tl!("warn-unrated")).warn();
                     }
                     // LoadingScene::new(GameMode::Normal, entry.info.clone(), get_data().config.clone(), todo!(), None, None, None);
@@ -386,7 +386,7 @@ impl Scene for SongScene {
                         if rated {
                             let resp: Resp = recv_raw(Client::get("/player/play/").await.query(&json!({
                                 "chart": info.id.unwrap().0,
-                                "config": 1,
+                                "config": 2,
                             })))
                             .await?
                             .json()
