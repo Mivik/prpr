@@ -3,7 +3,6 @@ use crate::{
     core::{Matrix, Point},
     judge::VelocityTracker,
 };
-use macroquad::prelude::info;
 use macroquad::prelude::{Rect, Touch, TouchPhase, Vec2};
 use nalgebra::Translation2;
 
