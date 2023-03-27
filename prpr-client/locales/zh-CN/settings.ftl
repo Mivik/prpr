@@ -22,6 +22,7 @@ item-cali = 调整延迟
 
 item-autoplay = 自动游玩
 item-autoplay-sub = 启用后将无法上传成绩
+item-dc-pause = 双击暂停
 item-dhint = 双押提示
 item-dhint-sub = 同时触线的音符将会被高亮
 item-opt = 激进优化

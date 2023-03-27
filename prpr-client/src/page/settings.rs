@@ -254,7 +254,7 @@ impl GeneralList {
                         .and_then(|ident| LANG_IDENTS.iter().position(|it| *it == ident))
                         .unwrap_or_default(),
                 ),
-                offline_btn: DRectButton::new(),
+            offline_btn: DRectButton::new(),
             lowq_btn: DRectButton::new(),
         }
     }
@@ -430,6 +430,7 @@ impl AudioList {
 
 struct ChartList {
     autoplay_btn: DRectButton,
+    dc_pause_btn: DRectButton,
     dhint_btn: DRectButton,
     opt_btn: DRectButton,
 }
@@ -438,6 +439,7 @@ impl ChartList {
     pub fn new() -> Self {
         Self {
             autoplay_btn: DRectButton::new(),
+            dc_pause_btn: DRectButton::new(),
             dhint_btn: DRectButton::new(),
             opt_btn: DRectButton::new(),
         }
@@ -452,6 +454,10 @@ impl ChartList {
         let config = &mut data.config;
         if self.autoplay_btn.touch(touch, t) {
             config.autoplay ^= true;
+            return Ok(Some(true));
+        }
+        if self.dc_pause_btn.touch(touch, t) {
+            config.double_click_to_pause ^= true;
             return Ok(Some(true));
         }
         if self.dhint_btn.touch(touch, t) {
@@ -486,6 +492,10 @@ impl ChartList {
         item! {
             render_title(ui, c, tl!("item-autoplay"), Some(tl!("item-autoplay-sub")));
             render_switch(ui, rr, t, c, &mut self.autoplay_btn, config.autoplay);
+        }
+        item! {
+            render_title(ui, c, tl!("item-dc-pause"), None);
+            render_switch(ui, rr, t, c, &mut self.dc_pause_btn, config.double_click_to_pause);
         }
         item! {
             render_title(ui, c, tl!("item-dhint"), Some(tl!("item-dhint-sub")));
