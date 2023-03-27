@@ -58,7 +58,6 @@ impl Scroller {
                     self.tracker.reset();
                     self.tracker.push(t, Point::new(val, 0.));
                     self.speed = 0.;
-                    info!("TRIGGERED BY {id}");
                     self.touch = Some((id, val, self.offset, false));
                     self.frame_touched = true;
                 }

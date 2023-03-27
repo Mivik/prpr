@@ -239,13 +239,8 @@ impl ChooseButton {
             .render_text(ui, r, t, alpha, &self.popup.options[self.popup.selected].0, self.popup.size, false);
         if self.need_to_show {
             let pad = 0.007;
-            let mut rr = Rect::new(r.x, r.bottom() + pad, self.width.unwrap_or(r.w), self.height);
-            if rr.bottom() > ui.top {
-                self.popup.set_bottom(false);
-                rr.y = r.y - pad - rr.h;
-            } else {
-                self.popup.set_bottom(true);
-            }
+            let rr = Rect::new(r.x, r.bottom() + pad, self.width.unwrap_or(r.w), self.height);
+            self.popup.set_bottom(true);
             self.popup.show(ui, t, rr);
             self.need_to_show = false;
         }

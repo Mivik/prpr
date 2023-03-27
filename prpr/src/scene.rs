@@ -528,5 +528,16 @@ pub fn loading_scene() -> bool {
 }
 
 pub fn take_loaded_scene() -> Option<Result<NextScene>> {
-    LOAD_SCENE_TASK.with(|it| it.borrow_mut().as_mut().and_then(|future| poll_future(future.as_mut())))
+    LOAD_SCENE_TASK.with(|it| {
+        let mut guard = it.borrow_mut();
+        if let Some(task) = guard.as_mut() {
+            let res = poll_future(task.as_mut());
+            if res.is_some() {
+                *guard = None;
+            }
+            res
+        } else {
+            None
+        }
+    })
 }

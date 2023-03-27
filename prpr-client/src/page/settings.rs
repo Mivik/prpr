@@ -235,6 +235,7 @@ struct GeneralList {
     icon_lang: SafeTexture,
 
     lang_btn: ChooseButton,
+    offline_btn: DRectButton,
     lowq_btn: DRectButton,
 }
 
@@ -253,6 +254,7 @@ impl GeneralList {
                         .and_then(|ident| LANG_IDENTS.iter().position(|it| *it == ident))
                         .unwrap_or_default(),
                 ),
+                offline_btn: DRectButton::new(),
             lowq_btn: DRectButton::new(),
         }
     }
@@ -269,6 +271,10 @@ impl GeneralList {
         let config = &mut data.config;
         if self.lang_btn.touch(touch, t) {
             return Ok(Some(false));
+        }
+        if self.offline_btn.touch(touch, t) {
+            config.offline_mode ^= true;
+            return Ok(Some(true));
         }
         if self.lowq_btn.touch(touch, t) {
             config.sample_count = if config.sample_count == 1 { 2 } else { 1 };
@@ -308,6 +314,10 @@ impl GeneralList {
             let r = Rect::new(rt + 0.01, (ITEM_HEIGHT - w) / 2., w, w);
             ui.fill_rect(r, (*self.icon_lang, r, ScaleType::Fit, c));
             self.lang_btn.render(ui, rr, t, c.a);
+        }
+        item! {
+            render_title(ui, c, tl!("item-offline"), Some(tl!("item-offline-sub")));
+            render_switch(ui, rr, t, c, &mut self.offline_btn, config.offline_mode);
         }
         item! {
             render_title(ui, c, tl!("item-lowq"), Some(tl!("item-lowq-sub")));
