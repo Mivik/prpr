@@ -19,7 +19,6 @@ use prpr::{
 };
 
 pub struct HomePage {
-    background: SafeTexture,
     character: SafeTexture,
     icon_play: SafeTexture,
     icon_medal: SafeTexture,
@@ -60,7 +59,6 @@ impl HomePage {
             None
         };
         Ok(Self {
-            background: TEX_BACKGROUND.with(|it| it.borrow().clone().unwrap()),
             character,
             icon_play: load_texture("resume.png").await?.into(),
             icon_medal: load_texture("medal.png").await?.into(),
